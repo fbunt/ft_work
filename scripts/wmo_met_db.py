@@ -22,7 +22,7 @@ _EXCEPTION = "exception"
 
 _LOG = {
     _INFO: logging.info,
-    _WARN: logging.warn,
+    _WARN: logging.warning,
     _ERROR: logging.error,
     _CRITICAL: logging.critical,
     _EXCEPTION: logging.exception,
