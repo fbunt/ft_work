@@ -12,7 +12,7 @@ def load_flat_binary_file(fname, nrows, ncols, dtype):
     return np.fromfile(fname, dtype=dtype).reshape((nrows, ncols))
 
 
-def load_ssmi_tb_file(fname):
+def load_tb_file(fname):
     # Data is stored as binary integers. Divide by 10 to recover float values
     return load_flat_binary_file(fname, EASE_ROWS, EASE_COLS, "<h") / 10.0
 
