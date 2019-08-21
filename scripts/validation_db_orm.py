@@ -23,8 +23,10 @@ class DbWMOMetStation(DbBase):
 
     __tablename__ = "wmo_met_stations"
 
+    id = Column(Integer, primary_key=True)
+
     # Int version of usaf id
-    station_id = Column("station_id", Integer, primary_key=True)
+    station_id = Column("station_id", Integer, nullable=False, unique=True)
     # USAF ID string (hex)
     usaf_id_str = Column("usaf_id_str", String(_STATION_USAF_SIZE))
     # WBAN ID string
@@ -64,7 +66,9 @@ class DbWMOMeanDate(DbBase):
 
     __tablename__ = "wmo_mean_dates"
 
-    date_int = Column("date_int", Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, nullable=False, unique=True)
+
+    date_int = Column("date_int", Integer)
     date = Column("date", DateTime)
 
     temperature_means = relationship(
@@ -91,19 +95,25 @@ class DbWMOMetDailyTempMean(DbBase):
 
     __tablename__ = "wmo_met_daily_mean_data"
 
+    id = Column(Integer, primary_key=True)
+
     # ID of station that took the samples for the mean
     station_id = Column(
         "station_id",
         Integer,
         ForeignKey(DbWMOMetStation.station_id),
-        primary_key=True,
+        nullable=False,
+        unique=True,
+        index=True,
     )
     # Date of sample as int
     date_int = Column(
         "date_int",
         Integer,
         ForeignKey(DbWMOMeanDate.date_int),
-        primary_key=True,
+        nullable=False,
+        unique=True,
+        index=True,
     )
     # The number of hourly samples used for the mean.
     nsamples = Column("nsamples", Integer)
