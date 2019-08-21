@@ -3,7 +3,6 @@ import glob
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-import re
 import shutil
 import tqdm
 
@@ -14,7 +13,6 @@ class TbDataWrapper:
     def __init__(self, data_pattern):
         self._pat = data_pattern
         self._files = sorted(glob.glob(data_pattern))
-        print(self._files)
         if not len(self._files):
             raise IOError(f"No files found with pattern: '{data_pattern}'")
         r, s = np.meshgrid(range(tbmod.EASE_COLS), range(tbmod.EASE_ROWS))
