@@ -303,8 +303,15 @@ def ease1_rowcol_indices_to_lonlat(rows, cols, grid_name=ML):
         gamma[np.abs(gamma) > 1] = np.nan
         v = np.arcsin(gamma, out=gamma)
         v *= 2.0
-        beta = (np.cos(v) * sinphi1) + (y * np.sin(v) * (cosphi1 / rho))
+        beta = np.full_like(rho, np.nan)
+        cond = rho != 0
+        beta[cond] = (np.cos(v[cond]) * sinphi1) + (
+            y[cond] * np.sin(v[cond]) * (cosphi1 / rho[cond])
+        )
+        # prevent runtime warning from nan's in comparison
+        np.seterr(invalid="ignore")
         beta[np.abs(beta) > 1] = np.nan
+        np.seterr(invalid="warn")
         phi = np.arcsin(beta)
         lat[:] = np.degrees(phi)
         lon[:] = np.degrees(lam)
