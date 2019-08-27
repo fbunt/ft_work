@@ -94,8 +94,8 @@ def _to_arrays(x, y):
         y = [y]
     mismatch = (True in (xscalar, yscalar)) and (False in (xscalar, yscalar))
     scalars = xscalar and yscalar
-    x = np.array(x)
-    y = np.array(y)
+    x = np.array(x, dtype=float)
+    y = np.array(y, dtype=float)
     return x, y, scalars, mismatch
 
 
