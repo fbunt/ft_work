@@ -99,21 +99,25 @@ def _to_arrays(x, y):
     return x, y, scalars, mismatch
 
 
-def _check_array_shape(x, y):
+def _validate_array_shape(x, y):
     if x.shape != y.shape:
         raise ValueError("Input shapes must match")
     return True
 
 
-def _handle_inputs(x, y, grid_name):
-    if grid_name not in GRID_NAMES:
+def _validate_grid_name(name):
+    if name not in GRID_NAMES:
         raise ValueError("Invalid grid name")
+
+
+def _handle_inputs(x, y, grid_name):
+    _validate_grid_name(grid_name)
     x, y, scalars, mismatched = _to_arrays(x, y)
     if mismatched:
         raise TypeError(
             "Inputs must either both be scalars or both be arrays."
         )
-    _check_array_shape(x, y)
+    _validate_array_shape(x, y)
     return x, y, scalars
 
 
