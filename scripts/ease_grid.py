@@ -138,7 +138,7 @@ def ease1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
             The EASE grid key name. Must be one of the keys found in
             `ease_grid.GRID_NAMES`
         to_int : boolean
-            If `True`, results will be converted to integers.
+            If `True`, results will be rounded and converted to integers.
 
     Returns:
         (rows, cols) : tuple of scalars or `numpy.ndarray`s
@@ -201,8 +201,8 @@ def ease1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
         s = np.negative(s, out=s)
         s += s0
     if to_int:
-        r = r.astype(int)
-        s = s.astype(int)
+        r = np.round(r, out=r).astype(int)
+        s = np.round(s, out=s).astype(int)
     if scalars:
         rows = s.min()
         cols = r.min()
