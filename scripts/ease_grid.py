@@ -1,5 +1,6 @@
 import numpy as np
 import pyproj
+import re
 
 
 # EASE Grid 1.0
@@ -473,3 +474,48 @@ def ease1_get_full_grid_lonlat(grid_name):
     """
     rows, cols = ease1_get_full_grid_coords(grid_name)
     return ease1_rowcol_coords_to_lonlat(rows, cols, grid_name)
+
+
+_EPSG_PAT = re.compile("(?:epsg:|EPSG:)?(\\d{4})")
+_EPSG_FMT = "epsg:{}"
+
+
+def _get_proj(proj):
+    if isinstance(proj, pyproj.Proj):
+        return proj
+    elif isinstance(proj, str):
+        m = _EPSG_PAT.match(proj)
+        if m is None:
+            raise ValueError(
+                f"Could not determine EPSG code from input: '{proj}'"
+            )
+        code = m.group(1)[0]
+        return pyproj.Proj(init=_EPSG_FMT.format(code), preserve_unites=False)
+    raise TypeError(
+        f"proj type must be as tring or pyrpoj.Proj object, not {type(proj)}"
+    )
+
+
+def ease1_meters_to_proj(xm, ym, ease_grid_name, proj):
+    """Convert EASE-grid coordinates to the specified projection.
+
+    Parameters:
+        xm : scalar or array-like
+            The EASE grid x coordinate(s).
+        ym : scalar or array-like
+            The EASE grid y coordinate(s).
+        ease_grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+        proj : str or pyproj.Proj
+            Either a string specifiying the EPSG code (eg "epsg:3410", "3410")
+            or a pyporj.Proj projection object.
+
+    Returns:
+        (xm2, ym2) : tuple of scalars or arrays
+            The reprojected x and y coordinates.
+    """
+    _validate_grid_name(ease_grid_name)
+    proj2 = _get_proj(proj)
+    eproj = GRID_NAME_TO_PROJ[ease_grid_name]
+    return pyproj.transform(eproj, proj2, xm, ym)
