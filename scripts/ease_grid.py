@@ -121,7 +121,7 @@ def _handle_inputs(x, y, grid_name):
     return x, y, scalars
 
 
-def ease1_lonlat_to_rowcol_indices(lon, lat, grid_name=ML, to_int=False):
+def ease1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
     """Convert lon/lat points to EASE-grid cell coordinates (indices).
 
     Inputs can be scalars or arrays, but the type must be consistent. If
@@ -212,17 +212,17 @@ def ease1_lonlat_to_rowcol_indices(lon, lat, grid_name=ML, to_int=False):
     return rows, cols
 
 
-def ease1_rowcol_indices_to_lonlat(rows, cols, grid_name=ML):
-    """Convert row/col indices to lon/lat values.
+def ease1_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
+    """Convert row/col coords (indices) to lon/lat values.
 
     This function accepts scalars and arrays, but the type/shapes must match.
 
     Parameters:
         rows : scalar or array-like
-            A single row index or array of row indices. Must match the shape of
+            A single row index or array of row coords. Must match the shape of
             `cols`
         cols : scalar or array-like
-            A single col index or array of col indices. Must match the shape of
+            A single col index or array of col coords. Must match the shape of
             `rows`
         grid_name : str
             The EASE grid key name. Must be one of the keys found in
