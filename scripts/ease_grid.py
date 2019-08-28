@@ -394,6 +394,63 @@ def ease1_meters_to_lonlat(xm, ym, grid_name=ML):
     return lon, lat
 
 
+def ease1_meters_to_rowcol_coords(xm, ym, grid_name="ML", to_int=False):
+    """Convert EASE-grid projected coordinates in meters to EASE-grid cell
+    coordinates (indices).
+
+    Inputs can be scalars or arrays, but the type must be consistent. If
+    scalars are used as input, the results will also be scalars.
+
+    Parameters:
+        xm : scalar or array-like
+            A single EASE-grid x coordinate in meters or an array of points.
+            Must match the shape of `ym`.
+        ym : scalar or array-like
+            A single EASE-grid y coordinate in meters or an array of points.
+            Must match the shape of `xm`.
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+        to_int : boolean
+            If `True`, results will be rounded and converted to integers.
+
+    Returns:
+        (rows, cols) : tuple of scalars or `numpy.ndarray`s
+            The resulting grid coordinates (indices). Scalars are returned if
+            the inputs were also scalars, otherwise arrays.
+    """
+    lon, lat = ease1_meters_to_lonlat(xm, ym, grid_name=grid_name)
+    return ease1_lonlat_to_rowcol_coords(
+        lon, lat, grid_name=grid_name, to_int=to_int
+    )
+
+
+def ease1_rowcol_coords_to_meters(rows, cols, grid_name):
+    """Convert EASE-grid row/col coordinates (indices) to EASE-grid projected
+    coordinates in meters.
+
+    This function accepts scalars and arrays, but the type/shapes must match.
+
+    Parameters:
+        rows : scalar or array-like
+            A single row index or array of row coords. Must match the shape of
+            `cols`
+        cols : scalar or array-like
+            A single col index or array of col coords. Must match the shape of
+            `rows`
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+
+    Returns:
+        (xm, ym) : tuple of scalars or `numpy.ndarray`s
+            The resulting x/y projection points in meters. Scalars are returned
+            if the inputs were also scalars, otherwise arrays.
+    """
+    lon, lat = ease1_rowcol_coords_to_lonlat(rows, cols, grid_name=grid_name)
+    return ease1_lonlat_to_meters(lon, lat, grid_name=grid_name)
+
+
 def ease1_get_full_grid_coords(grid_name):
     """Return the full set of EASE grid coordinates for the specified grid.
 
