@@ -4,6 +4,7 @@ import pyproj
 
 # EASE Grid 1.0
 # Ref: https://web.archive.org/web/20190217144552/https://nsidc.org/data/ease/ease_grid.html  # noqa: E501
+# Ref: https://nsidc.org/ease/ease-grid-projection-gt
 # +------+-----------------+------+---------------+----------------------------------+-----------------------------------------+  # noqa: E501
 # |      |   Projection    |      |  Dimensions   |              Origin              |               Grid Extent               |  # noqa: E501
 # + Grid +       /         + EPSG +-------+-------+---------+--------+--------+------+---------+----------+----------+---------+  # noqa: E501
