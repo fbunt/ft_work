@@ -364,34 +364,24 @@ def ease1_meters_to_lonlat(xm, ym, grid_name=ML):
     """Convert x/y points (in meters) from the specified EASE-grid projection
     to lon/lat points.
 
-    This function accepts scalars and arrays, but the type/shapes must match.
-
     Parameters:
         xm : scalar or array-like
             A single EASE-grid x coordinate in meters or an array of points.
-            Must match the shape of `ym`.
         ym : scalar or array-like
             A single EASE-grid y coordinate in meters or an array of points.
-            Must match the shape of `xm`.
         grid_name : str
             The EASE grid key name. Must be one of the keys found in
             `ease_grid.GRID_NAMES`
 
     Returns:
         (lon, lat) : tuple of scalars or `numpy.ndarray`s
-            The resulting lon/lat points. Scalars are returned if the inputs
-            were also scalars, otherwise arrays.
+            The resulting lon/lat points.
 
     References:
         * https://nsidc.org/ease/ease-grid-projection-gt
     """
-    xm, ym, scalars = _handle_inputs(xm, ym, grid_name=ML)
-
-    lon, lat = GRID_NAME_TO_PROJ[grid_name](xm, ym, inverse=True)
-    if scalars:
-        lon = lon.min()
-        lat = lat.min()
-    return lon, lat
+    _validate_grid_name(grid_name)
+    return GRID_NAME_TO_PROJ[grid_name](xm, ym, inverse=True)
 
 
 def ease1_meters_to_rowcol_coords(xm, ym, grid_name="ML", to_int=False):
