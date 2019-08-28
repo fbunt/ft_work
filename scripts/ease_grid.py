@@ -308,10 +308,10 @@ def ease1_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
         beta[cond] = (np.cos(v[cond]) * sinphi1) + (
             y[cond] * np.sin(v[cond]) * (cosphi1 / rho[cond])
         )
-        # prevent runtime warning from nan's in comparison
-        np.seterr(invalid="ignore")
-        beta[np.abs(beta) > 1] = np.nan
-        np.seterr(invalid="warn")
+        # Prevent runtime warning from nan's in comparison
+        # Use array view property of ndarray
+        beta_not_nan = beta[~np.isnan(beta)]
+        beta_not_nan[np.abs(beta_not_nan) > 1] = np.nan
         phi = np.arcsin(beta)
         lat[:] = np.degrees(phi)
         lon[:] = np.degrees(lam)
