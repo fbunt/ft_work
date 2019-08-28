@@ -393,8 +393,8 @@ def ease1_meters_to_lonlat(xm, ym, grid_name=ML):
     return lon, lat
 
 
-def ease1_get_grid_coords(grid_name):
-    """Return the EASE grid coordinates for the specified grid.
+def ease1_get_full_grid_coords(grid_name):
+    """Return the full set of EASE grid coordinates for the specified grid.
 
     Parameters:
         grid_name : str
@@ -411,8 +411,8 @@ def ease1_get_grid_coords(grid_name):
     return rows, cols
 
 
-def ease1_get_grid_lonlat(grid_name):
-    """Return the lon/lat points for the specified EASE grid.
+def ease1_get_full_grid_lonlat(grid_name):
+    """Return the full set of lon/lat points for the specified EASE grid.
 
     Parameters:
         grid_name : str
@@ -423,5 +423,5 @@ def ease1_get_grid_lonlat(grid_name):
         (lon, lat) : tuple of 2D ndarrays
             The resulting lon/lat arrays
     """
-    rows, cols = ease1_get_grid_coords(grid_name)
+    rows, cols = ease1_get_full_grid_coords(grid_name)
     return ease1_rowcol_coords_to_lonlat(rows, cols, grid_name)
