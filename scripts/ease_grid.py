@@ -179,7 +179,7 @@ def ease1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
         s += s0
     elif grid_name in (NL, NH):
         # North
-        rho = 2.0 * Rg * np.sin((np.pi / 4) - (phi / 4))
+        rho = 2.0 * Rg * np.sin((np.pi / 4) - (phi / 2))
         # r[:] = r0 + (rho * np.sin(lam))
         r = np.sin(lam, out=r)
         r *= rho
@@ -190,7 +190,7 @@ def ease1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
         s += s0
     else:
         # South
-        rho = 2.0 * Rg * np.cos((np.pi / 4) - (phi / 4))
+        rho = 2.0 * Rg * np.cos((np.pi / 4) - (phi / 2))
         # r[:] = r0 + (rho * np.sin(lam))
         r = np.sin(lam, out=r)
         r *= rho
