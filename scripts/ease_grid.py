@@ -391,3 +391,37 @@ def ease1_meters_to_lonlat(xm, ym, grid_name=ML):
         lon = lon.min()
         lat = lat.min()
     return lon, lat
+
+
+def ease1_get_grid_coords(grid_name):
+    """Return the EASE grid coordinates for the specified grid.
+
+    Parameters:
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+
+    Returns:
+        (rows, cols) : tuple of 2D ndarrays
+            The resulting grid coordinate arrays.
+    """
+    _validate_grid_name(grid_name)
+    nr, nc = GRID_NAME_TO_SHAPE[grid_name]
+    cols, rows = np.meshgrid(range(nc), range(nr))
+    return rows, cols
+
+
+def ease1_get_grid_lonlat(grid_name):
+    """Return the lon/lat points for the specified EASE grid.
+
+    Parameters:
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+
+    Returns:
+        (lon, lat) : tuple of 2D ndarrays
+            The resulting lon/lat arrays
+    """
+    rows, cols = ease1_get_grid_coords(grid_name)
+    return ease1_rowcol_coords_to_lonlat(rows, cols, grid_name)
