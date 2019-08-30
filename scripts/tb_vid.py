@@ -17,15 +17,16 @@ class TbDataWrapper:
             raise IOError(f"No files found with pattern: '{data_pattern}'")
         r, s = np.meshgrid(range(tbmod.EASE_COLS), range(tbmod.EASE_ROWS))
         self.lon, self.lat = tbmod.ease_inverse(r, s)
-        self._dates = []
-        self._grids = None
+        self.dates = []
+        self.data = np.zeros(
+            (len(self._files), tbmod.EASE_ROWS, tbmod.EASE_COLS)
+        )
         self._load()
         self.min = self._grids.min()
         self.max = self._grids.max()
 
     def _load(self):
         dates = []
-        grids = np.zeros((len(self), tbmod.EASE_ROWS, tbmod.EASE_COLS))
         print("Loading...")
         for i, f in enumerate(tqdm.tqdm(self._files, ncols=80)):
             base = os.path.basename(f)
@@ -35,9 +36,8 @@ class TbDataWrapper:
             dt = dt_year + np.timedelta64(int(doy) - 1, "D")
             grid = tbmod.load_tb_file(f)
             dates.append(dt)
-            grids[i] = grid
-        self._dates = dates
-        self._grids = grids
+            self.data[i] = grid
+        self.dates = dates
 
     def __len__(self):
         return len(self._files)
@@ -45,8 +45,8 @@ class TbDataWrapper:
     def __getitem__(self, idx):
         if idx < 0 or idx >= len(self):
             raise IndexError(f"Index out of bounds: {idx}")
-        dt = self._dates[idx]
-        grid = self._grids[idx]
+        dt = self.dates[idx]
+        grid = self.data[idx]
         return dt, grid
 
 
