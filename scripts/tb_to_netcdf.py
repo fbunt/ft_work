@@ -15,45 +15,6 @@ import tb as tbmod
 ROWS, COLS = eg.GRID_NAME_TO_SHAPE[eg.ML]
 
 
-class TbDataWrapper:
-    def __init__(self, data_pattern):
-        self._pat = data_pattern
-        self._files = sorted(glob.glob(data_pattern))
-        if not len(self._files):
-            raise IOError(f"No files found with pattern: '{data_pattern}'")
-        r, s = np.meshgrid(range(COLS), range(ROWS))
-        self.lon, self.lat = eg.ease1_get_full_grid_lonlat(eg.ML)
-        self.dates = []
-        self.data = np.zeros((len(self._files), ROWS, COLS))
-        self._load()
-        self.min = self._grids.min()
-        self.max = self._grids.max()
-
-    def _load(self):
-        dates = []
-        print("Loading...")
-        for i, f in enumerate(tqdm.tqdm(self._files, ncols=80)):
-            base = os.path.basename(f)
-            m = tbmod.EASE_FNAME_PAT.match(base)
-            sat_id, projection, year, doy, ad_pass, freq, pol = m.groups()
-            dt_year = np.datetime64(year, dtype="datetime64[Y]")
-            dt = dt_year + np.timedelta64(int(doy) - 1, "D")
-            grid = tbmod.load_tb_file(f)
-            dates.append(dt)
-            self.data[i] = grid
-        self.dates = dates
-
-    def __len__(self):
-        return len(self._files)
-
-    def __getitem__(self, idx):
-        if idx < 0 or idx >= len(self):
-            raise IndexError(f"Index out of bounds: {idx}")
-        dt = self.dates[idx]
-        grid = self.data[idx]
-        return dt, grid
-
-
 def _parse_date(fname):
     m = tbmod.EASE_FNAME_PAT.match(os.path.basename(fname))
     if not m:
