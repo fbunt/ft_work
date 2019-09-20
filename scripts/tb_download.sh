@@ -4,4 +4,3 @@ python tb_download.py "sidads.colorado.edu" "pub/DATASETS/nsidc0071_smmr_ease_gr
 
 echo "Downloading SSMI"
 python tb_download.py "sidads.colorado.edu" "pub/DATASETS/nsidc0032_ease_grid_tbs/global" "$2"
-
