@@ -5,6 +5,8 @@ import netCDF4 as nc
 import numpy as np
 import os
 import tqdm
+from collections import namedtuple
+from itertools import groupby
 
 import ease_grid as eg
 import tb as tbmod
@@ -131,6 +133,56 @@ def build_tb_netcdf(
     ds.grid_type = "EASE Grid 1.0 - Global (ML) 25 km"
     ds.projection = "EPSG:3410"
     ds.close()
+
+
+def _find_all_data_files(root_dir):
+    if not os.path.ifdir(root_dir):
+        raise IOError(f"Invalid data dir: '{root_dir}'")
+    pat = os.path.join(root_dir, "**/*[HV]")
+    files = glob.glob(pat, recursive=True)
+    files.sort()
+    return files
+
+
+_FileGroup = namedtuple(
+    "_FileGroup", ("files", "year", "pass_type", "freq", "pol")
+)
+_TbFile = namedtuple(
+    "_TbFile", ("path", "date", "year", "pass_type", "freq", "pol")
+)
+
+
+def _fname_to_meta_obj(path):
+    date = _parse_date(path)
+    return _TbFile(path, date, date.year, *_get_tb_meta(path))
+
+
+def _group_files(all_files):
+    files = [_fname_to_meta_obj(f) for f in all_files]
+    groups = {}
+    ptfunc = lambda x: x.pass_type
+    polfunc = lambda x: x.pol
+    ffunc = lambda x: x.freq
+    files.sort(key=lambda x: x.date)
+    for y, yg in groupby(files, lambda x: x.date.year):
+        yg = list(yg)
+        yg.sort(key=ptfunc)
+        for pt, ptg in groupby(yg, ptfunc):
+            ptg = list(ptg)
+            ptg.sort(key=polfunc)
+            for pol, polg in groupby(ptg, polfunc):
+                polg = list(polg)
+                polg.sort(key=ffunc)
+                for f, fg in groupby(polg, ffunc):
+                    if y not in groups:
+                        groups[y] = {}
+                    if pt not in groups[y]:
+                        groups[y][pt] = {}
+                    if pol not in groups[y][pt]:
+                        groups[y][pt][pol] = {}
+                    groups[y][pt][pol][f] = sorted(
+                        [x.path for x in fg], key=lambda x: x.path
+                    )
 
 
 def _validate_file_path(path):
