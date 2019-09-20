@@ -12,10 +12,13 @@ def _download_file(ftp, remote_fname, dest):
     buf = io.BytesIO()
     ftp.retrbinary(f"RETR {remote_fname}", buf.write)
     buf.seek(0)
-    # Unzip and save to disk
-    with gzip.open(buf, "rb") as gfd, open(dest, "wb") as fd:
+    # Unzip (if needed) and save to disk
+    gfd = gzip.open(buf, "rb") if remote_fname.endswith("gz") else buf
+    with open(dest, "wb") as fd:
         shutil.copyfileobj(gfd, fd)
-    buf.close()
+    gfd.close()
+    if buf is not gfd:
+        buf.close()
 
 
 def _download_year(ftp, ydir, dest_root, overwrite=False):
@@ -24,7 +27,11 @@ def _download_year(ftp, ydir, dest_root, overwrite=False):
         os.makedirs(dest_dir)
     ftp_files = [f for f in ftp.nlst() if not f.startswith(".")]
     for f in tqdm.tqdm(ftp_files, ncols=80):
-        dest = os.path.join(dest_dir, os.path.splitext(f)[0])
+        if f.endswith("gz"):
+            dest = os.path.join(dest_dir, os.path.splitext(f)[0])
+        else:
+            # Some files aren't gzipped
+            dest = os.path.join(dest_dir, f)
         if not overwrite and os.path.isfile(dest):
             continue
         _download_file(ftp, f, dest)
