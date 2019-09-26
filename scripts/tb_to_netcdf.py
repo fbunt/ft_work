@@ -200,7 +200,7 @@ def _get_parser():
     p.add_argument(
         "-O", "--overwrite", action="store_true", help="Overwrite output file"
     )
-    p.add_argumetn(
+    p.add_argument(
         "input_dir",
         type=_validate_dir_path,
         help="Directory to look for files in",
