@@ -56,13 +56,20 @@ GRID_NAME_TO_SHAPE = {
     SL: EASE1_SL_SHAPE,
     SH: EASE1_SH_SHAPE,
 }
-
+GRID_NAME_TO_PROJ_CODE = {
+    ML: "EPSG:3410",
+    MH: "EPSG:3410",
+    NL: "EPSG:3408",
+    NH: "EPSG:3408",
+    SL: "EPSG:3410",
+    SH: "EPSG:3409",
+}
 # Projections for each grid
-EASE1_ML_PROJ = pyproj.Proj(init="epsg:3410")
+EASE1_ML_PROJ = pyproj.Proj(init=GRID_NAME_TO_PROJ_CODE[ML])
 EASE1_MH_PROJ = EASE1_ML_PROJ
-EASE1_NL_PROJ = pyproj.Proj(init="epsg:3408")
+EASE1_NL_PROJ = pyproj.Proj(init=GRID_NAME_TO_PROJ_CODE[NL])
 EASE1_NH_PROJ = EASE1_NL_PROJ
-EASE1_SL_PROJ = pyproj.Proj(init="epsg:3409")
+EASE1_SL_PROJ = pyproj.Proj(init=GRID_NAME_TO_PROJ_CODE[SL])
 EASE1_SH_PROJ = EASE1_SL_PROJ
 
 GRID_NAME_TO_PROJ = {
