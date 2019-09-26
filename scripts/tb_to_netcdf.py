@@ -7,7 +7,6 @@ import os
 import pandas as pd
 import tqdm
 from collections import namedtuple
-from itertools import groupby
 
 import ease_grid as eg
 import tb as tbmod
