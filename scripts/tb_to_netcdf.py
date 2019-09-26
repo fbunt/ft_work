@@ -123,9 +123,9 @@ _TbFile = namedtuple("_TbFile", _tb_fields)
 
 
 def _fname_to_meta_obj(path):
-    y, doy, proj, sid, pt, pol, f = _get_tb_meta(path)
+    sat_id, proj, y, doy, pt, f, pol = _get_tb_meta(path)
     date = _parse_date(y, doy)
-    return _TbFile(path, date.year, sid, proj, pt, pol, f)
+    return _TbFile(path, str(date.year), sat_id, proj, pt, pol, f)
 
 
 def _group_files(all_files):
