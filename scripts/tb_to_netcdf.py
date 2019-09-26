@@ -132,7 +132,7 @@ def _group_files(tbfiles):
     df = pd.DataFrame(tbfiles, columns=_tb_fields)
     # list of the form:
     # [((1987, 'F13', 'proj', 'A', 'H', '19'), DataFrame(matching rows)), ...]
-    df_groups = list(df.groupby(_tb_fields[1:]))
+    df_groups = list(df.groupby(list(_tb_fields[1:])))
     fgroups = []
     for meta, gdf in df_groups:
         paths = gdf["path"].to_list()
