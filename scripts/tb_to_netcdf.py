@@ -176,9 +176,13 @@ def _handle_group(fg, out_dir, overwrite):
 
 
 def batch_flat_to_netcdf(root_dir, out_dir, overwrite=False):
+    print("Finding all files")
     files = _find_all_data_files(root_dir)
+    print(f"Found: {len(files)}")
+    print("Grouping")
     fgroups = _group_files(files)
-    for fg in fgroups:
+    print("Converting")
+    for fg in tqdm.tqdm(fgroups, ncols=80):
         _handle_group(fg, out_dir, overwrite)
 
 
