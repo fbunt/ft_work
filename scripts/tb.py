@@ -114,6 +114,8 @@ def ease_convert_meters(lon, lat):
 #    P: A or D for ascending or descending pass
 #   FF: Frequency, 19/22/37/91 GHz
 #    G: polarization, V or H for vertical/horizontal
+#
+# Groups: dataset_or_sat_id, proj, year, day_of_year, pass_type, freq, pol
 EASE_FNAME_PAT = re.compile(
     "^EASE-(SSMI|[A-Z\\d]+)-(ML|MH|NL|NH|SL|SH)(\\d{4})(\\d{3})(A|D)"
     "(?:-V2)?\\.(\\d+)(V|H)$"
