@@ -106,7 +106,7 @@ def build_tb_netcdf(
 
 
 def _find_all_data_files(root_dir):
-    if not os.path.ifdir(root_dir):
+    if not os.path.isdir(root_dir):
         raise IOError(f"Invalid data dir: '{root_dir}'")
     pat = os.path.join(root_dir, "**/*[HV]")
     files = glob.glob(pat, recursive=True)
