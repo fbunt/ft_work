@@ -111,7 +111,7 @@ def _find_all_data_files(root_dir):
     pat = os.path.join(root_dir, "**/*[HV]")
     files = glob.glob(pat, recursive=True)
     files.sort()
-    return files
+    return [_fname_to_meta_obj(f) for f in files]
 
 
 _FileGroup = namedtuple(
@@ -128,9 +128,8 @@ def _fname_to_meta_obj(path):
     return _TbFile(path, str(date.year), sat_id, proj, pt, pol, f)
 
 
-def _group_files(all_files):
-    files = [_fname_to_meta_obj(f) for f in all_files]
-    df = pd.DataFrame(files, columns=_tb_fields)
+def _group_files(tbfiles):
+    df = pd.DataFrame(tbfiles, columns=_tb_fields)
     # list of the form:
     # [((1987, 'F13', 'proj', 'A', 'H', '19'), DataFrame(matching rows)), ...]
     df_groups = list(df.groupby(_tb_fields[1:]))
@@ -175,10 +174,41 @@ def _handle_group(fg, out_dir, overwrite):
     )
 
 
+_SSMIS_CUTOFF_DATE = dt.datetime(2015, 2, 1)
+
+
+def _ssmis_f19_check(tbfile):
+    # F19 stopped producing useful data in 2019-02-01
+    if tbfile.sat_id != "f19":
+        return True
+    if int(tbfile.year) < 2015:
+        return True
+    date = _parse_date_from_fname(tbfile.path)
+    if date < _SSMIS_CUTOFF_DATE:
+        return True
+    return False
+
+
+def _MH_filter(tbfile):
+    # MH files do not have the proper size
+    return tbfile.proj != eg.MH
+
+
+def _filter_files(tbfiles):
+    filters = [_ssmis_f19_check, _MH_filter]
+    for f in filters:
+        tbfiles = filter(f, tbfiles)
+    return list(tbfiles)
+
+
 def batch_flat_to_netcdf(root_dir, out_dir, overwrite=False):
     print("Finding all files")
     files = _find_all_data_files(root_dir)
-    print(f"Found: {len(files)}")
+    n = len(files)
+    print(f"Found: {n}")
+    files = _filter_files(files)
+    print(f"Filtered: {n - len(files)}")
+    print(f"Final count: {len(files)}")
     print("Grouping")
     fgroups = _group_files(files)
     print("Converting")
