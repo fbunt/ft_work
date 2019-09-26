@@ -41,7 +41,7 @@ def _get_tb_meta(fname):
 def load_data(files, proj):
     grids = np.empty((len(files), ROWS, COLS))
     for i, f in enumerate(files):
-        grids[i] = tbmod.load_tb_file(f)
+        grids[i] = tbmod.load_tb_file(f, proj)
     dates = np.array([_parse_date_from_fname(f) for f in files])
     lon, lat = eg.ease1_get_full_grid_lonlat(proj)
     x, y = eg.ease1_lonlat_to_meters(lon, lat, proj)
