@@ -177,7 +177,7 @@ def _handle_group(fg, out_dir, overwrite):
 _SSMIS_CUTOFF_DATE = dt.datetime(2015, 2, 1)
 
 
-def _ssmis_f19_check(tbfile):
+def _ssmis_f19_filter(tbfile):
     # F19 stopped producing useful data in 2019-02-01
     if tbfile.sat_id != "f19":
         return True
@@ -195,7 +195,7 @@ def _MH_filter(tbfile):
 
 
 def _filter_files(tbfiles):
-    filters = [_ssmis_f19_check, _MH_filter]
+    filters = [_ssmis_f19_filter, _MH_filter]
     for f in filters:
         tbfiles = filter(f, tbfiles)
     return list(tbfiles)
