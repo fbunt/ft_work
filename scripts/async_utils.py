@@ -140,14 +140,20 @@ def run_async(
             ex.submit(func, *args): id_
             for i, (id_, args) in enumerate(zip(job_ids, job_args))
         }
-        for w in cfutures.as_completed(futures_to_ids):
-            id_ = futures_to_ids[w]
-            try:
-                results[id_] = w.result()
-            except Exception as e:
-                if error_on_fail:
-                    raise e
-                fails[id_] = e
+        remaining_futures = set(futures_to_ids)
+        try:
+            for w in cfutures.as_completed(futures_to_ids):
+                remaining_futures.remove(w)
+                id_ = futures_to_ids[w]
+                try:
+                    results[id_] = w.result()
+                except Exception as e:
+                    if error_on_fail:
+                        raise e
+                    fails[id_] = e
+        finally:
+            for rf in remaining_futures:
+                rf.cancel()
     if error_on_fail:
         return results
     return results, fails
