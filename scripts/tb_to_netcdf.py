@@ -132,7 +132,7 @@ def _fname_to_meta_obj(path):
 def _group_files(tbfiles):
     df = pd.DataFrame(tbfiles, columns=_tb_fields)
     # list of the form:
-    # [((1987, 'F13', 'proj', 'A', 'H', '19'), DataFrame(matching rows)), ...]
+    # [((1987, 'F13', 'ML', 'A', 'H', '19'), DataFrame(matching rows)), ...]
     df_groups = list(df.groupby(list(_tb_fields[1:])))
     fgroups = []
     for meta, gdf in df_groups:
