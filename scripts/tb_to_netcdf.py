@@ -179,17 +179,34 @@ def _handle_group(fg, out_dir, overwrite):
     )
 
 
-_SSMIS_CUTOFF_DATE = dt.datetime(2015, 2, 1)
+# ref: http://www.remss.com/missions/ssmi/
+_SSMI_F15_CUTOFF_DATE = dt.datetime(2006, 8, 1)
+
+
+def _ssmis_f15_filter(tbfile):
+    # F15 stopped producing useful data in 2006-08-01
+    if tbfile.sat_id != "f15":
+        return True
+    if int(tbfile.year) < _SSMI_F15_CUTOFF_DATE.year:
+        return True
+    date = _parse_date_from_fname(tbfile.path)
+    if date < _SSMI_F15_CUTOFF_DATE:
+        return True
+    return False
+
+
+# ref: http://www.remss.com/missions/ssmi/
+_SSMIS_F19_CUTOFF_DATE = dt.datetime(2016, 2, 1)
 
 
 def _ssmis_f19_filter(tbfile):
-    # F19 stopped producing useful data in 2019-02-01
+    # F19 stopped producing useful data in 2016-02-01
     if tbfile.sat_id != "f19":
         return True
-    if int(tbfile.year) < 2015:
+    if int(tbfile.year) < _SSMIS_F19_CUTOFF_DATE.year:
         return True
     date = _parse_date_from_fname(tbfile.path)
-    if date < _SSMIS_CUTOFF_DATE:
+    if date < _SSMIS_F19_CUTOFF_DATE:
         return True
     return False
 
@@ -200,7 +217,7 @@ def _MH_filter(tbfile):
 
 
 def _filter_files(tbfiles):
-    filters = [_ssmis_f19_filter, _MH_filter]
+    filters = [_ssmis_f15_filter, _ssmis_f19_filter, _MH_filter]
     for f in filters:
         tbfiles = filter(f, tbfiles)
     return list(tbfiles)
