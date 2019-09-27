@@ -148,8 +148,6 @@ def run_async(
                 if error_on_fail:
                     raise e
                 fails[id_] = e
-    if len(results) == 0:
-        raise AsyncJobError("No successful jobs")
     if error_on_fail:
         return results
     return results, fails
