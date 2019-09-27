@@ -8,6 +8,7 @@ import pandas as pd
 import tqdm
 from collections import namedtuple
 
+import async_utils as au
 import ease_grid as eg
 import tb as tbmod
 
@@ -212,8 +213,10 @@ def batch_flat_to_netcdf(root_dir, out_dir, overwrite=False):
     print("Grouping")
     fgroups = _group_files(files)
     print("Converting")
-    for fg in tqdm.tqdm(fgroups, ncols=80):
-        _handle_group(fg, out_dir, overwrite)
+    jobs = [
+        au.AsyncJob(_handle_group, fg, out_dir, overwrite) for fg in fgroups
+    ]
+    au.run_async_jobs(jobs, au.MULTI_PROCESS, max_workers=6, chunk_size=4)
 
 
 def _validate_file_path(path):
