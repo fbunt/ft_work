@@ -158,8 +158,12 @@ def _get_outfile_name(fg):
 
 def _handle_group(fg, out_dir, overwrite):
     group_dir = os.path.join(out_dir, fg.year)
-    if not os.path.isdir(group_dir):
+    # Use try/except to prevent race condition if executed in parallel
+    try:
         os.makedirs(group_dir)
+    except FileExistsError:
+        # Directory was already created
+        pass
     outpath = os.path.join(group_dir, _get_outfile_name(fg))
     if not overwrite and os.path.isfile(outpath):
         print(f"File already present: '{outpath}'")
