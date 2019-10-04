@@ -1,4 +1,5 @@
 import argparse
+import calendar
 import datetime as dt
 import glob
 import netCDF4 as nc
@@ -39,27 +40,70 @@ def _get_tb_meta(fname):
     return m.groups()
 
 
+def _to_dates_and_grids(files, proj):
+    if not files:
+        return [], np.zeros(0), np.zeros(0)
+    dates = [_parse_date_from_fname(f) for f in files]
+    grids = [tbmod.load_tb_file(f, proj) for f in files]
+    year = dates[0].year
+    days_in_year = 365 + calendar.isleap(year)
+    dates_out = []
+    grids_out = np.zeros((days_in_year, *eg.GRID_NAME_TO_SHAPE[proj]))
+    missing_mask = np.zeros(days_in_year)
+    # One day
+    delta = dt.timedelta(1)
+    start_day = dt.datetime(year, 1, 1)
+    end_day = dt.datetime(year + 1, 1, 1)
+    cur_day = start_day
+    j = 0
+    for i, d in enumerate(dates):
+        while cur_day < d:
+            dates_out.append(cur_day)
+            missing_mask[j] = 1
+            cur_day += delta
+            j += 1
+        dates_out.append(d)
+        grids_out[j] = grids[i]
+        cur_day += delta
+        j += 1
+    while cur_day < end_day:
+        dates_out.append(cur_day)
+        missing_mask[j] = 1
+        cur_day += delta
+        j += 1
+    return dates, grids, missing_mask
+
+
 def load_data(files, proj):
-    grids = np.empty((len(files), ROWS, COLS))
-    for i, f in enumerate(files):
-        grids[i] = tbmod.load_tb_file(f, proj)
-    dates = np.array([_parse_date_from_fname(f) for f in files])
+    dates, grids, missing_mask = _to_dates_and_grids(files, proj)
     lon, lat = eg.ease1_get_full_grid_lonlat(proj)
     x, y = eg.ease1_lonlat_to_meters(lon, lat, proj)
     lon = lon[0]
     lat = lat[:, 0]
     x = x[0]
     y = y[:, 0]
-    return dates, lon, lat, x, y, grids
+    return dates, lon, lat, x, y, grids, missing_mask
 
 
 def build_tb_netcdf(
-    out_fname, dates, lon, lat, x, y, grids, sat_id, proj, pass_type, pol, freq
+    out_fname,
+    dates,
+    lon,
+    lat,
+    x,
+    y,
+    grids,
+    missing_mask,
+    sat_id,
+    proj,
+    pass_type,
+    pol,
+    freq,
 ):
     ds = nc.Dataset(out_fname, "w")
-    dtime = ds.createDimension("time", None)
-    dlon = ds.createDimension("x", len(x))
-    dlat = ds.createDimension("y", len(y))
+    ds.createDimension("time", None)
+    ds.createDimension("x", len(x))
+    ds.createDimension("y", len(y))
     # Time
     vtimes = ds.createVariable("time", "f8", ("time",))
     vtimes.calendar = "proleptic_gregorian"
@@ -67,6 +111,10 @@ def build_tb_netcdf(
     vtimes[:] = nc.date2num(
         dates, vtimes.units, calendar="proleptic_gregorian"
     )
+    # Missing day mask (1 == missing day)
+    vmissing = ds.createVariable("missing_dates_mask", "u1", ("time"))
+    vmissing.units = "boolean"
+    vmissing[:] = missing_mask
     # x
     vx = ds.createVariable("x", "f8", ("x"))
     vx.units = "meters"
