@@ -55,9 +55,11 @@ def _to_dates_and_grids(files, proj):
     start_day = dt.datetime(year, 1, 1)
     end_day = dt.datetime(year + 1, 1, 1)
     cur_day = start_day
+    # Index of output array
     j = 0
     for i, d in enumerate(dates):
         while cur_day < d:
+            # Fill in missing days leading up to next valid day
             dates_out.append(cur_day)
             missing_mask[j] = 1
             cur_day += delta
@@ -67,6 +69,7 @@ def _to_dates_and_grids(files, proj):
         cur_day += delta
         j += 1
     while cur_day < end_day:
+        # Fill in missing days after last valid day, if any
         dates_out.append(cur_day)
         missing_mask[j] = 1
         cur_day += delta
