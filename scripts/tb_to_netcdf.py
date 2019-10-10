@@ -105,8 +105,8 @@ def build_tb_netcdf(
 ):
     ds = nc.Dataset(out_fname, "w")
     ds.createDimension("time", None)
-    ds.createDimension("x", len(x))
-    ds.createDimension("y", len(y))
+    ds.createDimension("lon", len(lon))
+    ds.createDimension("lat", len(lat))
     # Time
     vtimes = ds.createVariable("time", "f8", ("time",))
     vtimes.calendar = "proleptic_gregorian"
@@ -118,27 +118,27 @@ def build_tb_netcdf(
     vmissing = ds.createVariable("missing_dates_mask", "u1", ("time"))
     vmissing.units = "boolean"
     vmissing[:] = missing_mask
-    # x
-    vx = ds.createVariable("x", "f8", ("x"))
-    vx.units = "meters"
-    vx[:] = x
-    # y
-    vy = ds.createVariable("y", "f8", ("y"))
-    vy.units = "meters"
-    vy[:] = y
     # lon
-    vlon = ds.createVariable("lon", "f4", ("x",))
+    vlon = ds.createVariable("lon", "f4", ("lon",))
     vlon.units = "degrees east"
     vlon[:] = lon
     # lat
-    vlat = ds.createVariable("lat", "f4", ("y",))
+    vlat = ds.createVariable("lat", "f4", ("lat",))
     vlat.units = "degrees north"
     vlat[:] = lat
+    # x
+    vx = ds.createVariable("x", "f8", ("lon"))
+    vx.units = "meters"
+    vx[:] = x
+    # y
+    vy = ds.createVariable("y", "f8", ("lat"))
+    vy.units = "meters"
+    vy[:] = y
     # tb
     vtb = ds.createVariable(
         "tb",
         "f4",
-        ("time", "x", "y"),
+        ("time", "lon", "lat"),
         zlib=True,
         least_significant_digit=1,
         fill_value=0,
