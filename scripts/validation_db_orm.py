@@ -26,7 +26,9 @@ class DbWMOMetStation(DbBase):
     id = Column(Integer, primary_key=True)
 
     # Int version of usaf id
-    station_id = Column("station_id", Integer, nullable=False, unique=True)
+    station_id = Column(
+        "station_id", Integer, nullable=False, unique=True, index=True
+    )
     # USAF ID string (hex)
     usaf_id_str = Column("usaf_id_str", String(_STATION_USAF_SIZE))
     # WBAN ID string
@@ -68,8 +70,10 @@ class DbWMOMeanDate(DbBase):
 
     id = Column(Integer, primary_key=True, nullable=False, unique=True)
 
-    date_int = Column("date_int", Integer)
-    date = Column("date", DateTime)
+    date_int = Column(
+        "date_int", Integer, nullable=False, unique=True, index=True
+    )
+    date = Column("date", DateTime, nullable=False, unique=True, index=True)
 
     temperature_means = relationship(
         "DbWMOMetDailyTempMean", back_populates="date"
@@ -103,7 +107,6 @@ class DbWMOMetDailyTempMean(DbBase):
         Integer,
         ForeignKey(DbWMOMetStation.station_id),
         nullable=False,
-        unique=True,
         index=True,
     )
     # Date of sample as int
@@ -112,7 +115,6 @@ class DbWMOMetDailyTempMean(DbBase):
         Integer,
         ForeignKey(DbWMOMeanDate.date_int),
         nullable=False,
-        unique=True,
         index=True,
     )
     # The number of hourly samples used for the mean.
