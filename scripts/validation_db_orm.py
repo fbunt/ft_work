@@ -48,8 +48,7 @@ class DbWMOMetStation(DbBase):
     end_date = Column("end_date", DateTime)
 
     temperature_means = relationship(
-        "DbWMOMetDailyTempMean",
-        back_populates="met_station",
+        "DbWMOMetDailyTempMean", back_populates="met_station"
     )
 
     def __repr__(self):
