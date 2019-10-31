@@ -36,9 +36,9 @@ class DbWMOMetStation(DbBase):
     # Station name string
     name = Column("name", String(_STATION_NAME_SIZE))
     # Country code
-    country = Column("country", String(_STATION_COUNTRY_SIZE))
+    country = Column("country", String(_STATION_COUNTRY_SIZE), index=True)
     # US State code, if applicable
-    state = Column("state", String(_STATION_STATE_SIZE))
+    state = Column("state", String(_STATION_STATE_SIZE), index=True)
     lon = Column("lon", Float)
     lat = Column("lat", Float)
     # meters
@@ -119,7 +119,7 @@ class DbWMOMetDailyTempMean(DbBase):
     # The number of hourly samples used for the mean.
     nsamples = Column("nsamples", Integer)
     # Kelvin temperature
-    temperature = Column("temperature", Float)
+    temperature = Column("temperature", Float, nullable=False, index=True)
 
     met_station = relationship(
         "DbWMOMetStation", back_populates="temperature_means"
