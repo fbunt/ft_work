@@ -40,45 +40,40 @@ def _get_tb_meta(fname):
     return m.groups()
 
 
-def _to_dates_and_grids(files, proj):
-    if not files:
-        return [], np.zeros(0), np.zeros(0)
-    dates = [_parse_date_from_fname(f) for f in files]
-    grids = [tbmod.load_tb_file(f, proj) for f in files]
+def _fill_gaps(dates, grids):
+    """Fill in missing dates with zeroed data and return mask indicating
+    missing days.
+    """
     year = dates[0].year
     days_in_year = 365 + calendar.isleap(year)
-    dates_out = []
-    grids_out = np.zeros((days_in_year, *eg.GRID_NAME_TO_SHAPE[proj]))
+    # filler grid for missing days
+    missing_grid = np.zeros_like(grids[0])
+    # mask indicating missing days
     missing_mask = np.zeros(days_in_year)
-    # One day
-    delta = dt.timedelta(1)
+
     start_day = dt.datetime(year, 1, 1)
-    end_day = dt.datetime(year + 1, 1, 1)
-    cur_day = start_day
-    # Index of output array
-    j = 0
-    for i, d in enumerate(dates):
-        while cur_day < d:
-            # Fill in missing days leading up to next valid day
-            dates_out.append(cur_day)
-            missing_mask[j] = 1
-            cur_day += delta
-            j += 1
-        dates_out.append(d)
-        grids_out[j] = grids[i]
-        cur_day += delta
-        j += 1
-    while cur_day < end_day:
-        # Fill in missing days after last valid day, if any
-        dates_out.append(cur_day)
-        missing_mask[j] = 1
-        cur_day += delta
-        j += 1
-    return dates, grids, missing_mask
+    day_to_grid = {d: g for d, g in zip(dates, grids)}
+    dates_out = [start_day + dt.timedelta(days=i) for i in range(days_in_year)]
+    grids_out = []
+    all_days = frozenset(dates_out)
+    valid_dates = frozenset(dates)
+    for i, d in enumerate(sorted(all_days)):
+        if d in valid_dates:
+            missing_mask[i] = 0
+            grids_out.append(day_to_grid[d])
+        else:
+            missing_mask[i] = 1
+            grids_out.append(missing_grid)
+    grids_out = np.array(grids_out)
+    return dates_out, grids_out, missing_mask
 
 
 def load_data(files, proj):
-    dates, grids, missing_mask = _to_dates_and_grids(files, proj)
+    if not files:
+        raise ValueError("files must not be empty")
+    dates = [_parse_date_from_fname(f) for f in files]
+    grids = [tbmod.load_tb_file(f, proj) for f in files]
+    dates, grids, missing_mask = _fill_gaps(dates, grids)
     lon, lat = eg.ease1_get_full_grid_lonlat(proj)
     x, y = eg.ease1_lonlat_to_meters(lon, lat, proj)
     lon = lon[0]
