@@ -269,7 +269,7 @@ def _filter_files(tbfiles):
     return list(tbfiles)
 
 
-def batch_flat_to_netcdf(root_dir, out_dir, overwrite=False):
+def batch_flat_to_netcdf(root_dir, out_dir, overwrite=False, async_=False):
     print("Finding all files")
     files = _find_all_data_files(root_dir)
     n = len(files)
@@ -280,10 +280,15 @@ def batch_flat_to_netcdf(root_dir, out_dir, overwrite=False):
     print("Grouping")
     fgroups = _group_files(files)
     print("Converting")
-    jobs = [
-        au.AsyncJob(_handle_group, fg, out_dir, overwrite) for fg in fgroups
-    ]
-    au.run_async_jobs(jobs, au.MULTI_PROCESS, max_workers=6, chunk_size=4)
+    if async_:
+        jobs = [
+            au.AsyncJob(_handle_group, fg, out_dir, overwrite)
+            for fg in fgroups
+        ]
+        au.run_async_jobs(jobs, au.MULTI_PROCESS, max_workers=6, chunk_size=4)
+    else:
+        for fg in tqdm.tqdm(fgroups, ncols=80):
+            _handle_group(fg, out_dir, overwrite)
 
 
 def _validate_file_path(path):
@@ -309,9 +314,17 @@ def _get_parser():
         help="Directory to look for files in",
     )
     p.add_argument("out_dir", help="output directory path")
+    p.add_argument(
+        "-a",
+        "--asynchronous",
+        action="store_true",
+        help="Perform conversions asynchronously",
+    )
     return p
 
 
 if __name__ == "__main__":
     args = _get_parser().parse_args()
-    batch_flat_to_netcdf(args.input_dir, args.out_dir, args.overwrite)
+    batch_flat_to_netcdf(
+        args.input_dir, args.out_dir, args.overwrite, args.asynchronous
+    )
