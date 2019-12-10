@@ -9,6 +9,7 @@ from scipy.interpolate import NearestNDInterpolator
 
 from validation_db_orm import (
     DbWMOMetDailyTempMean,
+    DbWMOMetStation,
     date_to_int,
     get_db_session,
 )
@@ -24,6 +25,7 @@ def load_records(db, start_date, end_date, delta):
         dates.append(d)
         d += delta
     print("Loading db data")
+    stns = {s.station_id: s for s in db.query(DbWMOMetStation)}
     for d in tqdm.tqdm(dates, ncols=80):
         rs = (
             db.query(DbWMOMetDailyTempMean)
@@ -31,7 +33,11 @@ def load_records(db, start_date, end_date, delta):
             .all()
         )
         rs = [
-            (r.met_station.lon, r.met_station.lat, int(r.temperature > 273.15))
+            (
+                stns[r.station_id].lon,
+                stns[r.station_id].lat,
+                int(r.temperature > 273.15),
+            )
             for r in rs
         ]
         records.append(rs)
@@ -119,9 +125,7 @@ def _get_parser():
     p.add_argument(
         "db_path", type=utils.validate_file_path, help="Database file path"
     )
-    p.add_argument(
-        "out_dir", type=str, help="Output root dir"
-    )
+    p.add_argument("out_dir", type=str, help="Output root dir")
     return p
 
 
