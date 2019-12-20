@@ -1,9 +1,11 @@
 from collections import namedtuple
+from scipy.spatial import cKDTree as KDTree
 import argparse
 import numpy as np
 import pandas as pd
 import rasterio as rio
 import re
+import tqdm
 
 import ease_grid as eg
 from utils import day_of_year_to_datetime, validate_file_path
@@ -20,11 +22,13 @@ class WMOValidationPointFetcher:
     def __init__(self, wmo_db):
         # TODO: check for correct table
         self._db = wmo_db
+        print("Loading stations from db")
         self.stns = {
             s.station_id: s for s in wmo_db.query(DbWMOMetStation).all()
         }
 
-    def get_points(self, datetime):
+    def fetch(self, datetime):
+        # TODO: cache points
         records = (
             self._db.query(DbWMOMetDailyTempMean)
             .filter(DbWMOMetDailyTempMean.date_int == date_to_int(datetime))
@@ -58,9 +62,53 @@ FT_ESDR_TRANSITIONAL = 2
 FT_ESDR_INV_TRANSITIONAL = 3
 
 
-def perform_validation(grids, results, point_fetcher):
-    # TODO
-    pass
+_EASE_LON, _EASE_LAT = eg.ease1_get_full_grid_lonlat(eg.ML)
+_EPOINTS = np.array(list(zip(_EASE_LON.ravel(), _EASE_LAT.ravel())))
+
+
+class PointsGridder:
+    """Take points and shift them onto a grid using nearest neighbor approach.
+    """
+
+    def __init__(self, xgrid, ygrid):
+        print("Generating tree")
+        self.tree = KDTree(np.array(list(zip(xgrid.ravel(), ygrid.ravel()))))
+
+    def __call__(self, grid, points, values, clear=False, fill=np.nan):
+        if clear:
+            grid[:] = fill
+        _, idx = self.tree.query(points)
+        grid.ravel()[idx] = values
+
+
+def ft_model_zero_threshold(temps):
+    return (temps > 273.15).astype("uint8")
+
+
+COL_YEAR = "YEAR"
+COL_MONTH = "MONTH"
+COL_SCORE = "SCORE"
+RESULT_COLS = (COL_YEAR, COL_MONTH, COL_SCORE)
+SCORE_FILL = -1.0
+
+
+def perform_validation(estimate_grids, point_fetcher, point_gridder):
+    results = pd.DataFrame(
+        [(k.year, k.month, SCORE_FILL) for k in estimate_grids],
+        index=sorted(estimate_grids),
+        columns=RESULT_COLS,
+    )
+    # Validation grid
+    vgrid = np.full(eg.GRID_NAME_TO_SHAPE[eg.ML], np.nan)
+    print("Validating")
+    for date, egrid in tqdm.tqdm(estimate_grids.items(), ncols=80):
+        vpoints, temps = point_fetcher.fetch(date)
+        vft = ft_model_zero_threshold(temps)
+        point_gridder(vgrid, vpoints, vft, clear=True, fill=np.nan)
+        n = len(vft)
+        score = (vgrid == egrid).sum() / n
+        results.loc[date, COL_SCORE] = score * 100.0
+    return results
 
 
 def _load_ampm_ft_esdr_data(data):
@@ -105,7 +153,7 @@ FTESDRGrid = namedtuple("FTESDRGrid", ("dt", "type", "am_grid", "pm_grid"))
 def load_ft_esdr_data_from_files(fpaths):
     nr, nc = eg.GRID_NAME_TO_SHAPE[eg.ML]
     grids = []
-    for fp in fpaths:
+    for fp in tqdm.tqdm(fpaths, ncols=80):
         try:
             m = FT_ESDR_FNAME_REGEX.search(fp)
             type_ = m["type"]
@@ -119,33 +167,32 @@ def load_ft_esdr_data_from_files(fpaths):
     return grids
 
 
-_COL_SCORE = "score"
-_SCORE_FILL = -1.0
-
-
 def perform_validation_on_ft_esdr(db, fpaths):
     for f in fpaths:
         validate_file_path(f)
     pf = WMOValidationPointFetcher(db)
+    pg = PointsGridder(*eg.ease1_get_full_grid_lonlat(eg.ML))
+    print("Loading files")
     data = load_ft_esdr_data_from_files(fpaths)
-    dates_am = [d.dt for d in data if d.am_grid]
-    dates_pm = [d.dt for d in data if d.pm_grid]
-    grids_am = [d.am_grid for d in data if d.am_grid]
-    grids_pm = [d.pm_grid for d in data if d.pm_grid]
+    dates_am = [d.dt for d in data if d.am_grid is not None]
+    dates_pm = [d.dt for d in data if d.pm_grid is not None]
+    grids_am = [d.am_grid for d in data if d.am_grid is not None]
+    grids_pm = [d.pm_grid for d in data if d.pm_grid is not None]
     # AM
-    results_am = pd.DataFrame(
-        [_SCORE_FILL for d in data if d.am_grid],
-        index=dates_am,
-        columns=[_COL_SCORE],
-    )
-    perform_validation(grids_am, results_am, pf)
+    results_am = None
+    if dates_am:
+        print("Processing AM")
+        grids_am = {k: v for k, v in zip(dates_am, grids_am)}
+        results_am = perform_validation(grids_am, pf, pg)
+        print(results_am.groupby([COL_YEAR, COL_MONTH]).mean())
     # PM
-    results_pm = pd.DataFrame(
-        [_SCORE_FILL for d in data if d.pm_grid],
-        index=dates_pm,
-        columns=[_COL_SCORE],
-    )
-    perform_validation(grids_pm, results_pm, pf)
+    results_pm = None
+    if dates_pm:
+        print("Processing PM")
+        grids_pm = {k: v for k, v in zip(dates_pm, grids_pm)}
+        results_pm = perform_validation(grids_pm, pf, pg)
+        print(results_pm.groupby([COL_YEAR, COL_MONTH]).mean())
+    return results_am, results_pm
 
 
 def _get_parser():
@@ -161,6 +208,7 @@ def _get_parser():
 
 if __name__ == "__main__":
     args = _get_parser().parse_args()
+    print("Opening database")
     db = get_db_session(args.dbpath)
     try:
         perform_validation_on_ft_esdr(db, args.files)
