@@ -65,11 +65,11 @@ GRID_NAME_TO_PROJ_CODE = {
     SH: "EPSG:3409",
 }
 # Projections for each grid
-EASE1_ML_PROJ = pyproj.Proj(init=GRID_NAME_TO_PROJ_CODE[ML])
+EASE1_ML_PROJ = pyproj.Proj(GRID_NAME_TO_PROJ_CODE[ML])
 EASE1_MH_PROJ = EASE1_ML_PROJ
-EASE1_NL_PROJ = pyproj.Proj(init=GRID_NAME_TO_PROJ_CODE[NL])
+EASE1_NL_PROJ = pyproj.Proj(GRID_NAME_TO_PROJ_CODE[NL])
 EASE1_NH_PROJ = EASE1_NL_PROJ
-EASE1_SL_PROJ = pyproj.Proj(init=GRID_NAME_TO_PROJ_CODE[SL])
+EASE1_SL_PROJ = pyproj.Proj(GRID_NAME_TO_PROJ_CODE[SL])
 EASE1_SH_PROJ = EASE1_SL_PROJ
 
 GRID_NAME_TO_PROJ = {
@@ -497,7 +497,7 @@ def _get_proj(proj):
                 f"Could not determine EPSG code from input: '{proj}'"
             )
         code = m.group(1)[0]
-        return pyproj.Proj(init=_EPSG_FMT.format(code), preserve_unites=False)
+        return pyproj.Proj(_EPSG_FMT.format(code), preserve_unites=False)
     raise TypeError(
         f"proj type must be as tring or pyrpoj.Proj object, not {type(proj)}"
     )
