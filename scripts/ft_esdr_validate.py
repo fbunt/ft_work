@@ -184,14 +184,20 @@ def perform_validation_on_ft_esdr(db, fpaths):
         print("Processing AM")
         grids_am = {k: v for k, v in zip(dates_am, grids_am)}
         results_am = perform_validation(grids_am, pf, pg)
-        print(results_am.groupby([COL_YEAR, COL_MONTH]).mean())
+        with pd.option_context(
+            "display.max_rows", None, "display.max_columns", None
+        ):
+            print(results_am.groupby([COL_YEAR, COL_MONTH]).mean())
     # PM
     results_pm = None
     if dates_pm:
         print("Processing PM")
         grids_pm = {k: v for k, v in zip(dates_pm, grids_pm)}
         results_pm = perform_validation(grids_pm, pf, pg)
-        print(results_pm.groupby([COL_YEAR, COL_MONTH]).mean())
+        with pd.option_context(
+            "display.max_rows", None, "display.max_columns", None
+        ):
+            print(results_pm.groupby([COL_YEAR, COL_MONTH]).mean())
     return results_am, results_pm
 
 
