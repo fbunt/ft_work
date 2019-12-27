@@ -8,7 +8,7 @@ import re
 
 from utils import day_of_year_to_date
 from validation_db_orm import (
-    DbWMOMetDailyTempMean,
+    DbWMOMetDailyTempRecord,
     DbWMOMetStation,
     date_to_int,
     get_db_session,
@@ -62,8 +62,8 @@ class WMOValidationPointFetcher:
 
     def get_points(self, datetime):
         records = (
-            self._db.query(DbWMOMetDailyTempMean)
-            .filter(DbWMOMetDailyTempMean.date_int == date_to_int(datetime))
+            self._db.query(DbWMOMetDailyTempRecord)
+            .filter(DbWMOMetDailyTempRecord.date_int == date_to_int(datetime))
             .all()
         )
         if not records:
@@ -73,7 +73,7 @@ class WMOValidationPointFetcher:
         for i, r in enumerate(records):
             s = self.stns[r.station_id]
             lonlats[i] = (s.lon, s.lat)
-            temps[i] = r.temperature
+            temps[i] = r.temperature_mean
         return lonlats, temps
 
 

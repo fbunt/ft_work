@@ -6,7 +6,7 @@ import numpy as np
 from scipy.interpolate import NearestNDInterpolator
 
 from validation_db_orm import (
-    DbWMOMetDailyTempMean,
+    DbWMOMetDailyTempRecord,
     date_to_int,
     get_db_session,
 )
@@ -15,9 +15,9 @@ import ease_grid as eg
 date = dt.date(2000, 1, 1)
 db = get_db_session("../data/wmo_w_indexing.db")
 sites = [
-    (r.met_station.lon, r.met_station.lat, r.temperature)
-    for r in db.query(DbWMOMetDailyTempMean)
-    .filter(DbWMOMetDailyTempMean.date_int == date_to_int(date))
+    (r.met_station.lon, r.met_station.lat, r.temperature_mean)
+    for r in db.query(DbWMOMetDailyTempRecord)
+    .filter(DbWMOMetDailyTempRecord.date_int == date_to_int(date))
     .all()
 ]
 points = np.array([r[:-1] for r in sites])

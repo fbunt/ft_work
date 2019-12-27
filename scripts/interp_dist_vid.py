@@ -8,7 +8,7 @@ import tqdm
 from scipy.interpolate import NearestNDInterpolator
 
 from validation_db_orm import (
-    DbWMOMetDailyTempMean,
+    DbWMOMetDailyTempRecord,
     DbWMOMetStation,
     date_to_int,
     get_db_session,
@@ -28,15 +28,15 @@ def load_records(db, start_date, end_date, delta):
     stns = {s.station_id: s for s in db.query(DbWMOMetStation)}
     for d in tqdm.tqdm(dates, ncols=80):
         rs = (
-            db.query(DbWMOMetDailyTempMean)
-            .filter(DbWMOMetDailyTempMean.date_int == date_to_int(d))
+            db.query(DbWMOMetDailyTempRecord)
+            .filter(DbWMOMetDailyTempRecord.date_int == date_to_int(d))
             .all()
         )
         rs = [
             (
                 stns[r.station_id].lon,
                 stns[r.station_id].lat,
-                int(r.temperature > 273.15),
+                int(r.temperature_mean > 273.15),
             )
             for r in rs
         ]

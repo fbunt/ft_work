@@ -47,8 +47,8 @@ class DbWMOMetStation(DbBase):
     start_date = Column("start_date", DateTime)
     end_date = Column("end_date", DateTime)
 
-    temperature_means = relationship(
-        "DbWMOMetDailyTempMean", back_populates="met_station"
+    temperature_records = relationship(
+        "DbWMOMetDailyTempRecord", back_populates="met_station"
     )
 
     def __repr__(self):
@@ -74,8 +74,8 @@ class DbWMOMeanDate(DbBase):
     )
     date = Column("date", DateTime, nullable=False, unique=True, index=True)
 
-    temperature_means = relationship(
-        "DbWMOMetDailyTempMean", back_populates="date"
+    temperature_records = relationship(
+        "DbWMOMetDailyTempRecord", back_populates="date"
     )
 
     def __init__(self, **kwargs):
@@ -93,8 +93,8 @@ class DbWMOMeanDate(DbBase):
         return "<DbWMOMeanDate(date={0.date})>".format(self)
 
 
-class DbWMOMetDailyTempMean(DbBase):
-    """Class representing a single met station daily temperature mean"""
+class DbWMOMetDailyTempRecord(DbBase):
+    """Class representing a single met station daily temperature record"""
 
     __tablename__ = "wmo_met_daily_mean_data"
 
@@ -118,21 +118,29 @@ class DbWMOMetDailyTempMean(DbBase):
     )
     # The number of hourly samples used for the mean.
     nsamples = Column("nsamples", Integer)
-    # Kelvin temperature
-    temperature = Column("temperature", Float, nullable=False, index=True)
+    # Kelvin temperature mean
+    temperature_mean = Column(
+        "temperature_mean", Float, nullable=False, index=True
+    )
+    # Min temperature in Kelvin
+    temperature_min = Column("temperature_min", Float, nullable=True)
+    # Max temperature in Kelvin
+    temperature_max = Column("temperature_max", Float, nullable=True)
 
     met_station = relationship(
-        "DbWMOMetStation", back_populates="temperature_means"
+        "DbWMOMetStation", back_populates="temperature_records"
     )
-    date = relationship("DbWMOMeanDate", back_populates="temperature_means")
+    date = relationship("DbWMOMeanDate", back_populates="temperature_records")
 
     def __repr__(self):
         return (
-            "<DbWMOMetDailyTempMean("
+            "<DbWMOMetDailyTempRecord("
             "station_id={0.station_id}, "
             "date_int={0.date_int}, "
             "nsamples={0.nsamples}, "
-            "temperature={0.temperature})>"
+            "temperature_mean={0.temperature_mean}, >"
+            "temperature_min={0.temperature_min}, >"
+            "temperature_max={0.temperature_max})>"
         ).format(self)
 
 

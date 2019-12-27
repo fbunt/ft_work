@@ -9,7 +9,7 @@ import tqdm
 from validation_db_orm import (
     DbWMOMetStation,
     DbWMOMeanDate,
-    DbWMOMetDailyTempMean,
+    DbWMOMetDailyTempRecord,
     get_db_session,
 )
 
@@ -60,17 +60,29 @@ def _tstamp_to_date(s):
     return datetime.date(y, m, d)
 
 
+def _fahrenheit_to_kelvin(t):
+    return (5.0 / 9.0 * (t - 32.0)) + 273.15
+
+
 def _parse_wmo_station_data_line(line):
     # Interpret as hex string to handle leading letter of some station IDs
     sid = int(line[:12].strip().replace(" ", ""), 16)
     d = int(line[14:22])
-    t = float(line[23:30])
+    t = float(line[24:30])
     n = int(line[31:33])
     if t != 9999.9:
-        # convert to K
-        t = (5.0 / 9.0 * (t - 32.0)) + 273.15
-        return DbWMOMetDailyTempMean(
-            station_id=sid, date_int=d, nsamples=n, temperature=t
+        t = _fahrenheit_to_kelvin(t)
+        max_ = float(line[102:108])
+        max_ = _fahrenheit_to_kelvin(max_) if max_ == 9999.9 else None
+        min_ = float(line[110:116])
+        min_ = _fahrenheit_to_kelvin(min_) if min_ == 9999.9 else None
+        return DbWMOMetDailyTempRecord(
+            station_id=sid,
+            date_int=d,
+            nsamples=n,
+            temperature_mean=t,
+            temperature_min=min_,
+            temperature_max=max_,
         )
     return None
 
