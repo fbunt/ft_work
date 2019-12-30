@@ -39,8 +39,8 @@ class DbWMOMetStation(DbBase):
     country = Column("country", String(_STATION_COUNTRY_SIZE), index=True)
     # US State code, if applicable
     state = Column("state", String(_STATION_STATE_SIZE), index=True)
-    lon = Column("lon", Float)
-    lat = Column("lat", Float)
+    lon = Column("lon", Float, nullable=False, index=True)
+    lat = Column("lat", Float, nullable=False, index=True)
     # meters
     elevation = Column("elevation", Float)
     # UTC
