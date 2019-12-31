@@ -1,4 +1,5 @@
 import datetime as dt
+import itertools
 import numpy as np
 import os
 
@@ -24,3 +25,11 @@ def validate_dir_path(path):
     if os.path.isdir(path):
         return path
     raise IOError(f"Could not find dir: '{path}'")
+
+
+def flatten(list_of_lists):
+    return list(itertools.chain.from_iterable(list_of_lists))
+
+
+def flatten_to_iterable(list_of_lists):
+    return list(itertools.chain.from_iterable(list_of_lists))
