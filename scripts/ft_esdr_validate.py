@@ -104,17 +104,43 @@ COL_PASS = "pass"
 COL_REGION = "region"
 
 
+def _count_valid_points(grid):
+    return np.count_nonzero(grid > OTHER)
+
+
+def _count_shared_valid_points(lgrid, rgrid):
+    lvalid = lgrid > OTHER
+    rvalid = rgrid > OTHER
+    return np.count_nonzero(lvalid & rvalid)
+
+
+def _validate_nh_sh_global(egrid, vgrid, vpoints, vtemps, point_gridder):
+    vft = ft_model_zero_threshold(vtemps)
+    point_gridder(vgrid, vpoints, vft, clear=True, fill=np.nan)
+    egrid_nh = egrid[_EASE_NH_MASK]
+    egrid_sh = egrid[_EASE_SH_MASK]
+    vgrid_nh = vgrid[_EASE_NH_MASK]
+    vgrid_sh = vgrid[_EASE_SH_MASK]
+    n_full = _count_shared_valid_points(egrid, vgrid)
+    n_nh = _count_shared_valid_points(egrid_nh, vgrid_nh)
+    n_sh = _count_shared_valid_points(egrid_sh, vgrid_sh)
+    score_nh = (vgrid_nh == egrid_nh).sum() / n_nh * 100.0
+    score_sh = (vgrid_sh == egrid_sh).sum() / n_sh * 100.0
+    score_full = (vgrid == egrid).sum() / n_full * 100.0
+    return score_nh, score_sh, score_full
+
+
 def _validate(estimate_grids, point_fetcher, point_gridder):
     results = []
     if not estimate_grids:
         return results
     k = next(iter(estimate_grids))
-    vgrid = np.full(estimate_grids[k].shape, np.nan)
+    vgrid = np.full_like(estimate_grids[k], OTHER, dtype="int8")
     for date, egrid in tqdm.tqdm(estimate_grids.items(), ncols=80):
         vpoints, temps = point_fetcher.fetch(date)
         vft = ft_model_zero_threshold(temps)
         point_gridder(vgrid, vpoints, vft, clear=True, fill=np.nan)
-        n = len(vft)
+        n = _count_shared_valid_points(egrid, vgrid)
         score = (vgrid == egrid).sum() / n * 100.0
         results.append((date, score))
     return results
@@ -125,14 +151,15 @@ def _validate_with_mask(estimate_grids, point_fetcher, point_gridder, mask):
     if not estimate_grids:
         return results
     k = next(iter(estimate_grids))
-    vgrid = np.full(estimate_grids[k].shape, np.nan)
+    vgrid = np.full_like(estimate_grids[k], OTHER, dtype="int8")
     for date, egrid in tqdm.tqdm(estimate_grids.items(), ncols=80):
         vpoints, temps = point_fetcher.fetch(date)
         vft = ft_model_zero_threshold(temps)
         point_gridder(vgrid, vpoints, vft, clear=True, fill=np.nan)
+        egrid_masked = egrid[mask]
         vgrid_masked = vgrid[mask]
-        n = vgrid_masked.size - np.count_nonzero(np.isnan(vgrid_masked))
-        score = (vgrid_masked == egrid[mask]).sum() / n * 100.0
+        n = _count_shared_valid_points(egrid_masked, vgrid_masked)
+        score = (vgrid_masked == egrid_masked).sum() / n * 100.0
         results.append((date, score))
     return results
 
@@ -140,6 +167,25 @@ def _validate_with_mask(estimate_grids, point_fetcher, point_gridder, mask):
 LABEL_NH = "NH"
 LABEL_SH = "SH"
 LABEL_GLOBAL = "GLOBAL"
+
+
+def perform_nh_sh_global_validation(
+    estimate_grids, point_fetcher, point_gridder
+):
+    results = []
+    if not estimate_grids:
+        return results
+    k = next(iter(estimate_grids))
+    vgrid = np.full_like(estimate_grids[k], OTHER, dtype="int8")
+    for date, egrid in tqdm.tqdm(estimate_grids.items(), ncols=80):
+        vpoints, vtemps = point_fetcher.fetch(date)
+        score_nh, score_sh, score_global = _validate_nh_sh_global(
+            egrid, vgrid, vpoints, vtemps, point_gridder
+        )
+        results.append((date, LABEL_NH, score_nh))
+        results.append((date, LABEL_SH, score_sh))
+        results.append((date, LABEL_GLOBAL, score_global))
+    return results
 
 
 def validate_global(estimate_grids, point_fetcher, point_gridder):
@@ -184,36 +230,23 @@ HEMISPHERE_AND_GLOBAL_VALIDATION_FUNCS = (
 )
 
 
-def perform_hemisphere_and_global_validation(
-    estimate_grids, point_fetcher, point_gridder
-):
-    return perform_regional_composite_validation(
-        estimate_grids,
-        point_fetcher,
-        point_gridder,
-        HEMISPHERE_AND_GLOBAL_VALIDATION_FUNCS,
-    )
-
-
 LABEL_AM = "AM"
 LABEL_PM = "PM"
 
 
 def perform_am_pm_regional_composite_validation(
-    am_estimate_grids,
-    pm_estimate_grids,
-    point_fetcher,
-    point_gridder,
-    validation_funcs,
+    am_estimate_grids, pm_estimate_grids, point_fetcher, point_gridder,
 ):
     # AM
-    am = perform_regional_composite_validation(
-        am_estimate_grids, point_fetcher, point_gridder, validation_funcs
+    print("AM")
+    am = perform_nh_sh_global_validation(
+        am_estimate_grids, point_fetcher, point_gridder
     )
     am = [(d, LABEL_AM, reg_label, score) for d, reg_label, score in am]
     # PM
-    pm = perform_regional_composite_validation(
-        pm_estimate_grids, point_fetcher, point_gridder, validation_funcs
+    print("PM")
+    pm = perform_nh_sh_global_validation(
+        pm_estimate_grids, point_fetcher, point_gridder
     )
     pm = [(d, LABEL_PM, reg_label, score) for d, reg_label, score in pm]
     return flatten_to_iterable((am, pm))
@@ -241,36 +274,13 @@ def perform_default_am_pm_validation(
     am_estimate_grids, pm_estimate_grids, point_fetcher, point_gridder
 ):
     stats = perform_am_pm_regional_composite_validation(
-        am_estimate_grids,
-        pm_estimate_grids,
-        point_fetcher,
-        point_gridder,
-        HEMISPHERE_AND_GLOBAL_VALIDATION_FUNCS,
+        am_estimate_grids, pm_estimate_grids, point_fetcher, point_gridder,
     )
     output_am_pm_regional_composite_validation_stats(stats)
 
 
-def perform_validation(estimate_grids, point_fetcher, point_gridder):
-    results = pd.DataFrame(
-        [(k.year, k.month, SCORE_FILL) for k in estimate_grids],
-        index=sorted(estimate_grids),
-        columns=RESULT_COLS,
-    )
-    # Validation grid
-    vgrid = np.full(eg.GRID_NAME_TO_SHAPE[eg.ML], np.nan)
-    print("Validating")
-    for date, egrid in tqdm.tqdm(estimate_grids.items(), ncols=80):
-        vpoints, temps = point_fetcher.fetch(date)
-        vft = ft_model_zero_threshold(temps)
-        point_gridder(vgrid, vpoints, vft, clear=True, fill=np.nan)
-        n = len(vft)
-        score = (vgrid == egrid).sum() / n
-        results.loc[date, COL_SCORE] = score * 100.0
-    return results
-
-
 def _load_ampm_ft_esdr_data(data):
-    g = np.full_like(data, OTHER)
+    g = np.full_like(data, OTHER, dtype="int8")
     g[data == FT_ESDR_FROZEN] = FROZEN
     g[data == FT_ESDR_THAWED] = THAWED
     return g
