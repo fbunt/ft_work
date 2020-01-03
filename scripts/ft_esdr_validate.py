@@ -22,17 +22,48 @@ from validation_db_orm import (
 )
 
 
+RETRIEVAL_MEAN = "mean"
+RETRIEVAL_MIN = "min"
+RETRIEVAL_MAX = "max"
+
+
+def _retrieve_mean(record):
+    return record.temperature_mean
+
+
+def _retrieve_min(record):
+    return record.temperature_min
+
+
+def _retrieve_max(record):
+    return record.temperature_max
+
+
+_RETRIEVAL_FUNCS = {
+    RETRIEVAL_MEAN: _retrieve_mean,
+    RETRIEVAL_MIN: _retrieve_min,
+    RETRIEVAL_MAX: _retrieve_max,
+}
+
+
 class WMOValidationPointFetcher:
     # XXX: NOT PROCESS SAFE
     # This is because the database handle cannot be passed between processes
     # safely.
-    def __init__(self, wmo_db):
+    def __init__(self, wmo_db, retrieval_type=RETRIEVAL_MEAN):
+        self.retrieval_func = None
+        self.set_retrieval_type(retrieval_type)
         # TODO: check for correct table
         self._db = wmo_db
         print("Loading stations from db")
         self.stns = {
             s.station_id: s for s in wmo_db.query(DbWMOMetStation).all()
         }
+
+    def set_retrieval_type(self, retrieval_type):
+        if retrieval_type not in _RETRIEVAL_FUNCS:
+            raise ValueError(f"Invalid retrieval type: {retrieval_type}")
+        self.retrieval_func = _RETRIEVAL_FUNCS[retrieval_type]
 
     def fetch(self, datetime):
         records = (
@@ -44,10 +75,16 @@ class WMOValidationPointFetcher:
             return None
         lonlats = np.empty((len(records), 2))
         temps = np.empty(len(records))
-        for i, r in enumerate(records):
+        i = 0
+        for r in records:
             s = self.stns[r.station_id]
+            t = self.retrieval_func(r)
             lonlats[i] = (s.lon, s.lat)
-            temps[i] = r.temperature_mean
+            temps[i] = t
+            i += t is not None
+        # Trim any extra space at ends
+        lonlats.resize((i, 2), refcheck=False)
+        temps.resize(i, refcheck=False)
         return lonlats, temps
 
 
@@ -56,9 +93,9 @@ TYPE_PM = "PM"
 # Composite
 TYPE_CO = "CO"
 
+OTHER = -1
 FROZEN = 0
 THAWED = 1
-OTHER = -1
 
 FT_ESDR_FROZEN = 0
 FT_ESDR_THAWED = 1
@@ -82,7 +119,7 @@ class PointsGridder:
         print("Generating tree")
         self.tree = KDTree(np.array(list(zip(xgrid.ravel(), ygrid.ravel()))))
 
-    def __call__(self, grid, points, values, clear=False, fill=np.nan):
+    def __call__(self, grid, points, values, clear=False, fill=OTHER):
         if clear:
             grid[:] = fill
         _, idx = self.tree.query(points)
@@ -116,17 +153,24 @@ def _count_shared_valid_points(lgrid, rgrid):
 
 def _validate_nh_sh_global(egrid, vgrid, vpoints, vtemps, point_gridder):
     vft = ft_model_zero_threshold(vtemps)
-    point_gridder(vgrid, vpoints, vft, clear=True, fill=np.nan)
-    egrid_nh = egrid[_EASE_NH_MASK]
-    egrid_sh = egrid[_EASE_SH_MASK]
-    vgrid_nh = vgrid[_EASE_NH_MASK]
-    vgrid_sh = vgrid[_EASE_SH_MASK]
-    n_full = _count_shared_valid_points(egrid, vgrid)
-    n_nh = _count_shared_valid_points(egrid_nh, vgrid_nh)
-    n_sh = _count_shared_valid_points(egrid_sh, vgrid_sh)
-    score_nh = (vgrid_nh == egrid_nh).sum() / n_nh * 100.0
-    score_sh = (vgrid_sh == egrid_sh).sum() / n_sh * 100.0
-    score_full = (vgrid == egrid).sum() / n_full * 100.0
+    point_gridder(vgrid, vpoints, vft, clear=True, fill=OTHER)
+    shared_valid_mask = (egrid > OTHER) & (vgrid > OTHER)
+    valid_nh = shared_valid_mask & _EASE_NH_MASK
+    valid_sh = shared_valid_mask & _EASE_SH_MASK
+    egrid_nh = egrid[valid_nh]
+    egrid_sh = egrid[valid_sh]
+    vgrid_nh = vgrid[valid_nh]
+    vgrid_sh = vgrid[valid_sh]
+    n_full = np.count_nonzero(shared_valid_mask)
+    n_nh = np.count_nonzero(valid_nh)
+    n_sh = np.count_nonzero(valid_sh)
+    score_nh = np.count_nonzero(vgrid_nh == egrid_nh) / n_nh * 100.0
+    score_sh = np.count_nonzero(vgrid_sh == egrid_sh) / n_sh * 100.0
+    score_full = (
+        np.count_nonzero(vgrid[shared_valid_mask] == egrid[shared_valid_mask])
+        / n_full
+        * 100.0
+    )
     return score_nh, score_sh, score_full
 
 
@@ -139,9 +183,9 @@ def _validate(estimate_grids, point_fetcher, point_gridder):
     for date, egrid in tqdm.tqdm(estimate_grids.items(), ncols=80):
         vpoints, temps = point_fetcher.fetch(date)
         vft = ft_model_zero_threshold(temps)
-        point_gridder(vgrid, vpoints, vft, clear=True, fill=np.nan)
+        point_gridder(vgrid, vpoints, vft, clear=True, fill=OTHER)
         n = _count_shared_valid_points(egrid, vgrid)
-        score = (vgrid == egrid).sum() / n * 100.0
+        score = np.count_nonzero(vgrid == egrid) / n * 100.0
         results.append((date, score))
     return results
 
@@ -155,7 +199,7 @@ def _validate_with_mask(estimate_grids, point_fetcher, point_gridder, mask):
     for date, egrid in tqdm.tqdm(estimate_grids.items(), ncols=80):
         vpoints, temps = point_fetcher.fetch(date)
         vft = ft_model_zero_threshold(temps)
-        point_gridder(vgrid, vpoints, vft, clear=True, fill=np.nan)
+        point_gridder(vgrid, vpoints, vft, clear=True, fill=OTHER)
         egrid_masked = egrid[mask]
         vgrid_masked = vgrid[mask]
         n = _count_shared_valid_points(egrid_masked, vgrid_masked)
@@ -213,7 +257,7 @@ def validate_south_hemisphere(estimate_grids, point_fetcher, point_gridder):
     return [(d, LABEL_SH, s) for d, s in data]
 
 
-def perform_regional_composite_validation(
+def perform_custom_regional_composite_validation(
     estimate_grids, point_fetcher, point_gridder, validation_funcs
 ):
     region_results = [
@@ -234,21 +278,48 @@ LABEL_AM = "AM"
 LABEL_PM = "PM"
 
 
+def perform_regional_composite_validation(
+    estimate_grids, point_fetcher, point_gridder, label=None
+):
+    results = perform_nh_sh_global_validation(
+        estimate_grids, point_fetcher, point_gridder
+    )
+    if label is None:
+        return results
+    return [(d, label, reg_label, score) for d, reg_label, score in results]
+
+
+def perform_am_regional_composite_validation(
+    am_estimate_grids, point_fetcher, point_gridder,
+):
+    point_fetcher.set_retrieval_type(RETRIEVAL_MIN)
+    return perform_regional_composite_validation(
+        am_estimate_grids, point_fetcher, point_gridder, label=LABEL_AM
+    )
+
+
+def perform_pm_regional_composite_validation(
+    pm_estimate_grids, point_fetcher, point_gridder,
+):
+    point_fetcher.set_retrieval_type(RETRIEVAL_MAX)
+    return perform_regional_composite_validation(
+        pm_estimate_grids, point_fetcher, point_gridder, label=LABEL_PM
+    )
+
+
 def perform_am_pm_regional_composite_validation(
     am_estimate_grids, pm_estimate_grids, point_fetcher, point_gridder,
 ):
     # AM
-    print("AM")
-    am = perform_nh_sh_global_validation(
+    print("Validating: AM")
+    am = perform_am_regional_composite_validation(
         am_estimate_grids, point_fetcher, point_gridder
     )
-    am = [(d, LABEL_AM, reg_label, score) for d, reg_label, score in am]
     # PM
-    print("PM")
-    pm = perform_nh_sh_global_validation(
+    print("Validating: PM")
+    pm = perform_pm_regional_composite_validation(
         pm_estimate_grids, point_fetcher, point_gridder
     )
-    pm = [(d, LABEL_PM, reg_label, score) for d, reg_label, score in pm]
     return flatten_to_iterable((am, pm))
 
 
