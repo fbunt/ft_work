@@ -123,9 +123,13 @@ class DbWMOMetDailyTempRecord(DbBase):
         "temperature_mean", Float, nullable=False, index=True
     )
     # Min temperature in Kelvin
-    temperature_min = Column("temperature_min", Float, nullable=True)
+    temperature_min = Column(
+        "temperature_min", Float, nullable=True, index=True
+    )
     # Max temperature in Kelvin
-    temperature_max = Column("temperature_max", Float, nullable=True)
+    temperature_max = Column(
+        "temperature_max", Float, nullable=True, index=True
+    )
 
     met_station = relationship(
         "DbWMOMetStation", back_populates="temperature_records"
