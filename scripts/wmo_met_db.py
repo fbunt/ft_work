@@ -73,9 +73,9 @@ def _parse_wmo_station_data_line(line):
     if t != 9999.9:
         t = _fahrenheit_to_kelvin(t)
         max_ = float(line[102:108])
-        max_ = _fahrenheit_to_kelvin(max_) if max_ == 9999.9 else None
+        max_ = _fahrenheit_to_kelvin(max_) if max_ != 9999.9 else None
         min_ = float(line[110:116])
-        min_ = _fahrenheit_to_kelvin(min_) if min_ == 9999.9 else None
+        min_ = _fahrenheit_to_kelvin(min_) if min_ != 9999.9 else None
         return DbWMOMetDailyTempRecord(
             station_id=sid,
             date_int=d,
