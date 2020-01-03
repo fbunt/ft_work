@@ -328,9 +328,9 @@ def output_am_pm_regional_composite_validation_stats(results_list):
         results_list, columns=[COL_DATE, COL_PASS, COL_REGION, COL_SCORE]
     )
     year_groups = df.groupby(df.date.dt.year)
+    print()
     for year, group in year_groups:
-        print()
-        print("-" * 40)
+        print("-" * 72)
         print(f"YEAR: {year}")
         summary = (
             df.groupby([df.date.dt.month, COL_PASS, COL_REGION])
@@ -339,6 +339,7 @@ def output_am_pm_regional_composite_validation_stats(results_list):
         )
         summary.index.names = [COL_MONTH]
         print(summary)
+    print("-" * 72)
 
 
 def perform_default_am_pm_validation(
@@ -436,9 +437,10 @@ def _get_parser():
 
 if __name__ == "__main__":
     args = _get_parser().parse_args()
-    print("Opening database")
+    print(f"Opening database: '{args.dbpath}'")
     db = get_db_session(args.dbpath)
     try:
         perform_validation_on_ft_esdr(db, args.files)
     finally:
+        print("Closing database")
         db.close()
