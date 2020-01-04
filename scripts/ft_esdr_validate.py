@@ -130,6 +130,14 @@ def ft_model_zero_threshold(temps):
     return (temps > 273.15).astype("uint8")
 
 
+def get_empty_data_grid(shape):
+    return np.full(shape, OTHER, dtype="int8")
+
+
+def get_empty_data_grid_like(a):
+    return get_empty_data_grid(a.shape)
+
+
 COL_YEAR = "year"
 COL_MONTH = "month"
 COL_SCORE = "score"
@@ -179,7 +187,7 @@ def _validate(estimate_grids, point_fetcher, point_gridder):
     if not estimate_grids:
         return results
     k = next(iter(estimate_grids))
-    vgrid = np.full_like(estimate_grids[k], OTHER, dtype="int8")
+    vgrid = get_empty_data_grid_like(estimate_grids[k])
     for date, egrid in tqdm.tqdm(estimate_grids.items(), ncols=80):
         vpoints, temps = point_fetcher.fetch(date)
         vft = ft_model_zero_threshold(temps)
@@ -195,7 +203,7 @@ def _validate_with_mask(estimate_grids, point_fetcher, point_gridder, mask):
     if not estimate_grids:
         return results
     k = next(iter(estimate_grids))
-    vgrid = np.full_like(estimate_grids[k], OTHER, dtype="int8")
+    vgrid = get_empty_data_grid(estimate_grids[k])
     for date, egrid in tqdm.tqdm(estimate_grids.items(), ncols=80):
         vpoints, temps = point_fetcher.fetch(date)
         vft = ft_model_zero_threshold(temps)
@@ -220,7 +228,7 @@ def perform_nh_sh_global_validation(
     if not estimate_grids:
         return results
     k = next(iter(estimate_grids))
-    vgrid = np.full_like(estimate_grids[k], OTHER, dtype="int8")
+    vgrid = get_empty_data_grid_like(estimate_grids[k])
     for date, egrid in tqdm.tqdm(estimate_grids.items(), ncols=80):
         vpoints, vtemps = point_fetcher.fetch(date)
         score_nh, score_sh, score_global = _validate_nh_sh_global(
@@ -352,7 +360,7 @@ def perform_default_am_pm_validation(
 
 
 def _load_ampm_ft_esdr_data(data):
-    g = np.full_like(data, OTHER, dtype="int8")
+    g = get_empty_data_grid_like(data)
     g[data == FT_ESDR_FROZEN] = FROZEN
     g[data == FT_ESDR_THAWED] = THAWED
     return g
