@@ -115,15 +115,18 @@ class PointsGridder:
     """Take points and shift them onto a grid using nearest neighbor approach.
     """
 
-    def __init__(self, xgrid, ygrid):
+    def __init__(self, xgrid, ygrid, invalid_mask=None):
         print("Generating tree")
         self.tree = KDTree(np.array(list(zip(xgrid.ravel(), ygrid.ravel()))))
+        self.imask = invalid_mask
 
     def __call__(self, grid, points, values, clear=False, fill=OTHER):
         if clear:
             grid[:] = fill
         _, idx = self.tree.query(points)
         grid.ravel()[idx] = values
+        if self.imask is not None:
+            grid[self.imask] = fill
 
 
 def ft_model_zero_threshold(temps):
@@ -415,11 +418,15 @@ def load_ft_esdr_data_from_files(fpaths):
     return grids
 
 
-def perform_validation_on_ft_esdr(db, fpaths):
+def perform_validation_on_ft_esdr(db, fpaths, water_mask_file=None):
     for f in fpaths:
         validate_file_path(f)
+    if water_mask_file is not None:
+        wmask = np.load(water_mask_file)
     pf = WMOValidationPointFetcher(db)
-    pg = PointsGridder(*eg.ease1_get_full_grid_lonlat(eg.ML))
+    pg = PointsGridder(
+        *eg.ease1_get_full_grid_lonlat(eg.ML), invalid_mask=wmask
+    )
     print("Loading files")
     data = load_ft_esdr_data_from_files(fpaths)
     dates_am = [d.dt for d in data if d.am_grid is not None]
@@ -440,6 +447,12 @@ def _get_parser():
         help="Path to validation database file",
     )
     p.add_argument("files", nargs="+", help="FT-ESDR files to process")
+    p.add_argument(
+        "-w",
+        "--water_mask_file",
+        type=validate_file_path,
+        help="Path to water mask file",
+    )
     return p
 
 
@@ -448,7 +461,7 @@ if __name__ == "__main__":
     print(f"Opening database: '{args.dbpath}'")
     db = get_db_session(args.dbpath)
     try:
-        perform_validation_on_ft_esdr(db, args.files)
+        perform_validation_on_ft_esdr(db, args.files, args.water_mask_file)
     finally:
         print("Closing database")
         db.close()
