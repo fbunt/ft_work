@@ -96,7 +96,7 @@ class DbWMOMeanDate(DbBase):
 class DbWMOMetDailyTempRecord(DbBase):
     """Class representing a single met station daily temperature record"""
 
-    __tablename__ = "wmo_met_daily_mean_data"
+    __tablename__ = "wmo_met_daily_temperature_data"
 
     id = Column(Integer, primary_key=True)
 
