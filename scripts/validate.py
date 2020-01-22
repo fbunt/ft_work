@@ -439,6 +439,140 @@ def perform_validation_on_ft_esdr(db, fpaths, water_mask_file=None):
     perform_default_am_pm_validation(grids_am, grids_pm, pf, pg)
 
 
+_COMMAND_FT_ESDR = "ft_esdr"
+_COMMAND_CUSTOM = "custom"
+
+
+def _run_ft_esdr(args):
+    print(f"Opening database: '{args.dbpath}'")
+    db = get_db_session(args.dbpath)
+    try:
+        perform_validation_on_ft_esdr(
+            db, args.input_files, args.water_mask_file
+        )
+    finally:
+        print("Closing database")
+        db.close()
+
+
+def _run_custom(args):
+    pass
+
+
+def main(args):
+    if args.command_name == _COMMAND_FT_ESDR:
+        _run_ft_esdr(args)
+    elif args.command_name == _COMMAND_CUSTOM:
+        _run_custom(args)
+
+
+def _parser_add_db_path(p):
+    p.add_argument(
+        "dbpath",
+        type=validate_file_path,
+        help="Path to validation database file",
+    )
+    return p
+
+
+def _validate_comparison_type(v):
+    if v in (RETRIEVAL_MIN, RETRIEVAL_MAX, RETRIEVAL_MEAN):
+        return v
+    raise ValueError(f"Unknown comparison type: {v}")
+
+
+def _parser_add_comparison_type(p):
+    p.add_argument(
+        "-t",
+        "--comparison_type",
+        action="store",
+        default=RETRIEVAL_MEAN,
+        type=_validate_comparison_type,
+        help=(
+            "The daily temperature type to compare against. Options are: "
+            + f"{RETRIEVAL_MIN}, {RETRIEVAL_MAX}, {RETRIEVAL_MEAN}. Default"
+            + f" is {RETRIEVAL_MEAN}."
+        ),
+    )
+    return p
+
+
+def _parser_add_files_or_path_list_file(p):
+    p.add_argument(
+        "files_or_path_list_file",
+        nargs="+",
+        type=validate_file_path,
+        help=(
+            "The files to be processed or, if -f is specified, a file "
+            "containing the paths to the files to be processed."
+        ),
+    )
+    p.add_argument(
+        "-f",
+        dest="path_file",
+        action="store_true",
+        help=(
+            "Indicates that the input file contains the paths to files to be "
+            "processed, of the form <path>[\t<date>] on each line."
+        ),
+    )
+    return p
+
+
+def _parser_add_input_files(p):
+    p.add_argument(
+        "input_files",
+        nargs="+",
+        type=validate_file_path,
+        help="The input files to process",
+    )
+    return p
+
+
+def _parser_add_water_mask_option(p):
+    p.add_argument(
+        "-w",
+        dest="water_mask_file",
+        type=validate_file_path,
+        default=None,
+        help="Path to water mask file",
+    )
+    return p
+
+
+def _build_ft_esdr_command(p):
+    _parser_add_db_path(p)
+    _parser_add_input_files(p)
+    _parser_add_water_mask_option(p)
+    return p
+
+
+def _build_custom_command(p):
+    _parser_add_db_path(p)
+    _parser_add_comparison_type(p)
+    _parser_add_files_or_path_list_file(p)
+    p.add_argument(
+        "start_row",
+        type=int,
+        help="EASE grid row of top left corner of input data",
+    )
+    p.add_argument(
+        "start_col",
+        type=int,
+        help="EASE grid column of top left corner of input data",
+    )
+    _parser_add_water_mask_option(p)
+    return p
+
+
+def get_cli_parser():
+    p = argparse.ArgumentParser()
+    subparsers = p.add_subparsers(title="commands", dest="command_name")
+    p_ft_esdr = _build_ft_esdr_command(subparsers.add_parser(_COMMAND_FT_ESDR))
+    p_custom = _build_custom_command(subparsers.add_parser(_COMMAND_CUSTOM))
+    return p
+
+
 def _get_parser():
     p = argparse.ArgumentParser()
     p.add_argument(
@@ -457,11 +591,5 @@ def _get_parser():
 
 
 if __name__ == "__main__":
-    args = _get_parser().parse_args()
-    print(f"Opening database: '{args.dbpath}'")
-    db = get_db_session(args.dbpath)
-    try:
-        perform_validation_on_ft_esdr(db, args.files, args.water_mask_file)
-    finally:
-        print("Closing database")
-        db.close()
+    args = get_cli_parser().parse_args()
+    main(args)
