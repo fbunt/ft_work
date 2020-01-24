@@ -123,7 +123,14 @@ class PointsGridder:
     def __call__(self, grid, points, values, clear=False, fill=OTHER):
         if clear:
             grid[:] = fill
-        _, idx = self.tree.query(points)
+        dist, idx = self.tree.query(points)
+        # Indices earlier in idx list will be overwritten by duplicates
+        # later in the list.
+        # Push points that are farther from their nearest neighbor to the front
+        # so that they will be overwritten by closer points if there is an
+        # index collision.
+        di = sorted(zip(dist, idx, values), reverse=True)
+        idx = [i[1] for i in di]
         grid.ravel()[idx] = values
         if self.imask is not None:
             grid[self.imask] = fill
