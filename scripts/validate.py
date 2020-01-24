@@ -351,7 +351,7 @@ def output_am_pm_regional_composite_validation_stats(results_list):
         print("-" * 72)
         print(f"YEAR: {year}")
         summary = (
-            df.groupby([df.date.dt.month, COL_PASS, COL_REGION])
+            group.groupby([group.date.dt.month, COL_PASS, COL_REGION])
             .mean()
             .unstack([COL_PASS, COL_REGION])
         )
