@@ -142,8 +142,8 @@ class DbWMOMetDailyTempRecord(DbBase):
             "station_id={0.station_id}, "
             "date_int={0.date_int}, "
             "nsamples={0.nsamples}, "
-            "temperature_mean={0.temperature_mean}, >"
-            "temperature_min={0.temperature_min}, >"
+            "temperature_mean={0.temperature_mean}, "
+            "temperature_min={0.temperature_min}, "
             "temperature_max={0.temperature_max})>"
         ).format(self)
 
