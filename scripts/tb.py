@@ -1,6 +1,4 @@
 import numpy as np
-import os
-import pyproj
 import re
 
 import ease_grid as eg
