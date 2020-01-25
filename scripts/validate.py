@@ -2,6 +2,7 @@ from collections import namedtuple
 from scipy.spatial import cKDTree as KDTree
 import argparse
 import numpy as np
+import os
 import pandas as pd
 import rasterio as rio
 import re
@@ -12,6 +13,7 @@ from utils import (
     day_of_year_to_datetime,
     flatten_to_iterable,
     validate_file_path,
+    validate_file_path_list,
 )
 from validation_db_orm import (
     DbWMOMetDailyTempRecord,
@@ -80,6 +82,36 @@ class WMOValidationPointFetcher:
             s = self.stns[r.station_id]
             t = self.retrieval_func(r)
             lonlats[i] = (s.lon, s.lat)
+            temps[i] = t
+            i += t is not None
+        # Trim any extra space at ends
+        lonlats.resize((i, 2), refcheck=False)
+        temps.resize(i, refcheck=False)
+        return lonlats, temps
+
+    def fetch_bounded(self, datetime, bounds):
+        records = (
+            self._db.query(
+                DbWMOMetDailyTempRecord,
+                DbWMOMetStation.lon,
+                DbWMOMetStation.lat,
+            )
+            .join(DbWMOMetDailyTempRecord.met_station)
+            .filter(DbWMOMetDailyTempRecord.date_int == date_to_int(datetime))
+            .filter(DbWMOMetStation.lon >= bounds[0])
+            .filter(DbWMOMetStation.lon <= bounds[1])
+            .filter(DbWMOMetStation.lat >= bounds[2])
+            .filter(DbWMOMetStation.lat <= bounds[3])
+            .all()
+        )
+        if not records:
+            return None
+        lonlats = np.empty((len(records), 2))
+        temps = np.empty(len(records))
+        i = 0
+        for r in records:
+            t = self.retrieval_func(r[0])
+            lonlats[i] = (r[1], r[2])
             temps[i] = t
             i += t is not None
         # Trim any extra space at ends
@@ -360,6 +392,19 @@ def output_am_pm_regional_composite_validation_stats(results_list):
     print("-" * 72)
 
 
+def output_validation_stats_grouped_by_month(results_list, cols):
+    df = pd.DataFrame(results_list, columns=cols)
+    year_groups = df.groupby(df.date.dt.year)
+    print()
+    for year, group in year_groups:
+        print("-" * 16)
+        print(f"YEAR: {year}")
+        summary = group.groupby([group.date.dt.month]).mean()
+        summary.index.names = [COL_MONTH]
+        print(summary)
+    print("-" * 16)
+
+
 def perform_default_am_pm_validation(
     am_estimate_grids, pm_estimate_grids, point_fetcher, point_gridder
 ):
@@ -425,6 +470,13 @@ def load_ft_esdr_data_from_files(fpaths):
     return grids
 
 
+def load_npy_files(fpaths):
+    grids = []
+    for fp in tqdm.tqdm(fpaths, ncols=80, desc="Loading files"):
+        grids.append(np.load(fp))
+    return grids
+
+
 def perform_validation_on_ft_esdr(db, fpaths, water_mask_file=None):
     for f in fpaths:
         validate_file_path(f)
@@ -446,6 +498,90 @@ def perform_validation_on_ft_esdr(db, fpaths, water_mask_file=None):
     perform_default_am_pm_validation(grids_am, grids_pm, pf, pg)
 
 
+def perform_bounded_validation(
+    date_to_grid, point_fetcher, point_gridder, bounds
+):
+    results = []
+    if not date_to_grid:
+        return results
+    k = next(iter(date_to_grid))
+    vgrid = get_empty_data_grid_like(date_to_grid[k])
+    for date, egrid in tqdm.tqdm(
+        date_to_grid.items(), ncols=80, desc="Validating"
+    ):
+        vpoints, temps = point_fetcher.fetch_bounded(date, bounds)
+        vft = ft_model_zero_threshold(temps)
+        point_gridder(vgrid, vpoints, vft, clear=True, fill=OTHER)
+        shared_valid_mask = (egrid > OTHER) & (vgrid > OTHER)
+        n = np.count_nonzero(shared_valid_mask)
+        score = np.count_nonzero(
+            vgrid[shared_valid_mask] == egrid[shared_valid_mask]
+        )
+        score = score / n * 100.0
+        results.append((date, score))
+    return results
+
+
+def _verify_grids_are_homogenous_shape(grids):
+    if not grids:
+        return
+    shape = grids[0].shape
+    for g in grids[1:]:
+        if g.shape != shape:
+            raise RuntimeError("Input grids are not homogenous in size")
+
+
+def perform_custom_validation(
+    db, fpaths, dates, start_row, start_col, comp_type, water_mask_file=None
+):
+    validate_file_path_list(fpaths)
+    if len(dates) != len(fpaths):
+        raise RuntimeError("Input paths size does not match input dates size")
+    if len(fpaths) == 0:
+        print("No data")
+        return
+    if water_mask_file is not None:
+        validate_file_path(water_mask_file)
+        wmask = np.load(water_mask_file)
+    pf = WMOValidationPointFetcher(db, retrieval_type=comp_type)
+    data = load_npy_files(fpaths)
+    _verify_grids_are_homogenous_shape(data)
+
+    nr, nc = data[0].shape
+    xj, xi = np.meshgrid(
+        range(start_col, start_col + nc), range(start_row, start_row + nr)
+    )
+    wmask = wmask[xi, xj]
+    lon, lat = eg.ease1_get_full_grid_lonlat(eg.ML)
+    lon = lon[xi, xj]
+    lat = lat[xi, xj]
+    bounds = [lon.min(), lon.max(), lat.min(), lat.max()]
+    pg = PointsGridder(lon, lat, invalid_mask=wmask)
+    date_to_grid = {d: g for d, g in zip(dates, data)}
+    results = perform_bounded_validation(date_to_grid, pf, pg, bounds)
+    output_validation_stats_grouped_by_month(results, [COL_DATE, COL_SCORE])
+
+
+class InputFileParsingError(Exception):
+    pass
+
+
+def _parse_input_file(fname):
+    paths = []
+    dates = []
+    with open(fname) as fd:
+        for line in fd:
+            p, dstr = line.strip().split()
+            paths.append(p)
+            date = np.datetime64(dstr).astype("O")
+            dates.append(date)
+    try:
+        validate_file_path_list(paths)
+    except IOError:
+        raise InputFileParsingError("Could not find listed file(s)")
+    return paths, dates
+
+
 _COMMAND_FT_ESDR = "ft_esdr"
 _COMMAND_CUSTOM = "custom"
 
@@ -463,7 +599,22 @@ def _run_ft_esdr(args):
 
 
 def _run_custom(args):
-    pass
+    paths, dates = _parse_input_file(args.path_list_file)
+    print(f"Opening database: '{args.dbpath}'")
+    db = get_db_session(args.dbpath)
+    try:
+        perform_custom_validation(
+            db,
+            paths,
+            dates,
+            args.start_row,
+            args.start_col,
+            args.comparison_type,
+            args.water_mask_file,
+        )
+    finally:
+        print("Closing database")
+        db.close()
 
 
 def main(args):
@@ -526,6 +677,17 @@ def _parser_add_files_or_path_list_file(p):
     return p
 
 
+def _parser_add_path_list_file(p):
+    p.add_argument(
+        "path_list_file",
+        type=validate_file_path,
+        help=(
+            "An input file containing lines of the form "
+            "'<path>\t<date_string>'. The listed files are treated as input."
+        ),
+    )
+
+
 def _parser_add_input_files(p):
     p.add_argument(
         "input_files",
@@ -557,7 +719,6 @@ def _build_ft_esdr_command(p):
 def _build_custom_command(p):
     _parser_add_db_path(p)
     _parser_add_comparison_type(p)
-    _parser_add_files_or_path_list_file(p)
     p.add_argument(
         "start_row",
         type=int,
@@ -568,6 +729,7 @@ def _build_custom_command(p):
         type=int,
         help="EASE grid column of top left corner of input data",
     )
+    _parser_add_path_list_file(p)
     _parser_add_water_mask_option(p)
     return p
 

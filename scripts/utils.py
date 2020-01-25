@@ -21,6 +21,12 @@ def validate_file_path(path):
     raise IOError(f"Could not find file: '{path}'")
 
 
+def validate_file_path_list(paths):
+    for p in paths:
+        validate_file_path(p)
+    return paths
+
+
 def validate_dir_path(path):
     if os.path.isdir(path):
         return path
