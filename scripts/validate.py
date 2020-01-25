@@ -456,7 +456,7 @@ FTESDRGrid = namedtuple("FTESDRGrid", ("dt", "type", "am_grid", "pm_grid"))
 def load_ft_esdr_data_from_files(fpaths):
     nr, nc = eg.GRID_NAME_TO_SHAPE[eg.ML]
     grids = []
-    for fp in tqdm.tqdm(fpaths, ncols=80):
+    for fp in tqdm.tqdm(fpaths, ncols=80, desc="Loading files"):
         try:
             m = FT_ESDR_FNAME_REGEX.search(fp)
             type_ = m["type"]
@@ -486,7 +486,6 @@ def perform_validation_on_ft_esdr(db, fpaths, water_mask_file=None):
     pg = PointsGridder(
         *eg.ease1_get_full_grid_lonlat(eg.ML), invalid_mask=wmask
     )
-    print("Loading files")
     data = load_ft_esdr_data_from_files(fpaths)
     dates_am = [d.dt for d in data if d.am_grid is not None]
     dates_pm = [d.dt for d in data if d.pm_grid is not None]
