@@ -741,23 +741,6 @@ def get_cli_parser():
     return p
 
 
-def _get_parser():
-    p = argparse.ArgumentParser()
-    p.add_argument(
-        "dbpath",
-        type=validate_file_path,
-        help="Path to validation database file",
-    )
-    p.add_argument("files", nargs="+", help="FT-ESDR files to process")
-    p.add_argument(
-        "-w",
-        "--water_mask_file",
-        type=validate_file_path,
-        help="Path to water mask file",
-    )
-    return p
-
-
 if __name__ == "__main__":
     args = get_cli_parser().parse_args()
     main(args)
