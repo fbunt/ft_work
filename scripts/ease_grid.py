@@ -31,32 +31,32 @@ SH = "SH"
 GRID_NAMES = frozenset((ML, MH, NL, NH, SL, SH))
 
 # ML
-EASE1_ML_ROWS = 586
-EASE1_ML_COLS = 1383
+V1_ML_ROWS = 586
+V1_ML_COLS = 1383
 # NL
-EASE1_NL_ROWS = 721
-EASE1_NL_COLS = 721
+V1_NL_ROWS = 721
+V1_NL_COLS = 721
 # SL
-EASE1_SL_ROWS = 721
-EASE1_SL_COLS = 721
+V1_SL_ROWS = 721
+V1_SL_COLS = 721
 
 # Shapes of each grid
-EASE1_ML_SHAPE = (EASE1_ML_ROWS, EASE1_ML_COLS)
-EASE1_MH_SHAPE = (2 * EASE1_ML_ROWS, 2 * EASE1_ML_COLS)
-EASE1_NL_SHAPE = (EASE1_NL_ROWS, EASE1_NL_COLS)
-EASE1_NH_SHAPE = (2 * EASE1_NL_ROWS, 2 * EASE1_NL_COLS)
-EASE1_SL_SHAPE = (EASE1_SL_ROWS, EASE1_SL_COLS)
-EASE1_SH_SHAPE = (2 * EASE1_SL_ROWS, 2 * EASE1_SL_COLS)
+V1_ML_SHAPE = (V1_ML_ROWS, V1_ML_COLS)
+V1_MH_SHAPE = (2 * V1_ML_ROWS, 2 * V1_ML_COLS)
+V1_NL_SHAPE = (V1_NL_ROWS, V1_NL_COLS)
+V1_NH_SHAPE = (2 * V1_NL_ROWS, 2 * V1_NL_COLS)
+V1_SL_SHAPE = (V1_SL_ROWS, V1_SL_COLS)
+V1_SH_SHAPE = (2 * V1_SL_ROWS, 2 * V1_SL_COLS)
 
-GRID_NAME_TO_SHAPE = {
-    ML: EASE1_ML_SHAPE,
-    MH: EASE1_MH_SHAPE,
-    NL: EASE1_NL_SHAPE,
-    NH: EASE1_NH_SHAPE,
-    SL: EASE1_SL_SHAPE,
-    SH: EASE1_SH_SHAPE,
+GRID_NAME_TO_V1_SHAPE = {
+    ML: V1_ML_SHAPE,
+    MH: V1_MH_SHAPE,
+    NL: V1_NL_SHAPE,
+    NH: V1_NH_SHAPE,
+    SL: V1_SL_SHAPE,
+    SH: V1_SH_SHAPE,
 }
-GRID_NAME_TO_PROJ_CODE = {
+GRID_NAME_TO_V1_PROJ_CODE = {
     ML: "EPSG:3410",
     MH: "EPSG:3410",
     NL: "EPSG:3408",
@@ -65,20 +65,20 @@ GRID_NAME_TO_PROJ_CODE = {
     SH: "EPSG:3409",
 }
 # Projections for each grid
-EASE1_ML_PROJ = pyproj.Proj(GRID_NAME_TO_PROJ_CODE[ML])
-EASE1_MH_PROJ = EASE1_ML_PROJ
-EASE1_NL_PROJ = pyproj.Proj(GRID_NAME_TO_PROJ_CODE[NL])
-EASE1_NH_PROJ = EASE1_NL_PROJ
-EASE1_SL_PROJ = pyproj.Proj(GRID_NAME_TO_PROJ_CODE[SL])
-EASE1_SH_PROJ = EASE1_SL_PROJ
+V1_ML_PROJ = pyproj.Proj(GRID_NAME_TO_V1_PROJ_CODE[ML])
+V1_MH_PROJ = V1_ML_PROJ
+V1_NL_PROJ = pyproj.Proj(GRID_NAME_TO_V1_PROJ_CODE[NL])
+V1_NH_PROJ = V1_NL_PROJ
+V1_SL_PROJ = pyproj.Proj(GRID_NAME_TO_V1_PROJ_CODE[SL])
+V1_SH_PROJ = V1_SL_PROJ
 
-GRID_NAME_TO_PROJ = {
-    ML: EASE1_ML_PROJ,
-    MH: EASE1_MH_PROJ,
-    NL: EASE1_NL_PROJ,
-    NH: EASE1_NH_PROJ,
-    SL: EASE1_SL_PROJ,
-    SH: EASE1_SH_PROJ,
+GRID_NAME_TO_V1_PROJ = {
+    ML: V1_ML_PROJ,
+    MH: V1_MH_PROJ,
+    NL: V1_NL_PROJ,
+    NH: V1_NH_PROJ,
+    SL: V1_SL_PROJ,
+    SH: V1_SH_PROJ,
 }
 
 # Earth radius in km
@@ -130,7 +130,7 @@ def _handle_inputs(x, y, grid_name):
     return x, y, scalars
 
 
-def ease1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
+def v1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
     """Convert lon/lat points to EASE-grid cell coordinates (indices).
 
     Inputs can be scalars or arrays, but the type must be consistent. If
@@ -162,7 +162,7 @@ def ease1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
     """
     lon, lat, scalars = _handle_inputs(lon, lat, grid_name)
 
-    nr, nc = GRID_NAME_TO_SHAPE[grid_name]
+    nr, nc = GRID_NAME_TO_V1_SHAPE[grid_name]
     if grid_name[-1] == "L":
         scale = 1.0
     else:
@@ -221,7 +221,7 @@ def ease1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
     return rows, cols
 
 
-def ease1_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
+def v1_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
     """Convert row/col coords (indices) to lon/lat values.
 
     This function accepts scalars and arrays, but the type/shapes must match.
@@ -249,7 +249,7 @@ def ease1_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
     """
     rows, cols, scalars = _handle_inputs(rows, cols, grid_name)
 
-    nr, nc = GRID_NAME_TO_SHAPE[grid_name]
+    nr, nc = GRID_NAME_TO_V1_SHAPE[grid_name]
     if grid_name[-1] == "L":
         scale = 1.0
     else:
@@ -334,7 +334,7 @@ def ease1_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
     return lon, lat
 
 
-def ease1_lonlat_to_meters(lon, lat, grid_name=ML):
+def v1_lonlat_to_meters(lon, lat, grid_name=ML):
     """Reproject lon/lat points into the specified EASE-grid projection in
     meters.
 
@@ -361,14 +361,14 @@ def ease1_lonlat_to_meters(lon, lat, grid_name=ML):
     """
     lon, lat, scalars = _handle_inputs(lon, lat, grid_name)
 
-    xm, ym = GRID_NAME_TO_PROJ[grid_name](lon, lat)
+    xm, ym = GRID_NAME_TO_V1_PROJ[grid_name](lon, lat)
     if scalars:
         xm = xm.min()
         ym = ym.min()
     return xm, ym
 
 
-def ease1_meters_to_lonlat(xm, ym, grid_name=ML):
+def v1_meters_to_lonlat(xm, ym, grid_name=ML):
     """Convert x/y points (in meters) from the specified EASE-grid projection
     to lon/lat points.
 
@@ -389,10 +389,10 @@ def ease1_meters_to_lonlat(xm, ym, grid_name=ML):
         * https://nsidc.org/ease/ease-grid-projection-gt
     """
     _validate_grid_name(grid_name)
-    return GRID_NAME_TO_PROJ[grid_name](xm, ym, inverse=True)
+    return GRID_NAME_TO_V1_PROJ[grid_name](xm, ym, inverse=True)
 
 
-def ease1_meters_to_rowcol_coords(xm, ym, grid_name="ML", to_int=False):
+def v1_meters_to_rowcol_coords(xm, ym, grid_name="ML", to_int=False):
     """Convert EASE-grid projected coordinates in meters to EASE-grid cell
     coordinates (indices).
 
@@ -417,13 +417,13 @@ def ease1_meters_to_rowcol_coords(xm, ym, grid_name="ML", to_int=False):
             The resulting grid coordinates (indices). Scalars are returned if
             the inputs were also scalars, otherwise arrays.
     """
-    lon, lat = ease1_meters_to_lonlat(xm, ym, grid_name=grid_name)
-    return ease1_lonlat_to_rowcol_coords(
+    lon, lat = v1_meters_to_lonlat(xm, ym, grid_name=grid_name)
+    return v1_lonlat_to_rowcol_coords(
         lon, lat, grid_name=grid_name, to_int=to_int
     )
 
 
-def ease1_rowcol_coords_to_meters(rows, cols, grid_name):
+def v1_rowcol_coords_to_meters(rows, cols, grid_name):
     """Convert EASE-grid row/col coordinates (indices) to EASE-grid projected
     coordinates in meters.
 
@@ -445,11 +445,11 @@ def ease1_rowcol_coords_to_meters(rows, cols, grid_name):
             The resulting x/y projection points in meters. Scalars are returned
             if the inputs were also scalars, otherwise arrays.
     """
-    lon, lat = ease1_rowcol_coords_to_lonlat(rows, cols, grid_name=grid_name)
-    return ease1_lonlat_to_meters(lon, lat, grid_name=grid_name)
+    lon, lat = v1_rowcol_coords_to_lonlat(rows, cols, grid_name=grid_name)
+    return v1_lonlat_to_meters(lon, lat, grid_name=grid_name)
 
 
-def ease1_get_full_grid_coords(grid_name):
+def v1_get_full_grid_coords(grid_name):
     """Return the full set of EASE grid coordinates for the specified grid.
 
     Parameters:
@@ -462,12 +462,12 @@ def ease1_get_full_grid_coords(grid_name):
             The resulting grid coordinate arrays.
     """
     _validate_grid_name(grid_name)
-    nr, nc = GRID_NAME_TO_SHAPE[grid_name]
+    nr, nc = GRID_NAME_TO_V1_SHAPE[grid_name]
     cols, rows = np.meshgrid(range(nc), range(nr))
     return rows, cols
 
 
-def ease1_get_full_grid_lonlat(grid_name):
+def v1_get_full_grid_lonlat(grid_name):
     """Return the full set of lon/lat points for the specified EASE grid.
 
     Parameters:
@@ -479,8 +479,8 @@ def ease1_get_full_grid_lonlat(grid_name):
         (lon, lat) : tuple of 2D ndarrays
             The resulting lon/lat arrays
     """
-    rows, cols = ease1_get_full_grid_coords(grid_name)
-    return ease1_rowcol_coords_to_lonlat(rows, cols, grid_name)
+    rows, cols = v1_get_full_grid_coords(grid_name)
+    return v1_rowcol_coords_to_lonlat(rows, cols, grid_name)
 
 
 _EPSG_PAT = re.compile("(?:epsg:|EPSG:)?(\\d{4})")
@@ -503,7 +503,7 @@ def _get_proj(proj):
     )
 
 
-def ease1_meters_to_proj(xm, ym, ease_grid_name, proj):
+def v1_meters_to_proj(xm, ym, ease_grid_name, proj):
     """Convert EASE-grid coordinates to the specified projection.
 
     Parameters:
@@ -524,5 +524,5 @@ def ease1_meters_to_proj(xm, ym, ease_grid_name, proj):
     """
     _validate_grid_name(ease_grid_name)
     proj2 = _get_proj(proj)
-    eproj = GRID_NAME_TO_PROJ[ease_grid_name]
+    eproj = GRID_NAME_TO_V1_PROJ[ease_grid_name]
     return pyproj.transform(eproj, proj2, xm, ym)

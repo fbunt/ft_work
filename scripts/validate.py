@@ -137,7 +137,7 @@ FT_ESDR_TRANSITIONAL = 2
 FT_ESDR_INV_TRANSITIONAL = 3
 
 
-_EASE_LON, _EASE_LAT = eg.ease1_get_full_grid_lonlat(eg.ML)
+_EASE_LON, _EASE_LAT = eg.v1_get_full_grid_lonlat(eg.ML)
 _EPOINTS = np.array(list(zip(_EASE_LON.ravel(), _EASE_LAT.ravel())))
 _EASE_NH_MASK = _EASE_LAT >= 0.0
 _EASE_SH_MASK = _EASE_LAT < 0.0
@@ -454,7 +454,7 @@ FTESDRGrid = namedtuple("FTESDRGrid", ("dt", "type", "am_grid", "pm_grid"))
 
 
 def load_ft_esdr_data_from_files(fpaths):
-    nr, nc = eg.GRID_NAME_TO_SHAPE[eg.ML]
+    nr, nc = eg.GRID_NAME_TO_V1_SHAPE[eg.ML]
     grids = []
     for fp in tqdm.tqdm(fpaths, ncols=80, desc="Loading files"):
         try:
@@ -482,7 +482,7 @@ def perform_validation_on_ft_esdr(db, fpaths, mask=None):
         validate_file_path(f)
     pf = WMOValidationPointFetcher(db)
     pg = PointsGridder(
-        *eg.ease1_get_full_grid_lonlat(eg.ML), invalid_mask=mask
+        *eg.v1_get_full_grid_lonlat(eg.ML), invalid_mask=mask
     )
     data = load_ft_esdr_data_from_files(fpaths)
     dates_am = [d.dt for d in data if d.am_grid is not None]
@@ -547,7 +547,7 @@ def perform_custom_validation(
     )
     if mask:
         mask = mask[xi, xj]
-    lon, lat = eg.ease1_get_full_grid_lonlat(eg.ML)
+    lon, lat = eg.v1_get_full_grid_lonlat(eg.ML)
     lon = lon[xi, xj]
     lat = lat[xi, xj]
     bounds = [lon.min(), lon.max(), lat.min(), lat.max()]

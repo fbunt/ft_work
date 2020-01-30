@@ -14,7 +14,7 @@ import ease_grid as eg
 import tb as tbmod
 
 
-ROWS, COLS = eg.GRID_NAME_TO_SHAPE[eg.ML]
+ROWS, COLS = eg.GRID_NAME_TO_V1_SHAPE[eg.ML]
 
 
 def _parse_date(year, day_of_year):
@@ -74,8 +74,8 @@ def load_data(files, proj):
     dates = [_parse_date_from_fname(f) for f in files]
     grids = [tbmod.load_tb_file(f, proj) for f in files]
     dates, grids, missing_mask = _fill_gaps(dates, grids)
-    lon, lat = eg.ease1_get_full_grid_lonlat(proj)
-    x, y = eg.ease1_lonlat_to_meters(lon, lat, proj)
+    lon, lat = eg.v1_get_full_grid_lonlat(proj)
+    x, y = eg.v1_lonlat_to_meters(lon, lat, proj)
     lon = lon[0]
     lat = lat[:, 0]
     x = x[0]
@@ -148,7 +148,7 @@ def build_tb_netcdf(
     ds.frequency = freq
     ds.polarization = pol
     ds.ease_grid_type = proj
-    ds.projection = eg.GRID_NAME_TO_PROJ_CODE[proj]
+    ds.projection = eg.GRID_NAME_TO_V1_PROJ_CODE[proj]
     ds.close()
 
 

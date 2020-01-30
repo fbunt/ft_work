@@ -49,7 +49,7 @@ def fill_grids(x, y, records, interp_grids, dist_grids):
     for i, rs in tqdm.tqdm(enumerate(records), ncols=80):
         plon = [v[0] for v in rs]
         plat = [v[1] for v in rs]
-        pxm, pym = eg.ease1_lonlat_to_meters(plon, plat, eg.ML)
+        pxm, pym = eg.v1_lonlat_to_meters(plon, plat, eg.ML)
         points = np.array(list(zip(pxm, pym)))
         values = np.array([v[-1] for v in rs])
         ip = NearestNDInterpolator(points, values)
@@ -97,8 +97,8 @@ def main(args):
     end_date = dt.date(2001, 7, 1)
     dt_delta = dt.timedelta(1)
     dates, records = load_records(db, start_date, end_date, dt_delta)
-    lons, lats = eg.ease1_get_full_grid_lonlat(eg.ML)
-    x, y = eg.ease1_lonlat_to_meters(lons, lats, eg.ML)
+    lons, lats = eg.v1_get_full_grid_lonlat(eg.ML)
+    x, y = eg.v1_lonlat_to_meters(lons, lats, eg.ML)
     interp_grids = np.zeros((len(records), *x.shape))
     dist_grids = np.zeros_like(interp_grids)
     fill_grids(x, y, records, interp_grids, dist_grids)
