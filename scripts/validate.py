@@ -477,14 +477,12 @@ def load_npy_files(fpaths):
     return grids
 
 
-def perform_validation_on_ft_esdr(db, fpaths, water_mask_file=None):
+def perform_validation_on_ft_esdr(db, fpaths, mask=None):
     for f in fpaths:
         validate_file_path(f)
-    if water_mask_file is not None:
-        wmask = np.load(water_mask_file)
     pf = WMOValidationPointFetcher(db)
     pg = PointsGridder(
-        *eg.ease1_get_full_grid_lonlat(eg.ML), invalid_mask=wmask
+        *eg.ease1_get_full_grid_lonlat(eg.ML), invalid_mask=mask
     )
     data = load_ft_esdr_data_from_files(fpaths)
     dates_am = [d.dt for d in data if d.am_grid is not None]
@@ -531,7 +529,7 @@ def _verify_grids_are_homogenous_shape(grids):
 
 
 def perform_custom_validation(
-    db, fpaths, dates, start_row, start_col, comp_type, water_mask_file=None
+    db, fpaths, dates, start_row, start_col, comp_type, mask=None
 ):
     validate_file_path_list(fpaths)
     if len(dates) != len(fpaths):
@@ -539,9 +537,6 @@ def perform_custom_validation(
     if len(fpaths) == 0:
         print("No data")
         return
-    if water_mask_file is not None:
-        validate_file_path(water_mask_file)
-        wmask = np.load(water_mask_file)
     pf = WMOValidationPointFetcher(db, retrieval_type=comp_type)
     data = load_npy_files(fpaths)
     _verify_grids_are_homogenous_shape(data)
@@ -550,12 +545,13 @@ def perform_custom_validation(
     xj, xi = np.meshgrid(
         range(start_col, start_col + nc), range(start_row, start_row + nr)
     )
-    wmask = wmask[xi, xj]
+    if mask:
+        mask = mask[xi, xj]
     lon, lat = eg.ease1_get_full_grid_lonlat(eg.ML)
     lon = lon[xi, xj]
     lat = lat[xi, xj]
     bounds = [lon.min(), lon.max(), lat.min(), lat.max()]
-    pg = PointsGridder(lon, lat, invalid_mask=wmask)
+    pg = PointsGridder(lon, lat, invalid_mask=mask)
     date_to_grid = {d: g for d, g in zip(dates, data)}
     results = perform_bounded_validation(date_to_grid, pf, pg, bounds)
     output_validation_stats_grouped_by_month(results, [COL_DATE, COL_SCORE])
@@ -581,6 +577,20 @@ def _parse_input_file(fname):
     return paths, dates
 
 
+def combine_masks(mask_files):
+    if not mask_files:
+        return None
+    masks = [np.load(mf) for mf in mask_files]
+    m = masks[0]
+    for mi in masks[1:]:
+        if m.shape != mi.shape:
+            raise InputDataError("Mask arrays do not have homogenous shapes")
+    final_mask = m.copy()
+    for mi in masks[1:]:
+        final_mask &= mi
+    return final_mask
+
+
 _COMMAND_FT_ESDR = "ft_esdr"
 _COMMAND_CUSTOM = "custom"
 
@@ -590,7 +600,7 @@ def _run_ft_esdr(args):
     db = get_db_session(args.dbpath)
     try:
         perform_validation_on_ft_esdr(
-            db, args.input_files, args.water_mask_file
+            db, args.input_files, combine_masks(args.mask_files)
         )
     finally:
         print("Closing database")
@@ -609,7 +619,7 @@ def _run_custom(args):
             args.start_row,
             args.start_col,
             args.comparison_type,
-            args.water_mask_file,
+            combine_masks(args.mask_files),
         )
     finally:
         print("Closing database")
@@ -697,13 +707,14 @@ def _parser_add_input_files(p):
     return p
 
 
-def _parser_add_water_mask_option(p):
+def _parser_add_masks_option(p):
     p.add_argument(
-        "-w",
-        dest="water_mask_file",
+        "-m",
+        "--mask_files",
+        nargs="+",
         type=validate_file_path,
         default=None,
-        help="Path to water mask file",
+        help="Path(s) to mask files. Format: .npy",
     )
     return p
 
@@ -711,7 +722,7 @@ def _parser_add_water_mask_option(p):
 def _build_ft_esdr_command(p):
     _parser_add_db_path(p)
     _parser_add_input_files(p)
-    _parser_add_water_mask_option(p)
+    _parser_add_masks_option(p)
     return p
 
 
@@ -729,7 +740,7 @@ def _build_custom_command(p):
         help="EASE grid column of top left corner of input data",
     )
     _parser_add_path_list_file(p)
-    _parser_add_water_mask_option(p)
+    _parser_add_masks_option(p)
     return p
 
 
