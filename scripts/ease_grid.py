@@ -3,7 +3,10 @@ import pyproj
 import re
 
 
-# EASE Grid 1.0
+################
+# EASE Grid V1 #
+################
+
 # Ref: https://web.archive.org/web/20190217144552/https://nsidc.org/data/ease/ease_grid.html  # noqa: E501
 # Ref: https://nsidc.org/ease/ease-grid-projection-gt
 # +------+-----------------+------+---------------+----------------------------------+-----------------------------------------+  # noqa: E501
@@ -84,7 +87,7 @@ GRID_NAME_TO_V1_PROJ = {
 # Earth radius in km
 _RE_KM = 6371.228
 # Nominal cell size in km
-_CELL_KM = 25.067_525
+_V1_CELL_KM = 25.067_525
 # Scale factor for standard parallels at +/-30 degrees
 _COS_PHI1 = 0.866_025_403
 
@@ -167,7 +170,7 @@ def v1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
         scale = 1.0
     else:
         scale = 2.0
-    Rg = scale * _RE_KM / _CELL_KM
+    Rg = scale * _RE_KM / _V1_CELL_KM
     r0 = (nc - 1) / 2.0 * scale
     s0 = (nr - 1) / 2.0 * scale
 
@@ -254,7 +257,7 @@ def v1_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
         scale = 1.0
     else:
         scale = 2.0
-    Rg = scale * _RE_KM / _CELL_KM
+    Rg = scale * _RE_KM / _V1_CELL_KM
     r = cols
     s = rows
     r0 = (nc - 1) / 2.0 * scale
@@ -525,4 +528,381 @@ def v1_meters_to_proj(xm, ym, ease_grid_name, proj):
     _validate_grid_name(ease_grid_name)
     proj2 = _get_proj(proj)
     eproj = GRID_NAME_TO_V1_PROJ[ease_grid_name]
+    return pyproj.transform(eproj, proj2, xm, ym)
+
+
+################
+# EASE GRID V2 #
+################
+
+# References:
+#   1) https://nsidc.org/ease/ease-grid-projection-gt
+#   2) https://www.mdpi.com/2220-9964/1/1/32
+#   3) https://www.mdpi.com/2220-9964/3/3/1154/htm
+#   4) ftp://sidads.colorado.edu/pub/tools/easegrid2/
+#
+# Notes:
+#   1) ref #3 contains IMPORTANT CORRECTIONS to ref #2
+#   2) The corrections specified in ref #3 above have not been applied to the
+#      files in ref #4 so #4 should be used as reference but not truth.
+
+# +------+-----------------+------+------+--------+--------------+
+# |      |   Projection    |      |  Dimensions   |              |
+# | GRID |       \         | EPSG +-------+-------+  Grid Cell   |
+# | Name |   Resolution    | Code |  W    |  H    |     Size     |
+# +------+-----------------+------+-------+-------+--------------+
+# | ML   | Global  25.0 km | 6933 | 1388  |  584  |  25025.26 m  |
+# | MH   | Global  12.5 km | 6933 | 2776  | 1168  |  12512.63 m  |
+# | NL   | N. Hem. 25.0 km | 6931 |  720  |  720  |  25000.00 m  |
+# | NH   | N. Hem. 12.5 km | 6931 | 1440  | 1440  |  12500.00 m  |
+# | SL   | S. Hem. 25.0 km | 6932 |  720  |  720  |  25000.00 m  |
+# | SH   | S. Hem. 12.5 km | 6932 | 1440  | 1440  |  12500.00 m  |
+# +------+-----------------+------+-------+-------+--------------+
+
+# ML
+V2_ML_ROWS = 584
+V2_ML_COLS = 1388
+# NL
+V2_NL_ROWS = 720
+V2_NL_COLS = 720
+# SL
+V2_SL_ROWS = 720
+V2_SL_COLS = 720
+
+# Shapes of each grid
+V2_ML_SHAPE = (V2_ML_ROWS, V2_ML_COLS)
+V2_MH_SHAPE = (2 * V2_ML_ROWS, 2 * V2_ML_COLS)
+V2_NL_SHAPE = (V2_NL_ROWS, V2_NL_COLS)
+V2_NH_SHAPE = (2 * V2_NL_ROWS, 2 * V2_NL_COLS)
+V2_SL_SHAPE = (V2_SL_ROWS, V2_SL_COLS)
+V2_SH_SHAPE = (2 * V2_SL_ROWS, 2 * V2_SL_COLS)
+
+GRID_NAME_TO_V2_SHAPE = {
+    ML: V2_ML_SHAPE,
+    MH: V2_MH_SHAPE,
+    NL: V2_NL_SHAPE,
+    NH: V2_NH_SHAPE,
+    SL: V2_SL_SHAPE,
+    SH: V2_SH_SHAPE,
+}
+GRID_NAME_TO_V2_MAP_SCALE = {
+    ML: 25025.26,
+    MH: 12512.63,
+    NL: 25000.00,
+    NH: 12500.00,
+    SL: 25000.00,
+    SH: 12500.00,
+}
+GRID_NAME_TO_V2_PROJ_CODE = {
+    ML: "EPSG:6933",
+    MH: "EPSG:6933",
+    NL: "EPSG:6931",
+    NH: "EPSG:6931",
+    SL: "EPSG:6932",
+    SH: "EPSG:6932",
+}
+# Projections for each grid
+V2_ML_PROJ = pyproj.Proj(GRID_NAME_TO_V2_PROJ_CODE[ML])
+V2_MH_PROJ = V2_ML_PROJ
+V2_NL_PROJ = pyproj.Proj(GRID_NAME_TO_V2_PROJ_CODE[NL])
+V2_NH_PROJ = V2_NL_PROJ
+V2_SL_PROJ = pyproj.Proj(GRID_NAME_TO_V2_PROJ_CODE[SL])
+V2_SH_PROJ = V2_SL_PROJ
+
+GRID_NAME_TO_V2_PROJ = {
+    ML: V2_ML_PROJ,
+    MH: V2_MH_PROJ,
+    NL: V2_NL_PROJ,
+    NH: V2_NH_PROJ,
+    SL: V2_SL_PROJ,
+    SH: V2_SH_PROJ,
+}
+
+
+def v2_meters_to_rowcol_coords(xm, ym, grid_name=ML, to_int=False):
+    """Convert EASE-grid V2 projected coordinates in meters to EASE-grid V2
+    cell coordinates (indices).
+
+    Inputs can be scalars or arrays, but the type must be consistent. If
+    scalars are used as input, the results will also be scalars.
+
+    Parameters:
+        xm : scalar or array-like
+            A single EASE-grid V2 x coordinate in meters or an array of points.
+            Must match the shape of `ym`.
+        ym : scalar or array-like
+            A single EASE-grid V2 y coordinate in meters or an array of points.
+            Must match the shape of `xm`.
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+        to_int : boolean
+            If `True`, results will be rounded and converted to integers.
+
+    Returns:
+        (rows, cols) : tuple of scalars or `numpy.ndarray`s
+            The resulting grid coordinates (indices). Scalars are returned if
+            the inputs were also scalars, otherwise arrays.
+
+    References:
+        * ftp://sidads.colorado.edu/pub/tools/easegrid2/
+        * https://nsidc.org/ease/ease-grid-projection-gt
+        * https://www.mdpi.com/2220-9964/1/1/32
+        * https://www.mdpi.com/2220-9964/3/3/1154/htm
+    """
+    xm, ym, scalars = _handle_inputs(xm, ym, grid_name)
+
+    nr, nc = GRID_NAME_TO_V2_SHAPE[grid_name]
+    r0 = (nc - 1) / 2.0
+    s0 = (nr - 1) / 2.0
+    map_scale = GRID_NAME_TO_V2_MAP_SCALE[grid_name]
+    cols = r0 + (xm / map_scale)
+    rows = s0 - (ym / map_scale)
+    if to_int:
+        cols = np.round(cols, out=cols).astype(int)
+        rows = np.round(rows, out=rows).astype(int)
+    if scalars:
+        cols = cols.min()
+        rows = rows.min()
+    return rows, cols
+
+
+def v2_rowcol_coords_to_meters(rows, cols, grid_name=ML):
+    """Convert EASE-grid V2 row/col coordinates (indices) to EASE-grid V2
+    projected coordinates in meters.
+
+    This function accepts scalars and arrays, but the type/shapes must match.
+
+    Parameters:
+        rows : scalar or array-like
+            A single row index or array of row coords. Must match the shape of
+            `cols`
+        cols : scalar or array-like
+            A single col index or array of col coords. Must match the shape of
+            `rows`
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+
+    Returns:
+        (xm, ym) : tuple of scalars or `numpy.ndarray`s
+            The resulting x/y projection points in meters. Scalars are returned
+
+    References:
+        * ftp://sidads.colorado.edu/pub/tools/easegrid2/
+        * https://nsidc.org/ease/ease-grid-projection-gt
+        * https://www.mdpi.com/2220-9964/1/1/32
+        * http           if the inputs were also scalars, otherwise arrays.
+    """
+    rows, cols, scalars = _handle_inputs(rows, cols, grid_name)
+
+    nr, nc = GRID_NAME_TO_V2_SHAPE[grid_name]
+    r0 = (nc - 1) / 2.0
+    s0 = (nr - 1) / 2.0
+    map_scale = GRID_NAME_TO_V2_MAP_SCALE[grid_name]
+    xm = (cols - r0) * map_scale
+    ym = (s0 - rows) * map_scale
+    if scalars:
+        xm = xm.min()
+        ym = ym.min()
+    return xm, ym
+
+
+def v2_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
+    """Convert lon/lat points to EASE-grid V2 cell coordinates (indices).
+
+    Inputs can be scalars or arrays, but the type must be consistent. If
+    scalars are used as input, the results will also be scalars.
+
+    Parameters:
+        lon : scalar or array-like
+            A single longitude point or an array of longitude points. Must
+            match the shape of `lat`.
+        lat : scalar or array-like
+            A single latitude point or an array of latitude points. Must
+            match the shape of `lon`.
+        grid_name : str
+            The EASE V2 grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+        to_int : boolean
+            If `True`, results will be rounded and converted to integers.
+
+    Returns:
+        (rows, cols) : tuple of scalars or `numpy.ndarray`s
+            The resulting grid coordinates (indices). Scalars are returned if
+            the inputs were also scalars, otherwise arrays.
+
+    References:
+        * ftp://sidads.colorado.edu/pub/tools/easegrid2/
+        * https://nsidc.org/ease/ease-grid-projection-gt
+        * https://www.mdpi.com/2220-9964/1/1/32
+        * https://www.mdpi.com/2220-9964/3/3/1154/htm
+    """
+    lon, lat, scalars = _handle_inputs(lon, lat, grid_name)
+
+    xm, ym = GRID_NAME_TO_V2_PROJ[grid_name](lon, lat)
+    rows, cols = v2_meters_to_rowcol_coords(xm, ym, grid_name, to_int=to_int)
+    if scalars:
+        rows = rows.min()
+        cols = cols.min()
+    return rows, cols
+
+
+def v2_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
+    """Convert EASE-grid V2 row/col coords (indices) to lon/lat values.
+
+    This function accepts scalars and arrays, but the type/shapes must match.
+
+    Parameters:
+        rows : scalar or array-like
+            A single row index or array of row coords. Must match the shape of
+            `cols`
+        cols : scalar or array-like
+            A single col index or array of col coords. Must match the shape of
+            `rows`
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+
+    Returns:
+        (lon, lat) : tuple of scalars or `numpy.ndarray`s
+            The resulting lon/lat points. Scalars are returned if
+            the inputs were also scalars, otherwise arrays.
+
+    References:
+        * ftp://sidads.colorado.edu/pub/tools/easegrid2/
+        * https://nsidc.org/ease/ease-grid-projection-gt
+        * https://www.mdpi.com/2220-9964/1/1/32
+        * https://www.mdpi.com/2220-9964/3/3/1154/htm
+    """
+    rows, cols, scalars = _handle_inputs(rows, cols, grid_name)
+
+    xm, ym = v2_rowcol_coords_to_meters(rows, cols, grid_name)
+    lon, lat = GRID_NAME_TO_V2_PROJ[grid_name](xm, ym, inverse=True)
+    if scalars:
+        lon = lon.min()
+        lat = lat.min()
+    return lon, lat
+
+
+def v2_lonlat_to_meters(lon, lat, grid_name):
+    """Reproject lon/lat points into the specified EASE-grid V2 projection in
+    meters.
+
+    This function accepts scalars and arrays, but the type/shapes must match.
+
+    Parameters:
+        lon : scalar or array-like
+            A single longitude point or an array of longitude points. Must
+            match the shape of `lat`.
+        lat : scalar or array-like
+            A single latitude point or an array of latitude points. Must
+            match the shape of `lon`.
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+
+    Returns:
+        (xm, ym) : tuple of scalars or `numpy.ndarray`s
+            The resulting x/y projection points in meters. Scalars are returned
+            if the inputs were also scalars, otherwise arrays.
+
+    References:
+        * ftp://sidads.colorado.edu/pub/tools/easegrid2/
+        * https://nsidc.org/ease/ease-grid-projection-gt
+        * https://www.mdpi.com/2220-9964/1/1/32
+        * https://www.mdpi.com/2220-9964/3/3/1154/htm
+    """
+    lon, lat, scalars = _handle_inputs(lon, lat, grid_name)
+
+    xm, ym = GRID_NAME_TO_V2_PROJ[grid_name](lon, lat)
+    if scalars:
+        xm = xm.min()
+        ym = ym.min()
+    return xm, ym
+
+
+def v2_meters_to_lonlat(xm, ym, grid_name=ML):
+    """Convert x/y points (in meters) from the specified EASE-grid V2
+    projection to lon/lat points.
+
+    Parameters:
+        xm : scalar or array-like
+            A single EASE-grid V2 x coordinate in meters or an array of points.
+        ym : scalar or array-like
+            A single EASE-grid V2 y coordinate in meters or an array of points.
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+
+    Returns:
+        (lon, lat) : tuple of scalars or `numpy.ndarray`s
+            The resulting lon/lat points.
+
+    References:
+        * ftp://sidads.colorado.edu/pub/tools/easegrid2/
+        * https://nsidc.org/ease/ease-grid-projection-gt
+        * https://www.mdpi.com/2220-9964/1/1/32
+        * https://www.mdpi.com/2220-9964/3/3/1154/htm
+    """
+    _validate_grid_name(grid_name)
+    return GRID_NAME_TO_V2_PROJ[grid_name](xm, ym, inverse=True)
+
+
+def v2_get_full_grid_coords(grid_name):
+    """Return the full set of EASE-grid V2 coordinates for the specified grid.
+
+    Parameters:
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+
+    Returns:
+        (rows, cols) : tuple of 2D ndarrays
+            The resulting grid coordinate arrays.
+    """
+    _validate_grid_name(grid_name)
+    rows, cols = np.indices(GRID_NAME_TO_V2_SHAPE[grid_name])
+    return rows, cols
+
+
+def v2_get_full_grid_lonlat(grid_name):
+    """Return the full set of lon/lat points for the specified EASE-grid V2
+    grid.
+
+    Parameters:
+        grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+
+    Returns:
+        (lon, lat) : tuple of 2D ndarrays
+            The resulting lon/lat arrays
+    """
+    rows, cols = v2_get_full_grid_coords(grid_name)
+    return v2_rowcol_coords_to_lonlat(rows, cols, grid_name=grid_name)
+
+
+def v2_meters_to_proj(xm, ym, ease_grid_name, proj):
+    """Convert EASE-grid coordinates to the specified projection.
+
+    Parameters:
+        xm : scalar or array-like
+            The EASE grid x coordinate(s).
+        ym : scalar or array-like
+            The EASE grid y coordinate(s).
+        ease_grid_name : str
+            The EASE grid key name. Must be one of the keys found in
+            `ease_grid.GRID_NAMES`
+        proj : str or pyproj.Proj
+            Either a string specifiying the EPSG code (eg "epsg:3410", "3410")
+            or a pyporj.Proj projection object.
+
+    Returns:
+        (xm2, ym2) : tuple of scalars or arrays
+            The reprojected x and y coordinates.
+    """
+    _validate_grid_name(ease_grid_name)
+    proj2 = _get_proj(proj)
+    eproj = GRID_NAME_TO_V2_PROJ[ease_grid_name]
     return pyproj.transform(eproj, proj2, xm, ym)
