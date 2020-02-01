@@ -133,7 +133,7 @@ def _handle_inputs(x, y, grid_name):
     return x, y, scalars
 
 
-def v1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
+def v1_lonlat_to_colrow_coords(lon, lat, grid_name=ML, to_int=False):
     """Convert lon/lat points to EASE-grid cell coordinates (indices).
 
     Inputs can be scalars or arrays, but the type must be consistent. If
@@ -153,7 +153,7 @@ def v1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
             If `True`, results will be rounded and converted to integers.
 
     Returns:
-        (rows, cols) : tuple of scalars or `numpy.ndarray`s
+        (cols, rows) : tuple of scalars or `numpy.ndarray`s
             The resulting grid coordinates (indices). Scalars are returned if
             the inputs were also scalars, otherwise arrays.
 
@@ -221,10 +221,10 @@ def v1_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
     else:
         rows = s
         cols = r
-    return rows, cols
+    return cols, rows
 
 
-def v1_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
+def v1_colrow_coords_to_lonlat(cols, rows, grid_name=ML):
     """Convert row/col coords (indices) to lon/lat values.
 
     This function accepts scalars and arrays, but the type/shapes must match.
@@ -250,7 +250,7 @@ def v1_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
         * https://nsidc.org/sites/nsidc.org/files/files/data/pm/DiscreteGlobalGrids.pdf  # noqa: E501
         * ftp://sidads.colorado.edu/pub/tools/easegrid/geolocation_tools/
     """
-    rows, cols, scalars = _handle_inputs(rows, cols, grid_name)
+    cols, rows, scalars = _handle_inputs(cols, rows, grid_name)
 
     nr, nc = GRID_NAME_TO_V1_SHAPE[grid_name]
     if grid_name[-1] == "L":
@@ -395,7 +395,7 @@ def v1_meters_to_lonlat(xm, ym, grid_name=ML):
     return GRID_NAME_TO_V1_PROJ[grid_name](xm, ym, inverse=True)
 
 
-def v1_meters_to_rowcol_coords(xm, ym, grid_name="ML", to_int=False):
+def v1_meters_to_colrow_coords(xm, ym, grid_name="ML", to_int=False):
     """Convert EASE-grid projected coordinates in meters to EASE-grid cell
     coordinates (indices).
 
@@ -416,17 +416,17 @@ def v1_meters_to_rowcol_coords(xm, ym, grid_name="ML", to_int=False):
             If `True`, results will be rounded and converted to integers.
 
     Returns:
-        (rows, cols) : tuple of scalars or `numpy.ndarray`s
+        (cols, rows) : tuple of scalars or `numpy.ndarray`s
             The resulting grid coordinates (indices). Scalars are returned if
             the inputs were also scalars, otherwise arrays.
     """
     lon, lat = v1_meters_to_lonlat(xm, ym, grid_name=grid_name)
-    return v1_lonlat_to_rowcol_coords(
+    return v1_lonlat_to_colrow_coords(
         lon, lat, grid_name=grid_name, to_int=to_int
     )
 
 
-def v1_rowcol_coords_to_meters(rows, cols, grid_name):
+def v1_colrow_coords_to_meters(cols, rows, grid_name):
     """Convert EASE-grid row/col coordinates (indices) to EASE-grid projected
     coordinates in meters.
 
@@ -448,7 +448,7 @@ def v1_rowcol_coords_to_meters(rows, cols, grid_name):
             The resulting x/y projection points in meters. Scalars are returned
             if the inputs were also scalars, otherwise arrays.
     """
-    lon, lat = v1_rowcol_coords_to_lonlat(rows, cols, grid_name=grid_name)
+    lon, lat = v1_colrow_coords_to_lonlat(cols, rows, grid_name=grid_name)
     return v1_lonlat_to_meters(lon, lat, grid_name=grid_name)
 
 
@@ -461,13 +461,13 @@ def v1_get_full_grid_coords(grid_name):
             `ease_grid.GRID_NAMES`
 
     Returns:
-        (rows, cols) : tuple of 2D ndarrays
+        (cols, rows) : tuple of 2D ndarrays
             The resulting grid coordinate arrays.
     """
     _validate_grid_name(grid_name)
     nr, nc = GRID_NAME_TO_V1_SHAPE[grid_name]
     cols, rows = np.meshgrid(range(nc), range(nr))
-    return rows, cols
+    return cols, rows
 
 
 def v1_get_full_grid_lonlat(grid_name):
@@ -482,8 +482,8 @@ def v1_get_full_grid_lonlat(grid_name):
         (lon, lat) : tuple of 2D ndarrays
             The resulting lon/lat arrays
     """
-    rows, cols = v1_get_full_grid_coords(grid_name)
-    return v1_rowcol_coords_to_lonlat(rows, cols, grid_name)
+    cols, rows = v1_get_full_grid_coords(grid_name)
+    return v1_colrow_coords_to_lonlat(cols, rows, grid_name)
 
 
 _EPSG_PAT = re.compile("(?:epsg:|EPSG:)?(\\d{4})")
@@ -619,7 +619,7 @@ GRID_NAME_TO_V2_PROJ = {
 }
 
 
-def v2_meters_to_rowcol_coords(xm, ym, grid_name=ML, to_int=False):
+def v2_meters_to_colrow_coords(xm, ym, grid_name=ML, to_int=False):
     """Convert EASE-grid V2 projected coordinates in meters to EASE-grid V2
     cell coordinates (indices).
 
@@ -640,7 +640,7 @@ def v2_meters_to_rowcol_coords(xm, ym, grid_name=ML, to_int=False):
             If `True`, results will be rounded and converted to integers.
 
     Returns:
-        (rows, cols) : tuple of scalars or `numpy.ndarray`s
+        (cols, rows) : tuple of scalars or `numpy.ndarray`s
             The resulting grid coordinates (indices). Scalars are returned if
             the inputs were also scalars, otherwise arrays.
 
@@ -664,10 +664,10 @@ def v2_meters_to_rowcol_coords(xm, ym, grid_name=ML, to_int=False):
     if scalars:
         cols = cols.min()
         rows = rows.min()
-    return rows, cols
+    return cols, rows
 
 
-def v2_rowcol_coords_to_meters(rows, cols, grid_name=ML):
+def v2_colrow_coords_to_meters(cols, rows, grid_name=ML):
     """Convert EASE-grid V2 row/col coordinates (indices) to EASE-grid V2
     projected coordinates in meters.
 
@@ -694,7 +694,7 @@ def v2_rowcol_coords_to_meters(rows, cols, grid_name=ML):
         * https://www.mdpi.com/2220-9964/1/1/32
         * http           if the inputs were also scalars, otherwise arrays.
     """
-    rows, cols, scalars = _handle_inputs(rows, cols, grid_name)
+    cols, rows, scalars = _handle_inputs(cols, rows, grid_name)
 
     nr, nc = GRID_NAME_TO_V2_SHAPE[grid_name]
     r0 = (nc - 1) / 2.0
@@ -708,7 +708,7 @@ def v2_rowcol_coords_to_meters(rows, cols, grid_name=ML):
     return xm, ym
 
 
-def v2_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
+def v2_lonlat_to_colrow_coords(lon, lat, grid_name=ML, to_int=False):
     """Convert lon/lat points to EASE-grid V2 cell coordinates (indices).
 
     Inputs can be scalars or arrays, but the type must be consistent. If
@@ -728,7 +728,7 @@ def v2_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
             If `True`, results will be rounded and converted to integers.
 
     Returns:
-        (rows, cols) : tuple of scalars or `numpy.ndarray`s
+        (cols, rows) : tuple of scalars or `numpy.ndarray`s
             The resulting grid coordinates (indices). Scalars are returned if
             the inputs were also scalars, otherwise arrays.
 
@@ -741,14 +741,14 @@ def v2_lonlat_to_rowcol_coords(lon, lat, grid_name=ML, to_int=False):
     lon, lat, scalars = _handle_inputs(lon, lat, grid_name)
 
     xm, ym = GRID_NAME_TO_V2_PROJ[grid_name](lon, lat)
-    rows, cols = v2_meters_to_rowcol_coords(xm, ym, grid_name, to_int=to_int)
+    cols, rows = v2_meters_to_colrow_coords(xm, ym, grid_name, to_int=to_int)
     if scalars:
         rows = rows.min()
         cols = cols.min()
-    return rows, cols
+    return cols, rows
 
 
-def v2_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
+def v2_colrow_coords_to_lonlat(cols, rows, grid_name=ML):
     """Convert EASE-grid V2 row/col coords (indices) to lon/lat values.
 
     This function accepts scalars and arrays, but the type/shapes must match.
@@ -775,9 +775,9 @@ def v2_rowcol_coords_to_lonlat(rows, cols, grid_name=ML):
         * https://www.mdpi.com/2220-9964/1/1/32
         * https://www.mdpi.com/2220-9964/3/3/1154/htm
     """
-    rows, cols, scalars = _handle_inputs(rows, cols, grid_name)
+    cols, rows, scalars = _handle_inputs(cols, rows, grid_name)
 
-    xm, ym = v2_rowcol_coords_to_meters(rows, cols, grid_name)
+    xm, ym = v2_colrow_coords_to_meters(cols, rows, grid_name)
     lon, lat = GRID_NAME_TO_V2_PROJ[grid_name](xm, ym, inverse=True)
     if scalars:
         lon = lon.min()
@@ -858,12 +858,12 @@ def v2_get_full_grid_coords(grid_name):
             `ease_grid.GRID_NAMES`
 
     Returns:
-        (rows, cols) : tuple of 2D ndarrays
+        (cols, rows) : tuple of 2D ndarrays
             The resulting grid coordinate arrays.
     """
     _validate_grid_name(grid_name)
     rows, cols = np.indices(GRID_NAME_TO_V2_SHAPE[grid_name])
-    return rows, cols
+    return cols, rows
 
 
 def v2_get_full_grid_lonlat(grid_name):
@@ -879,12 +879,12 @@ def v2_get_full_grid_lonlat(grid_name):
         (lon, lat) : tuple of 2D ndarrays
             The resulting lon/lat arrays
     """
-    rows, cols = v2_get_full_grid_coords(grid_name)
-    return v2_rowcol_coords_to_lonlat(rows, cols, grid_name=grid_name)
+    cols, rows = v2_get_full_grid_coords(grid_name)
+    return v2_colrow_coords_to_lonlat(cols, rows, grid_name=grid_name)
 
 
 def v2_meters_to_proj(xm, ym, ease_grid_name, proj):
-    """Convert EASE-grid coordinates to the specified projection.
+    """Convert EASE-grid V2 coordinates to the specified projection.
 
     Parameters:
         xm : scalar or array-like
