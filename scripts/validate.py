@@ -493,9 +493,7 @@ def perform_validation_on_ft_esdr(db, fpaths, mask=None):
     for f in fpaths:
         validate_file_path(f)
     pf = WMOValidationPointFetcher(db)
-    pg = PointsGridder(
-        *eg.v1_get_full_grid_lonlat(eg.ML), invalid_mask=mask
-    )
+    pg = PointsGridder(*eg.v1_get_full_grid_lonlat(eg.ML), invalid_mask=mask)
     data = load_ft_esdr_data_from_files(fpaths)
     dates_am = [d.dt for d in data if d.am_grid is not None]
     dates_pm = [d.dt for d in data if d.pm_grid is not None]
