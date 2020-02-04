@@ -212,13 +212,27 @@ def _validate_nh_sh_global(egrid, vgrid, vpoints, vtemps, point_gridder):
     n_full = np.count_nonzero(shared_valid_mask)
     n_nh = np.count_nonzero(valid_nh)
     n_sh = np.count_nonzero(valid_sh)
-    score_nh = np.count_nonzero(vgrid_nh == egrid_nh) / n_nh * 100.0
-    score_sh = np.count_nonzero(vgrid_sh == egrid_sh) / n_sh * 100.0
-    score_full = (
-        np.count_nonzero(vgrid[shared_valid_mask] == egrid[shared_valid_mask])
-        / n_full
-        * 100.0
-    )
+    score_nh = np.nan
+    score_sh = np.nan
+    score_full = np.nan
+    try:
+        score_nh = np.count_nonzero(vgrid_nh == egrid_nh) / n_nh * 100.0
+    except ZeroDivisionError:
+        pass
+    try:
+        score_sh = np.count_nonzero(vgrid_sh == egrid_sh) / n_sh * 100.0
+    except ZeroDivisionError:
+        pass
+    try:
+        score_full = (
+            np.count_nonzero(
+                vgrid[shared_valid_mask] == egrid[shared_valid_mask]
+            )
+            / n_full
+            * 100.0
+        )
+    except ZeroDivisionError:
+        pass
     return score_nh, score_sh, score_full
 
 
@@ -391,7 +405,7 @@ def output_am_pm_regional_composite_validation_stats(results_list):
 
 
 def output_validation_stats_grouped_by_month(results_list, cols):
-    df = pd.DataFrame(results_list, columns=cols)
+    df = pd.DataFrame(results_list, columns=cols).dropna()
     year_groups = df.groupby(df.date.dt.year)
     print()
     for year, group in year_groups:
@@ -509,10 +523,14 @@ def perform_bounded_validation(
         point_gridder(vgrid, vpoints, vft, clear=True, fill=OTHER)
         shared_valid_mask = (egrid > OTHER) & (vgrid > OTHER)
         n = np.count_nonzero(shared_valid_mask)
-        score = np.count_nonzero(
-            vgrid[shared_valid_mask] == egrid[shared_valid_mask]
-        )
-        score = score / n * 100.0
+        score = np.nan
+        try:
+            score = np.count_nonzero(
+                vgrid[shared_valid_mask] == egrid[shared_valid_mask]
+            )
+            score = score / n * 100.0
+        except ZeroDivisionError:
+            pass
         results.append((date, score))
     return results
 
