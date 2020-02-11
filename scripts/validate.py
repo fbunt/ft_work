@@ -148,7 +148,9 @@ class PointsGridder:
     def __init__(self, xgrid, ygrid, invalid_mask=None):
         print("Generating tree")
         self.tree = KDTree(np.array(list(zip(xgrid.ravel(), ygrid.ravel()))))
-        self.imask = invalid_mask
+        self.imask = None
+        if invalid_mask is not None:
+            self.imask = np.asarray(invalid_mask).astype(bool)
 
     def __call__(self, grid, points, values, clear=False, fill=OTHER):
         if clear:
