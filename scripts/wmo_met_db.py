@@ -368,7 +368,7 @@ def add_wmo_data_to_db(db, data_wrapper):
     # Use tqdm for nice progress bar and completion estimate
     for i in tqdm.tqdm(range(len(data_wrapper)), ncols=80):
         f = data_wrapper.files[i]
-        logging.info(f"Adding '{f}' to db")
+        log(_INFO, f"Adding '{f}' to db")
         new_dates, data = data_wrapper[i]
         if new_dates:
             dates_written += write_records_to_db(db, new_dates, f)
