@@ -561,7 +561,7 @@ def perform_custom_validation(
     xj, xi = np.meshgrid(
         range(start_col, start_col + nc), range(start_row, start_row + nr)
     )
-    if mask:
+    if mask is not None:
         mask = mask[xi, xj]
     lon, lat = eg.v1_get_full_grid_lonlat(eg.ML)
     lon = lon[xi, xj]
