@@ -91,6 +91,7 @@ class UNet(nn.Module):
         if nb <= 0:
             raise ValueError(f"Filter bank size must be greater than 0: {nb}")
         self.input = _DoubleConv(in_chan, nb)
+        self.depth = depth
         self.downs = nn.ModuleList()
         for i in range(0, depth):
             self.downs.append(_Down((2 ** i) * nb, (2 ** (i + 1)) * nb))
