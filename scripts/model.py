@@ -7,7 +7,7 @@ DEFAULT_KERNEL_SIZE = 3
 LEAKY_SLOPE = 0.1
 
 
-class _DoubleConv(nn.Module):
+class _ConvLayer(nn.Module):
     def __init__(self, in_chan, out_chan):
         super().__init__()
         self.model = nn.Sequential(
@@ -16,15 +16,28 @@ class _DoubleConv(nn.Module):
             ),
             nn.BatchNorm2d(out_chan),
             nn.LeakyReLU(LEAKY_SLOPE, inplace=True),
-            nn.Conv2d(
-                out_chan, out_chan, kernel_size=DEFAULT_KERNEL_SIZE, padding=1
-            ),
-            nn.BatchNorm2d(out_chan),
-            nn.LeakyReLU(LEAKY_SLOPE, inplace=True),
         )
 
     def forward(self, x):
         return self.model(x)
+
+
+class _MultiConv(nn.Module):
+    def __init__(self, in_chan, out_chan, n=2):
+        super().__init__()
+        if n < 1:
+            raise ValueError(
+                "Expected number of convolution layers to be greater than 1 "
+                f" (got {n})"
+            )
+        self.layers = nn.ModuleList([_ConvLayer(in_chan, out_chan)])
+        for _ in range(n - 1):
+            self.layers.append(_ConvLayer(out_chan, out_chan))
+
+    def forward(self, x):
+        for m in self.layers:
+            x = m(x)
+        return x
 
 
 class _DownSample(nn.Module):
@@ -40,7 +53,7 @@ class _Down(nn.Module):
     def __init__(self, in_chan, out_chan):
         super().__init__()
         self.model = nn.Sequential(
-            _DownSample(), _DoubleConv(in_chan, out_chan)
+            _DownSample(), _MultiConv(in_chan, out_chan)
         )
 
     def forward(self, x):
@@ -62,7 +75,7 @@ class _Up(nn.Module):
     def __init__(self, in_chan, out_chan):
         super().__init__()
         self.upsample = _UpSample(in_chan)
-        self.conv = _DoubleConv(in_chan, out_chan)
+        self.conv = _MultiConv(in_chan, out_chan)
 
     def forward(self, lhs, bot):
         upbot = self.upsample(bot)
@@ -90,8 +103,9 @@ class UNet(nn.Module):
         nb = base_filter_bank_size
         if nb <= 0:
             raise ValueError(f"Filter bank size must be greater than 0: {nb}")
-        self.input = _DoubleConv(in_chan, nb)
+
         self.depth = depth
+        self.input = _MultiConv(in_chan, nb)
         self.downs = nn.ModuleList()
         for i in range(0, depth):
             self.downs.append(_Down((2 ** i) * nb, (2 ** (i + 1)) * nb))
