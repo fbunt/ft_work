@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-_DEFAULT_KERNEL_SIZE = 3
+DEFAULT_KERNEL_SIZE = 3
+LEAKY_SLOPE = 0.1
 
 
 class _DoubleConv(nn.Module):
@@ -11,15 +12,15 @@ class _DoubleConv(nn.Module):
         super().__init__()
         self.model = nn.Sequential(
             nn.Conv2d(
-                in_chan, out_chan, kernel_size=_DEFAULT_KERNEL_SIZE, padding=1
+                in_chan, out_chan, kernel_size=DEFAULT_KERNEL_SIZE, padding=1
             ),
             nn.BatchNorm2d(out_chan),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.LeakyReLU(LEAKY_SLOPE, inplace=True),
             nn.Conv2d(
-                out_chan, out_chan, kernel_size=_DEFAULT_KERNEL_SIZE, padding=1
+                out_chan, out_chan, kernel_size=DEFAULT_KERNEL_SIZE, padding=1
             ),
             nn.BatchNorm2d(out_chan),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.LeakyReLU(LEAKY_SLOPE, inplace=True),
         )
 
     def forward(self, x):
