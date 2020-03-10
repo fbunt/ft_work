@@ -104,6 +104,6 @@ class UNet(nn.Module):
         for down in self.downs:
             xdowns.append(down(xdowns[-1]))
         x = xdowns[-1]
-        for xleft, up in zip(xdowns[:-1:-1], self.ups):
+        for xleft, up in zip(xdowns[:-1][::-1], self.ups):
             x = up(xleft, x)
         return self.out(x)
