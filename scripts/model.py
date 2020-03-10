@@ -76,31 +76,34 @@ class _Up(nn.Module):
 
 
 class UNet(nn.Module):
-    # Note: in the original paper, base_filter_bank_size is 64
-    def __init__(self, in_chan, n_classes, base_filter_bank_size=16):
+    """A depth-generalized UNet implementation
+
+    ref: https://arxiv.org/abs/1505.04597
+    """
+
+    def __init__(self, in_chan, n_classes, depth=4, base_filter_bank_size=16):
+        # Note: in the original paper, base_filter_bank_size is 64
         super().__init__()
 
-        n = base_filter_bank_size
-        self.input = _DoubleConv(in_chan, n)
-        self.down1 = _Down(n, 2 * n)
-        self.down2 = _Down(2 * n, 4 * n)
-        self.down3 = _Down(4 * n, 8 * n)
-        self.down4 = _Down(8 * n, 16 * n)
-        self.up1 = _Up(16 * n, 8 * n)
-        self.up2 = _Up(8 * n, 4 * n)
-        self.up3 = _Up(4 * n, 2 * n)
-        self.up4 = _Up(2 * n, n)
-        self.out = nn.Conv2d(n, n_classes, kernel_size=1)
+        if depth < 0:
+            raise ValueError(f"UNet depth must be at least 0: {depth}")
+        nb = base_filter_bank_size
+        if nb <= 0:
+            raise ValueError(f"Filter bank size must be greater than 0: {nb}")
+        self.input = _DoubleConv(in_chan, nb)
+        self.downs = nn.ModuleList()
+        for i in range(0, depth):
+            self.downs.append(_Down((2 ** i) * nb, (2 ** (i + 1)) * nb))
+        self.ups = nn.ModuleList()
+        for i in range(depth, 0, -1):
+            self.ups.append(_Up((2 ** i) * nb, (2 ** (i - 1)) * nb))
+        self.out = nn.Conv2d(nb, n_classes, kernel_size=1)
 
     def forward(self, x):
-        x1 = self.input(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x = self.down4(x4)
-        x = self.up1(x4, x)
-        x = self.up2(x3, x)
-        x = self.up3(x2, x)
-        x = self.up4(x1, x)
-        x = self.out(x)
-        return x
+        xdowns = [self.input(x)]
+        for down in self.downs:
+            xdowns.append(down(xdowns[-1]))
+        x = xdowns[-1]
+        for xleft, up in zip(xdowns[:-1:-1], self.ups):
+            x = up(xleft, x)
+        return self.out(x)
