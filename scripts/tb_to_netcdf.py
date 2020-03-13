@@ -133,7 +133,7 @@ def build_tb_netcdf(
     vtb = ds.createVariable(
         "tb",
         "f4",
-        ("time", "lon", "lat"),
+        ("time", "lat", "lon"),
         zlib=True,
         least_significant_digit=1,
         fill_value=0,
