@@ -15,6 +15,54 @@ def day_of_year_to_datetime(year_str, day_of_year_str):
     return dt.datetime(d.year, d.month, d.day)
 
 
+def datetime64_year(ndt):
+    return ndt.astype("datetime64[Y]").astype(int) + 1970
+
+
+def datetime64_month(ndt):
+    return ndt.astype("datetime64[M]").astype(int) % 12 + 1
+
+
+def datetime64_day(ndt):
+    return (ndt.astype("datetime64[D]") - ndt.astype("datetime64[M]")).astype(
+        int
+    ) + 1
+
+
+def datetime64_hour(ndt):
+    return ndt.astype("datetime64[h]").astype(int) % 24
+
+
+def datetime64_minute(ndt):
+    return (ndt.astype("datetime64[m]") - ndt.astype("datetime64[h]")).astype(
+        int
+    )
+
+
+def datetime64_second(ndt):
+    return (ndt.astype("datetime64[s]") - ndt.astype("datetime64[m]")).astype(
+        int
+    )
+
+
+def datetime64_to_date(ndt):
+    return dt.date(
+        datetime64_year(ndt), datetime64_month(ndt), datetime64_day(ndt)
+    )
+
+
+def datetime64_to_datetime(ndt, tzone=dt.timezone.utc):
+    return dt.datetime(
+        datetime64_year(ndt),
+        datetime64_month(ndt),
+        datetime64_day(ndt),
+        datetime64_hour(ndt),
+        datetime64_minute(ndt),
+        datetime64_second(ndt),
+        tzinfo=tzone,
+    )
+
+
 def validate_file_path(path):
     if os.path.isfile(path):
         return path
