@@ -98,7 +98,7 @@ class ViewCopyTransform:
         return data[..., self.top : self.bottom, self.left : self.right].copy()
 
 
-class DistGridGenerator:
+class ValidationDataGenerator:
     def __init__(self, db_connection, grid_code=eg.ML):
         self.dbc = db_connection
         self.grid_code = grid_code
