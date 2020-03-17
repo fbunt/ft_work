@@ -98,6 +98,44 @@ class ViewCopyTransform:
         return data[..., self.top : self.bottom, self.left : self.right].copy()
 
 
+class DistGridGenerator:
+    def __init__(self, db_connection, grid_code=eg.ML):
+        self.dbc = db_connection
+        self.grid_code = grid_code
+        self.ease_xm, self.ease_ym = eg.v1_lonlat_to_meters(
+            *eg.v1_get_full_grid_lonlat(grid_code), grid_code
+        )
+
+    def __getitem__(self, dtime):
+        if not isinstance(dtime, dt.datetime):
+            raise TypeError("Index value must be a Datetime object")
+        date = dt.date(dtime.year, dtime.month, dtime.day)
+        hour = dtime.hour
+        field = DbWMOMetDailyTempRecord.temperature_mean
+        if hour == 6:
+            field = DbWMOMetDailyTempRecord.temperature_min
+        elif hour == 18:
+            field = DbWMOMetDailyTempRecord.temperature_max
+        records = (
+            self.dbc.query(DbWMOMetStation.lon, DbWMOMetStation.lat, field)
+            .join(DbWMOMetDailyTempRecord.met_station)
+            .filter(DbWMOMetDailyTempRecord.date_int == date_to_int(date))
+            .filter(field != None)
+            .all()
+        )
+        vlon = [r[0] for r in records]
+        vlat = [r[1] for r in records]
+        vft = np.array([r[2] for r in records]) > 273.15
+        vxm, vym = eg.v1_lonlat_to_meters(vlon, vlat, self.grid_code)
+        vpoints = list(zip(vxm, vym))
+        tree = KDTree(vpoints)
+        vgrid = np.zeros(self.ease_xm.shape, dtype=int)
+        xi = ndim_coords_from_arrays((self.ease_xm, self.ease_ym), ndim=2)
+        dist, idx = tree.query(xi)
+        vgrid[:] = vft[idx]
+        return vgrid, dist
+
+
 class NCTbDataset(Dataset):
     def __init__(self, root_data_dir, transform=None):
         utils.validate_dir_path(root_data_dir)
