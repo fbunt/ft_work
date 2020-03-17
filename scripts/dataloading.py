@@ -136,6 +136,12 @@ class ValidationDataGenerator:
         return vgrid, dist
 
 
+KEY_INPUT_DATA = "input_data"
+KEY_TIME = "time"
+KEY_VALIDATION_DATA = "validation_data"
+KEY_DIST_DATA = "dist_data"
+
+
 class NCTbDataset(Dataset):
     def __init__(self, root_data_dir, transform=None):
         utils.validate_dir_path(root_data_dir)
@@ -211,10 +217,34 @@ class NCTbDataset(Dataset):
             raise IndexError(f"Index {idx} out of range for size {self.size}")
         input_data, timestamp = self._load_input_grids_and_datetime(idx)
         # TODO: load validation data from db and create label
-        return {"data": input_data, "time": timestamp}
+        return {KEY_INPUT_DATA: input_data, KEY_TIME: timestamp}
 
     def __len__(self):
         return self.size
+
+
+class FTDataset(Dataset):
+    def __init__(self, tb_dataset, validation_generator):
+        self.tb = tb_dataset
+        self.val_gen = validation_generator
+
+    def __getitem__(self, idx):
+        data_dict = self.tb[idx]
+        times = data_dict[KEY_TIME]
+        vgrids = []
+        dgrids = []
+        for t in times:
+            vg, dg = self.val_gen[dt.datetime.utcfromtimestamp(t)]
+            vgrids.append(vg)
+            dgrids.append(dg)
+        return {
+            KEY_INPUT_DATA: data_dict[KEY_INPUT_DATA],
+            KEY_VALIDATION_DATA: np.array(vgrids),
+            KEY_DIST_DATA: np.array(dgrids),
+        }
+
+    def __len__(self):
+        return len(self.tb)
 
 
 DEFAULT_BATCH_SIZE = 8
