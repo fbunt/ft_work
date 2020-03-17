@@ -1,10 +1,13 @@
+from scipy.interpolate.interpnd import (
+    _ndim_coords_from_arrays as ndim_coords_from_arrays,
+)
+from scipy.spatial import cKDTree as KDTree
 from torch.utils.data import DataLoader, Dataset
 import datetime as dt
 import glob
 import numpy as np
 import os
 import pandas as pd
-import torch
 import xarray as xr
 
 from tb import (
@@ -15,6 +18,12 @@ from tb import (
     KEY_37V,
     SAT_DESCENDING,
 )
+from validation_db_orm import (
+    date_to_int,
+    DbWMOMetDailyTempRecord,
+    DbWMOMetStation,
+)
+import easy_grid as eg
 import tb as tbmod
 import utils
 
@@ -86,7 +95,7 @@ class ViewCopyTransform:
         self.right = col_max + 1
 
     def __call__(self, data):
-        return data[:, self.top : self.bottom, self.left : self.right].copy()
+        return data[..., self.top : self.bottom, self.left : self.right].copy()
 
 
 class NCTbDataset(Dataset):
@@ -154,14 +163,17 @@ class NCTbDataset(Dataset):
         for g in loaded:
             g[np.isnan(g)] = 0
         grids.extend(loaded)
-        return torch.tensor(self.transform(np.array(grids))), datetime
+        return (
+            self.transform(np.array(grids)),
+            int(datetime.timestamp()),
+        )
 
     def __getitem__(self, idx):
         if idx >= self.size:
             raise IndexError(f"Index {idx} out of range for size {self.size}")
-        input_data, datetime = self._load_input_grids_and_datetime(idx)
+        input_data, timestamp = self._load_input_grids_and_datetime(idx)
         # TODO: load validation data from db and create label
-        return input_data
+        return {"data": input_data, "time": timestamp}
 
     def __len__(self):
         return self.size
