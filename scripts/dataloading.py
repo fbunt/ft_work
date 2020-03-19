@@ -126,7 +126,7 @@ class ValidationDataGenerator:
             self.dbc.query(DbWMOMetStation.lon, DbWMOMetStation.lat, field)
             .join(DbWMOMetDailyTempRecord.met_station)
             .filter(DbWMOMetDailyTempRecord.date_int == date_to_int(date))
-            .filter(field != None)
+            .filter(field != None)  # noqa: E711  have to use != for sqlalchemy
             .all()
         )
         vlon = [r[0] for r in records]
