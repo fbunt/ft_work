@@ -8,6 +8,7 @@ import glob
 import numpy as np
 import os
 import pandas as pd
+import torch
 import xarray as xr
 
 from tb import (
@@ -88,6 +89,8 @@ def _validate_table(table, freq_pols):
 
 
 class ViewCopyTransform:
+    """A transform takes a view of the input and returns a copy"""
+
     def __init__(self, row_min, row_max, col_min, col_max):
         self.top = row_min
         self.bot = row_max + 1
@@ -95,7 +98,10 @@ class ViewCopyTransform:
         self.right = col_max + 1
 
     def __call__(self, data):
-        return data[..., self.top : self.bottom, self.left : self.right].copy()
+        copy_func = np.copy if isinstance(np.ndarray, data) else torch.clone
+        return copy_func(
+            data[..., self.top : self.bottom, self.left : self.right]
+        )
 
 
 class ValidationDataGenerator:
