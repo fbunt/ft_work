@@ -230,17 +230,14 @@ class FTDataset(Dataset):
 
     def __getitem__(self, idx):
         data_dict = self.tb[idx]
-        times = data_dict[KEY_TIME]
-        vgrids = []
-        dgrids = []
-        for t in times:
-            vg, dg = self.val_gen[dt.datetime.utcfromtimestamp(t)]
-            vgrids.append(vg)
-            dgrids.append(dg)
+        time = data_dict[KEY_TIME]
+        validation_grid, dist_grid = self.val_gen[
+            dt.datetime.utcfromtimestamp(time)
+        ]
         return {
             KEY_INPUT_DATA: data_dict[KEY_INPUT_DATA],
-            KEY_VALIDATION_DATA: np.array(vgrids),
-            KEY_DIST_DATA: np.array(dgrids),
+            KEY_VALIDATION_DATA: validation_grid,
+            KEY_DIST_DATA: dist_grid,
         }
 
     def __len__(self):
