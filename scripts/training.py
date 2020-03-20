@@ -26,7 +26,9 @@ lv_reg_weight = 1
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 transform = ViewCopyTransform(15, 62, 12, 191)
 
-water_mask = transform(np.load("../data/masks/ft_esdr_water_mask.npy"))
+water_mask = torch.tensor(
+    transform(np.load("../data/masks/ft_esdr_water_mask.npy"))
+)
 root_data_dir = "../data/training/train"
 
 db = get_db_session("../data/dbs/wmo_gsod.db")
