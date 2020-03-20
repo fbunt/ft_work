@@ -105,13 +105,15 @@ class ViewCopyTransform:
         )
 
 
+# TODO: handle subsetting in query rather than as a transform
 class ValidationDataGenerator:
-    def __init__(self, db_connection, grid_code=eg.ML):
+    def __init__(self, db_connection, transform=None, grid_code=eg.ML):
         self.dbc = db_connection
         self.grid_code = grid_code
         self.ease_xm, self.ease_ym = eg.v1_lonlat_to_meters(
             *eg.v1_get_full_grid_lonlat(grid_code), grid_code
         )
+        self.transform = transform or (lambda x: x)
 
     def __getitem__(self, dtime):
         if not isinstance(dtime, dt.datetime):
@@ -143,7 +145,7 @@ class ValidationDataGenerator:
         xi = ndim_coords_from_arrays((self.ease_xm, self.ease_ym), ndim=2)
         dist, idx = tree.query(xi)
         vgrid[:] = vft[idx]
-        return vgrid, dist
+        return self.transform(vgrid), self.transform(dist)
 
 
 KEY_INPUT_DATA = "input_data"
