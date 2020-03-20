@@ -13,7 +13,7 @@ from dataloading import (
     ViewCopyTransform,
 )
 from model import UNet, local_variation_loss, ft_loss, LABEL_OTHER
-from validation_db_orm import get_db_connection
+from validation_db_orm import get_db_session
 
 
 depth = 3
@@ -27,9 +27,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 transform = ViewCopyTransform(15, 62, 12, 191)
 
 water_mask = transform(np.load("../data/masks/ft_esdr_water_mask.npy"))
-root_data_dir = "../data/training"
+root_data_dir = "../data/training/train"
 
-db = get_db_connection("../data/wmo_gsod.db")
+db = get_db_session("../data/dbs/wmo_gsod.db")
 model = UNet(6, 1, depth=depth)
 model.to(device)
 dataset = FTDataset(
