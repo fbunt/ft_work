@@ -130,7 +130,13 @@ class UNet(nn.Module):
 
 
 def local_variation_loss(data, loss_func=nn.L1Loss()):
+    """Compute the local variation around each pixel.
+
+    This loss discourages high frequency noise on borders.
+    """
+    # Compute vertical variation
     loss = loss_func(data[..., 1:, :], data[..., :-1, :])
+    # Compute horizontal variation
     loss += loss_func(data[..., :, 1:], data[..., :, :-1])
     return loss
 
