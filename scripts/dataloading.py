@@ -25,7 +25,7 @@ from validation_db_orm import (
     DbWMOMetDailyTempRecord,
     DbWMOMetStation,
 )
-import easy_grid as eg
+import ease_grid as eg
 import tb as tbmod
 import utils
 
