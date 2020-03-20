@@ -135,7 +135,7 @@ class ValidationDataGenerator:
         vlon = [r[0] for r in records]
         vlat = [r[1] for r in records]
         temp = np.array([r[2] for r in records])
-        vft = np.empty_like(temp, dtype='uint8')
+        vft = np.empty_like(temp, dtype="uint8")
         vft[temp <= 273.15] = LABEL_FROZEN
         vft[temp > 273.15] = LABEL_THAWED
         vxm, vym = eg.v1_lonlat_to_meters(vlon, vlat, self.grid_code)
