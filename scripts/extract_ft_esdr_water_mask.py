@@ -11,7 +11,7 @@ WATER = 254
 
 
 def extract_water_mask(ft_grid):
-    mask = np.zeros_like(ft_grid, dtype='int8')
+    mask = np.zeros_like(ft_grid, dtype=bool)
     mask[ft_grid == WATER] = 1
     return mask
 
