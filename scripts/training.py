@@ -41,7 +41,6 @@ dataset = FTDataset(
 dataloader = torch.utils.data.DataLoader(
     dataset, batch_size=batch_size, shuffle=True, drop_last=True,
 )
-# TODO: check with Kellen about settings
 opt = torch.optim.SGD(
     model.parameters(),
     lr=learning_rate,
