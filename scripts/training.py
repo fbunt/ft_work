@@ -1,4 +1,5 @@
 import datetime as dt
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -88,3 +89,5 @@ for epoch in range(epochs):
 torch.save(
     model.state_dict(), f"../models/unet-{dt.datetime.now().timestamp()}.pt"
 )
+plt.plot(loss_vec)
+plt.show()
