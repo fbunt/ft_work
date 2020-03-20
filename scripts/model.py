@@ -88,6 +88,11 @@ class _Up(nn.Module):
         return self.conv(x)
 
 
+LABEL_FROZEN = 0
+LABEL_THAWED = 1
+LABEL_OTHER = 3
+
+
 class UNet(nn.Module):
     """A depth-generalized UNet implementation
 
@@ -122,3 +127,16 @@ class UNet(nn.Module):
         for xleft, up in zip(xdowns[:-1][::-1], self.ups):
             x = up(xleft, x)
         return self.out(x)
+
+
+def local_variation_loss(data, loss_func=nn.L1Loss()):
+    loss = loss_func(data[..., 1:, :], data[..., :-1, :])
+    loss += loss_func(data[..., :, 1:], data[..., :, :-1])
+    return loss
+
+
+def ft_loss(prediction, label, distance):
+    loss = prediction - label
+    loss.pow_(2)
+    loss.div_(distance.pow(2))
+    return torch.mean(loss)
