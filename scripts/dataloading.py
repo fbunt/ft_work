@@ -99,9 +99,9 @@ class ViewCopyTransform:
         self.right = col_max + 1
 
     def __call__(self, data):
-        copy_func = np.copy if isinstance(np.ndarray, data) else torch.clone
+        copy_func = np.copy if isinstance(data, np.ndarray) else torch.clone
         return copy_func(
-            data[..., self.top : self.bottom, self.left : self.right]
+            data[..., self.top : self.bot, self.left : self.right]
         )
 
 
