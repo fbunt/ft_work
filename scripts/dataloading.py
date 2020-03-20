@@ -131,7 +131,7 @@ class ValidationDataGenerator:
             .all()
         )
         vlon = [r[0] for r in records]
-        v;lat = [r[1] for r in records]
+        vlat = [r[1] for r in records]
         temp = np.array([r[2] for r in records])
         vft = np.empty_like(temp, dtype='uint8')
         vft[temp <= 273.15] = LABEL_FROZEN
