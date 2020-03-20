@@ -2,6 +2,7 @@ import datetime as dt
 import numpy as np
 import torch
 import torch.nn as nn
+import tqdm
 
 from dataloading import (
     KEY_INPUT_DATA,
@@ -54,7 +55,13 @@ loss_vec = []
 iters = 0
 print_period = 50
 for epoch in range(epochs):
-    for i, data in enumerate(dataloader):
+    print(f"Starting epoch: {epoch}")
+    for i, data in tqdm.tqdm(
+        enumerate(dataloader),
+        ncols=80,
+        total=len(dataloader),
+        desc=f"Epoch: {epoch + 1}/{epochs}",
+    ):
         input_data = data[KEY_INPUT_DATA]
         label = data[KEY_VALIDATION_DATA]
         label[..., water_mask] = LABEL_OTHER
@@ -75,8 +82,8 @@ for epoch in range(epochs):
         opt.step()
         loss_vec.append(loss.item())
 
-        if iters % print_period == 0:
-            print(f"{epoch}/{epochs}:{iters}: Loss: {loss}")
+        # if iters % print_period == 0:
+        #     print(f"{epoch}/{epochs}:{iters}: Loss: {loss}")
         iters += 1
 torch.save(
     model.state_dict(), f"../models/unet-{dt.datetime.now().timestamp()}.pt"
