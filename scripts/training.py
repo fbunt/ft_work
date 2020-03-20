@@ -61,7 +61,7 @@ for epoch in range(epochs):
         dist_data = data[KEY_DIST_DATA]
         # We are very certain that this is water
         dist_data[..., water_mask] = 1
-        input_data = input_data.to(device)
+        input_data = input_data.to(device, dtype=torch.float)
 
         model.zero_grad()
         output = model(input_data)
