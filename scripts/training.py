@@ -7,6 +7,7 @@ from dataloading import (
     KEY_INPUT_DATA,
     KEY_VALIDATION_DATA,
     KEY_DIST_DATA,
+    DatabaseReference,
     NCTbDataset,
     FTDataset,
     ValidationDataGenerator,
@@ -31,7 +32,7 @@ water_mask = torch.tensor(
 )
 root_data_dir = "../data/training/train"
 
-db = get_db_session("../data/dbs/wmo_gsod.db")
+db = DatabaseReference("../data/dbs/wmo_gsod.db", get_db_session)
 model = UNet(6, 1, depth=depth)
 model.to(device)
 dataset = FTDataset(
@@ -39,7 +40,7 @@ dataset = FTDataset(
     ValidationDataGenerator(db, transform=transform),
 )
 dataloader = torch.utils.data.DataLoader(
-    dataset, batch_size=batch_size, shuffle=True, drop_last=True,
+    dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=4
 )
 opt = torch.optim.SGD(
     model.parameters(),

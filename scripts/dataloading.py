@@ -105,10 +105,20 @@ class ViewCopyTransform:
         )
 
 
+class DatabaseReference:
+    def __init__(self, path, creation_func):
+        utils.validate_file_path(path)
+        self.path = path
+        self.creation_func = creation_func
+
+    def __call__(self):
+        return self.creation_func(self.path)
+
+
 # TODO: handle subsetting in query rather than as a transform
 class ValidationDataGenerator:
-    def __init__(self, db_connection, transform=None, grid_code=eg.ML):
-        self.dbc = db_connection
+    def __init__(self, db_ref, transform=None, grid_code=eg.ML):
+        self.db_ref = db_ref
         self.grid_code = grid_code
         self.ease_xm, self.ease_ym = eg.v1_lonlat_to_meters(
             *eg.v1_get_full_grid_lonlat(grid_code), grid_code
@@ -126,7 +136,8 @@ class ValidationDataGenerator:
         elif hour == 18:
             field = DbWMOMetDailyTempRecord.temperature_max
         records = (
-            self.dbc.query(DbWMOMetStation.lon, DbWMOMetStation.lat, field)
+            self.db_ref()
+            .query(DbWMOMetStation.lon, DbWMOMetStation.lat, field)
             .join(DbWMOMetDailyTempRecord.met_station)
             .filter(DbWMOMetDailyTempRecord.date_int == date_to_int(date))
             .filter(field != None)  # noqa: E711  have to use != for sqlalchemy
