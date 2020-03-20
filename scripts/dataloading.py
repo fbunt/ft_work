@@ -11,6 +11,7 @@ import pandas as pd
 import torch
 import xarray as xr
 
+from model import LABEL_FROZEN, LABEL_THAWED
 from tb import (
     KEY_FREQ_POL,
     KEY_SAT_NAME,
@@ -130,8 +131,11 @@ class ValidationDataGenerator:
             .all()
         )
         vlon = [r[0] for r in records]
-        vlat = [r[1] for r in records]
-        vft = np.array([r[2] for r in records]) > 273.15
+        v;lat = [r[1] for r in records]
+        temp = np.array([r[2] for r in records])
+        vft = np.empty_like(temp, dtype='uint8')
+        vft[temp <= 273.15] = LABEL_FROZEN
+        vft[temp > 273.15] = LABEL_THAWED
         vxm, vym = eg.v1_lonlat_to_meters(vlon, vlat, self.grid_code)
         vpoints = list(zip(vxm, vym))
         tree = KDTree(vpoints)
