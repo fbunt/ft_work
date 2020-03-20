@@ -141,7 +141,7 @@ class ValidationDataGenerator:
         vxm, vym = eg.v1_lonlat_to_meters(vlon, vlat, self.grid_code)
         vpoints = list(zip(vxm, vym))
         tree = KDTree(vpoints)
-        vgrid = np.zeros(self.ease_xm.shape, dtype=int)
+        vgrid = np.zeros(self.ease_xm.shape, dtype="uint8")
         xi = ndim_coords_from_arrays((self.ease_xm, self.ease_ym), ndim=2)
         dist, idx = tree.query(xi)
         vgrid[:] = vft[idx]
