@@ -90,7 +90,7 @@ class _Up(nn.Module):
 
 LABEL_FROZEN = 0
 LABEL_THAWED = 1
-LABEL_OTHER = 3
+LABEL_OTHER = 2
 
 
 class UNet(nn.Module):
