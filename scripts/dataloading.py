@@ -146,13 +146,13 @@ class ValidationDataGenerator:
         vlon = [r[0] for r in records]
         vlat = [r[1] for r in records]
         temp = np.array([r[2] for r in records])
-        vft = np.empty_like(temp, dtype="uint8")
+        vft = np.empty_like(temp)
         vft[temp <= 273.15] = LABEL_FROZEN
         vft[temp > 273.15] = LABEL_THAWED
         vxm, vym = eg.v1_lonlat_to_meters(vlon, vlat, self.grid_code)
         vpoints = list(zip(vxm, vym))
         tree = KDTree(vpoints)
-        vgrid = np.zeros(self.ease_xm.shape, dtype="uint8")
+        vgrid = np.zeros(self.ease_xm.shape)
         xi = ndim_coords_from_arrays((self.ease_xm, self.ease_ym), ndim=2)
         dist, idx = tree.query(xi)
         vgrid[:] = vft[idx]
@@ -223,9 +223,7 @@ class NCTbDataset(Dataset):
         datetime = dt.datetime(
             date.year, date.month, date.day, hour, tzinfo=dt.timezone.utc
         )
-        shape = loaders[0].tb.shape[1:]
         grids = []
-        grids.append(np.full(shape, datetime.timestamp()))
         loaded = [loader.tb[inner_idx].values for loader in loaders]
         for g in loaded:
             g[np.isnan(g)] = 0
