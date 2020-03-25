@@ -56,13 +56,13 @@ loss_vec = []
 iters = 0
 print_period = 50
 for epoch in range(epochs):
-    print(f"Starting epoch: {epoch}")
-    for i, data in tqdm.tqdm(
+    it = tqdm.tqdm(
         enumerate(dataloader),
         ncols=80,
         total=len(dataloader),
         desc=f"Epoch: {epoch + 1}/{epochs}",
-    ):
+    )
+    for i, data in it:
         input_data = data[KEY_INPUT_DATA]
         label = data[KEY_VALIDATION_DATA]
         label[..., water_mask] = LABEL_OTHER
