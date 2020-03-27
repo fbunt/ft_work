@@ -21,9 +21,10 @@ from tb import (
     SAT_DESCENDING,
 )
 from validation_db_orm import (
-    date_to_int,
+    DbWMOMeanDate,
     DbWMOMetDailyTempRecord,
     DbWMOMetStation,
+    date_to_int,
 )
 import ease_grid as eg
 import tb as tbmod
@@ -115,15 +116,56 @@ class DatabaseReference:
         return self.creation_func(self.path)
 
 
-# TODO: handle subsetting in query rather than as a transform
-class ValidationDataGenerator:
-    def __init__(self, db_ref, transform=None, grid_code=eg.ML):
+class GaussianRBF:
+    """Gaussian radial basis function"""
+    def __init__(self, epsilon):
+        self.eps = epsilon
+
+    def __call__(self, r):
+        return np.exp(-((self.eps * r) ** 2))
+
+
+DEFAULT_RBF_EPS = 8e-6
+
+
+class AWSFuzzyLabelDataset(Dataset):
+    def __init__(
+        self,
+        db_ref,
+        rbf=GaussianRBF(DEFAULT_RBF_EPS),
+        transform=None,
+        other_mask=None,
+        k=100,
+        grid_code=eg.ML,
+    ):
+        assert k > 0, "k must be greater than 0"
         self.db_ref = db_ref
+        self.rbf = rbf
+        self.k = k
         self.grid_code = grid_code
-        self.ease_xm, self.ease_ym = eg.v1_lonlat_to_meters(
-            *eg.v1_get_full_grid_lonlat(grid_code), grid_code
-        )
         self.transform = transform or (lambda x: x)
+        elon, elat = eg.v1_get_full_grid_lonlat(grid_code)
+        ease_xm, ease_ym = eg.v1_lonlat_to_meters(elon, elat, grid_code)
+        self.ease_xm = self.transform(ease_xm)
+        self.ease_ym = self.transform(ease_ym)
+        self.ease_tree = KDTree(
+            list(zip(self.ease_xm.ravel(), self.ease_ym.ravel()))
+        )
+        elon = self.transform(elon)
+        elat = self.transform(elat)
+        # Compute bounds for querying the db
+        self.lon_min = elon.min()
+        self.lon_max = elon.max()
+        self.lat_min = elat.min()
+        self.lat_max = elat.max()
+        self.grid_shape = self.ease_xm.shape
+        other_mask = (
+            other_mask
+            if other_mask is not None
+            else np.zeros(self.grid_shape, dtype=bool)
+        )
+        self.other_mask = self.transform(other_mask)
+        self.ft_mask = ~self.other_mask
 
     def __getitem__(self, dtime):
         if not isinstance(dtime, dt.datetime):
@@ -141,28 +183,69 @@ class ValidationDataGenerator:
             .join(DbWMOMetDailyTempRecord.met_station)
             .filter(DbWMOMetDailyTempRecord.date_int == date_to_int(date))
             .filter(field != None)  # noqa: E711  have to use != for sqlalchemy
+            .filter(DbWMOMetStation.lon >= self.lon_min)
+            .filter(DbWMOMetStation.lon <= self.lon_max)
+            .filter(DbWMOMetStation.lat >= self.lat_min)
+            .filter(DbWMOMetStation.lat <= self.lat_max)
             .all()
         )
-        vlon = [r[0] for r in records]
-        vlat = [r[1] for r in records]
-        temp = np.array([r[2] for r in records])
-        vft = np.empty_like(temp)
-        vft[temp <= 273.15] = LABEL_FROZEN
-        vft[temp > 273.15] = LABEL_THAWED
-        vxm, vym = eg.v1_lonlat_to_meters(vlon, vlat, self.grid_code)
-        vpoints = list(zip(vxm, vym))
-        tree = KDTree(vpoints)
-        vgrid = np.zeros(self.ease_xm.shape)
-        xi = ndim_coords_from_arrays((self.ease_xm, self.ease_ym), ndim=2)
-        dist, idx = tree.query(xi)
-        vgrid[:] = vft[idx]
-        return self.transform(vgrid), self.transform(dist)
+        dgrid = np.full(np.prod(self.grid_shape), np.inf)
+        fgrid = np.full(np.prod(self.grid_shape), np.inf)
+        for i, r in enumerate(records):
+            sx, sy = eg.v1_lonlat_to_meters(r[0], r[1])
+            dist, idx = self.ease_tree.query((sx, sy), k=100)
+            # P(frozen; x) := 0.5(P(frozen=True; x_stn)*RBF(x - x_stn))) + 0.5
+            # P(thawed; x) := 1 - P(frozen; x)
+            if r[-1] <= 273.15:
+                # Frozen
+                p_frozen = (0.5 * self.rbf(dist)) + 0.5
+            else:
+                # Thawed
+                p_thawed = (0.5 * self.rbf(dist)) + 0.5
+                p_frozen = 1 - p_thawed
+            dist_min = dist < dgrid[idx]
+            view = fgrid[idx]
+            view[dist_min] = p_frozen[dist_min]
+            fgrid[idx] = view
+            view = dgrid[idx]
+            view[dist_min] = dist[dist_min]
+            dgrid[idx] = view
+            # Handle tie
+            dist_tie = dist == dgrid[idx]
+            if dist_tie.any():
+                view = fgrid[idx]
+                view[dist_tie] = (p_frozen[dist_tie] + view[dist_tie]) / 2.0
+                fgrid[idx] = view
+                view = dgrid[idx]
+                view[dist_tie] = dist[dist_tie]
+                dgrid[idx] = view
+        fgrid = fgrid.reshape(self.grid_shape)
+
+        labels = np.zeros((3, *self.grid_shape))
+        # Frozen
+        labels[0] = fgrid
+        # Thawed
+        labels[1] = 1 - fgrid
+        self.labels_copy = labels.copy()
+        # fill with 50% everywhere else
+        labels[0, np.isinf(fgrid)] = 0.5
+        labels[1, np.isinf(fgrid)] = 0.5
+        # OTHER: P(other) := 1 at mask points, 0 everywhere else
+        labels[2, self.other_mask] = 1
+        labels[2, self.ft_mask] = 0
+        labels[0, self.other_mask] = 0
+        labels[1, self.other_mask] = 0
+        return labels
+
+    def __len__(self):
+        return self.db_ref().query(DbWMOMeanDate).count()
 
 
-KEY_INPUT_DATA = "input_data"
+KEY_INPUT_DATA = "input"
 KEY_TIME = "time"
-KEY_VALIDATION_DATA = "validation_data"
-KEY_DIST_DATA = "dist_data"
+KEY_VALIDATION_DATA = "val"
+KEY_LABEL_DATA = "label"
+KEY_DIST_DATA = "dist"
 
 
 class NCTbDataset(Dataset):
@@ -245,20 +328,17 @@ class NCTbDataset(Dataset):
 
 
 class FTDataset(Dataset):
-    def __init__(self, tb_dataset, validation_generator):
+    def __init__(self, tb_dataset, label_dataset):
         self.tb = tb_dataset
-        self.val_gen = validation_generator
+        self.label = label_dataset
 
     def __getitem__(self, idx):
         data_dict = self.tb[idx]
         time = data_dict[KEY_TIME]
-        validation_grid, dist_grid = self.val_gen[
-            dt.datetime.utcfromtimestamp(time)
-        ]
+        labels = self.label[dt.datetime.utcfromtimestamp(time)]
         return {
             KEY_INPUT_DATA: data_dict[KEY_INPUT_DATA],
-            KEY_VALIDATION_DATA: validation_grid,
-            KEY_DIST_DATA: dist_grid,
+            KEY_LABEL_DATA: labels,
         }
 
     def __len__(self):
