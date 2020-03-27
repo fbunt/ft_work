@@ -243,9 +243,7 @@ class AWSFuzzyLabelDataset(Dataset):
 
 KEY_INPUT_DATA = "input"
 KEY_TIME = "time"
-KEY_VALIDATION_DATA = "val"
 KEY_LABEL_DATA = "label"
-KEY_DIST_DATA = "dist"
 
 
 class NCTbDataset(Dataset):
