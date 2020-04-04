@@ -36,6 +36,15 @@ class DataLoadingError(Exception):
     pass
 
 
+class KeyedDataset(Dataset):
+    KEY = None
+
+
+AWS_LABEL = "aws_label"
+AWS_FUZZY_LABEL = "aws_fuzzy_label"
+ERA5_LABEL = "era5_label"
+
+
 def _input_filter(fi):
     return (
         fi is not None
@@ -130,7 +139,9 @@ class GaussianRBF:
 DEFAULT_RBF_EPS = 8e-6
 
 
-class AWSFuzzyLabelDataset(Dataset):
+class AWSFuzzyLabelDataset(KeyedDataset):
+    KEY = AWS_FUZZY_LABEL
+
     def __init__(
         self,
         db_ref,
@@ -243,8 +254,42 @@ class AWSFuzzyLabelDataset(Dataset):
         return self.db_ref().query(DbWMOMeanDate).count()
 
 
-class ERA5BidailyDataset(Dataset):
+class AWSDateRangeWrapperDataset(KeyedDataset):
     KEY = AWS_LABEL
+
+    def __init__(self, aws_dataset, start_date, end_date, am_pm):
+        """Make an AWS dataset that takes dates indexable with integers.
+
+        start_date is inclusive while end_date is exclusive. am_pm can be "AM"
+        or "PM".
+        """
+        assert (
+            start_date < end_date
+        ), "Start date must be less than the end date"
+        hour = 6 if am_pm == "AM" else 18
+        date = dt.datetime(
+            start_date.year, start_date.month, start_date.day, hour
+        )
+        delta = dt.timedelta(days=1)
+        dates = []
+        while date < end_date:
+            dates.append(date)
+            date += delta
+        dates = dates
+        self.am_pm = am_pm
+        self.idx_to_date = {i: d for i, d in enumerate(dates)}
+        self.ds = aws_dataset
+
+    def __getitem__(self, idx):
+        return self.ds[self.idx_to_date[idx]]
+
+    def __len__(self):
+        return len(self.idx_to_date)
+
+
+class ERA5BidailyDataset(KeyedDataset):
+    KEY = ERA5_LABEL
+
     def __init__(self, paths, var_name, scheme, transform=None):
         self.ds = xr.open_mfdataset(paths, combine="by_coords")
         if var_name not in self.ds:
@@ -383,6 +428,24 @@ class FTDataset(Dataset):
 
     def __len__(self):
         return len(self.tb)
+
+
+class ComposedDictDataset(Dataset):
+    def __init__(self, datasets):
+        if not len(datasets):
+            raise DataLoadingError("No datasets were provided")
+        if len(set(len(d) for d in datasets)) > 1:
+            raise DataLoadingError("Dataset sizes must match")
+        self.datasets = datasets
+        self.size = len(self.datasets[0])
+
+    def __getitem__(self, idx):
+        if idx >= self.size or idx < 0:
+            raise IndexError(f"{idx} is out of bounds")
+        return {d.KEY: d[idx] for d in self.datasets}
+
+    def __len__(self):
+        return self.size
 
 
 DEFAULT_BATCH_SIZE = 8
