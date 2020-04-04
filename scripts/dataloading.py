@@ -1,6 +1,7 @@
 from scipy.interpolate.interpnd import (
     _ndim_coords_from_arrays as ndim_coords_from_arrays,
 )
+from scipy.interpolate import RectBivariateSpline as RBS
 from scipy.spatial import cKDTree as KDTree
 from torch.utils.data import DataLoader, Dataset
 import datetime as dt
@@ -118,6 +119,7 @@ class DatabaseReference:
 
 class GaussianRBF:
     """Gaussian radial basis function"""
+
     def __init__(self, epsilon):
         self.eps = epsilon
 
@@ -239,6 +241,43 @@ class AWSFuzzyLabelDataset(Dataset):
 
     def __len__(self):
         return self.db_ref().query(DbWMOMeanDate).count()
+
+
+class ERA5BidailyDataset(Dataset):
+    def __init__(self, paths, var_name, scheme="AM"):
+        self.ds = xr.open_mfdataset(paths, combine="by_coords")
+        if var_name not in self.ds:
+            raise KeyError(
+                f"Variable name '{var_name}' is not present in specified data"
+            )
+        self.var_name = var_name
+        self.data_slice = None
+        if scheme == "AM":
+            self.data_slice = np.s_[::2]
+        elif scheme == "PM":
+            self.data_slice = np.s_[1::2]
+        else:
+            raise ValueError(f"Unknown scheme option: '{scheme}'")
+        self.length = len(self.data())
+        self.lon = self.ds.lon.values
+        self.lat = self.ds.lat.values
+        elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
+        self.elon = elon[0] + 180
+        self.elat = elat[:, 0]
+
+    def data(self):
+        return self.ds[self.var_name][self.data_slice]
+
+    def __getitem__(self, idx):
+        grid = self.data()[idx].values
+        # Need to make lat increasing for interpolation
+        ip = RBS(self.lat[::-1], self.lon, grid[::-1])
+        igrid = ip(self.elat[::-1], self.elon)[::-1]
+        igrid = np.roll(igrid, (self.elon.size // 2) + 1, axis=1)
+        return igrid
+
+    def __len__(self):
+        return self.length
 
 
 KEY_INPUT_DATA = "input"
