@@ -40,9 +40,13 @@ class KeyedDataset(Dataset):
     KEY = None
 
 
-AWS_LABEL = "aws_label"
-AWS_FUZZY_LABEL = "aws_fuzzy_label"
-ERA5_LABEL = "era5_label"
+KEY_AWS_LABEL = "aws_label"
+KEY_AWS_FUZZY_LABEL = "aws_fuzzy_label"
+KEY_ERA5_LABEL = "era5_label"
+KEY_TB_DATA = "tb_data"
+KEY_INPUT_DATA = "input"
+KEY_TIME = "time"
+KEY_LABEL_DATA = "label"
 
 
 def _input_filter(fi):
@@ -140,7 +144,7 @@ DEFAULT_RBF_EPS = 8e-6
 
 
 class AWSFuzzyLabelDataset(KeyedDataset):
-    KEY = AWS_FUZZY_LABEL
+    KEY = KEY_AWS_FUZZY_LABEL
 
     def __init__(
         self,
@@ -255,7 +259,7 @@ class AWSFuzzyLabelDataset(KeyedDataset):
 
 
 class AWSDateRangeWrapperDataset(KeyedDataset):
-    KEY = AWS_LABEL
+    KEY = KEY_AWS_LABEL
 
     def __init__(self, aws_dataset, start_date, end_date, am_pm):
         """Make an AWS dataset that takes dates indexable with integers.
@@ -288,7 +292,7 @@ class AWSDateRangeWrapperDataset(KeyedDataset):
 
 
 class ERA5BidailyDataset(KeyedDataset):
-    KEY = ERA5_LABEL
+    KEY = KEY_ERA5_LABEL
 
     def __init__(self, paths, var_name, scheme, transform=None):
         self.ds = xr.open_mfdataset(paths, combine="by_coords")
@@ -326,11 +330,6 @@ class ERA5BidailyDataset(KeyedDataset):
 
     def __len__(self):
         return self.length
-
-
-KEY_INPUT_DATA = "input"
-KEY_TIME = "time"
-KEY_LABEL_DATA = "label"
 
 
 class NCTbDataset(Dataset):
@@ -405,11 +404,23 @@ class NCTbDataset(Dataset):
         if idx >= self.size:
             raise IndexError(f"Index {idx} out of range for size {self.size}")
         input_data, timestamp = self._load_input_grids_and_datetime(idx)
-        # TODO: load validation data from db and create label
-        return {KEY_INPUT_DATA: input_data, KEY_TIME: timestamp}
+        return {KEY_TB_DATA: input_data, KEY_TIME: timestamp}
 
     def __len__(self):
         return self.size
+
+
+class NCTbDatasetKeyedWrapper(KeyedDataset):
+    KEY = KEY_TB_DATA
+
+    def __init__(self, dataset):
+        self.tbds = dataset
+
+    def __getitem__(self, idx):
+        return self.tbds[idx][KEY_TB_DATA]
+
+    def __len__(self):
+        return len(self.tbds)
 
 
 class FTDataset(Dataset):
