@@ -244,7 +244,8 @@ class AWSFuzzyLabelDataset(Dataset):
 
 
 class ERA5BidailyDataset(Dataset):
-    def __init__(self, paths, var_name, scheme="AM"):
+    KEY = AWS_LABEL
+    def __init__(self, paths, var_name, scheme, transform=None):
         self.ds = xr.open_mfdataset(paths, combine="by_coords")
         if var_name not in self.ds:
             raise KeyError(
@@ -264,6 +265,7 @@ class ERA5BidailyDataset(Dataset):
         elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
         self.elon = elon[0] + 180
         self.elat = elat[:, 0]
+        self.transform = transform or (lambda x: x)
 
     def data(self):
         return self.ds[self.var_name][self.data_slice]
@@ -273,8 +275,9 @@ class ERA5BidailyDataset(Dataset):
         # Need to make lat increasing for interpolation
         ip = RBS(self.lat[::-1], self.lon, grid[::-1])
         igrid = ip(self.elat[::-1], self.elon)[::-1]
+        # Roll along the lon dimension to center at lon=0
         igrid = np.roll(igrid, (self.elon.size // 2) + 1, axis=1)
-        return igrid
+        return self.transform(igrid > 273.15)
 
     def __len__(self):
         return self.length
