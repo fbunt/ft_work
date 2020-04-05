@@ -411,6 +411,8 @@ class NCTbDataset(Dataset):
 
 
 class NCTbDatasetKeyedWrapper(KeyedDataset):
+    """Wraps an NCTbDataset to make it composable with other keyed datasets"""
+
     KEY = KEY_TB_DATA
 
     def __init__(self, dataset):
