@@ -179,7 +179,7 @@ class AWSFuzzyLabelDataset(KeyedDataset):
         other_mask = (
             other_mask
             if other_mask is not None
-            else np.zeros(self.grid_shape, dtype=bool)
+            else np.zeros(eg.GRID_NAME_TO_V1_SHAPE[eg.ML], dtype=bool)
         )
         self.other_mask = self.transform(other_mask)
         self.ft_mask = ~self.other_mask
