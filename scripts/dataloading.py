@@ -291,6 +291,18 @@ class AWSDateRangeWrapperDataset(KeyedDataset):
         return len(self.idx_to_date)
 
 
+class NpyDataset(KeyedDataset):
+    def __init__(self, key, data_file):
+        self.KEY = key
+        self.data = np.load(data_file)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
+
+    def __len__(self):
+        return len(self.data)
+
+
 class ERA5BidailyDataset(KeyedDataset):
     KEY = KEY_ERA5_LABEL
 
