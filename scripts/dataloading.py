@@ -49,61 +49,6 @@ KEY_TIME = "time"
 KEY_LABEL_DATA = "label"
 
 
-def _input_filter(fi):
-    return (
-        fi is not None
-        and fi.grid_code == "ML"
-        and fi.sat_pass == "D"
-        and fi.freq_pol <= KEY_37V
-    )
-
-
-def _create_input_table(paths, filter_func=_input_filter):
-    finfo = [tbmod.parse_nc_tb_fname(f) for f in paths]
-    finfo = [fi for fi in finfo if filter_func(fi)]
-    # List of frequency-polarization pairs
-    fps = sorted(set(fi.freq_pol for fi in finfo))
-    # Data in form:
-    #    year sat_name grid_code sat_pass freq_pol                     path
-    # 0  2009      F13        ML        A      19H  tb_2009_F13_ML_A_19H.nc
-    # 1  2009      F13        ML        A      19V  tb_2009_F13_ML_A_19V.nc
-    # 2  2009      F13        ML        A      22V  tb_2009_F13_ML_A_22V.nc
-    # 3  2009      F13        ML        A      37H  tb_2009_F13_ML_A_37H.nc
-    # 4  2009      F13        ML        A      37V  tb_2009_F13_ML_A_37V.nc
-    # ...
-    df = pd.DataFrame(finfo).sort_values(by=[KEY_YEAR, KEY_FREQ_POL])
-    groups = list(df.groupby([KEY_YEAR, KEY_SAT_NAME, KEY_SAT_PASS]))
-    rows = []
-    # Partially transpose to form:
-    #    year sat_name sat_pass                      19H  19V 22V 37H 37V ...
-    # 0  2009      F13        A  tb_2009_F13_ML_A_19H.nc  ... ... ... ... ...
-    # 1  2009      F17        A  tb_2009_F17_ML_A_19H.nc  ... ... ... ... ...
-    # 2  2010      F17        A  tb_2010_F17_ML_A_19H.nc  ... ... ... ... ...
-    # ...
-    for k, di in groups:
-        y, name, sp = k
-        row = [y, name, sp]
-        for r in di.itertuples():
-            row.append(r.path)
-        rows.append(row)
-    cols = [KEY_YEAR, KEY_SAT_NAME, KEY_SAT_PASS, *fps]
-    table = pd.DataFrame(rows, columns=cols)
-    return table, fps
-
-
-def _validate_table(table, freq_pols):
-    for _, row in table.iterrows():
-        files = row[freq_pols].values
-        sizes = set()
-        for f in files:
-            n = xr.open_dataset(f).time.size
-            sizes.add(n)
-        if len(sizes) > 1:
-            raise DataLoadingError(
-                f"Data time dimensions did not match for inputs: {files}"
-            )
-
-
 class ViewCopyTransform:
     """A transform takes a view of the input and returns a copy"""
 
@@ -362,6 +307,61 @@ class ERA5BidailyDataset(KeyedDataset):
 
     def __len__(self):
         return self.length
+
+
+def _input_filter(fi):
+    return (
+        fi is not None
+        and fi.grid_code == "ML"
+        and fi.sat_pass == "D"
+        and fi.freq_pol <= KEY_37V
+    )
+
+
+def _create_input_table(paths, filter_func=_input_filter):
+    finfo = [tbmod.parse_nc_tb_fname(f) for f in paths]
+    finfo = [fi for fi in finfo if filter_func(fi)]
+    # List of frequency-polarization pairs
+    fps = sorted(set(fi.freq_pol for fi in finfo))
+    # Data in form:
+    #    year sat_name grid_code sat_pass freq_pol                     path
+    # 0  2009      F13        ML        A      19H  tb_2009_F13_ML_A_19H.nc
+    # 1  2009      F13        ML        A      19V  tb_2009_F13_ML_A_19V.nc
+    # 2  2009      F13        ML        A      22V  tb_2009_F13_ML_A_22V.nc
+    # 3  2009      F13        ML        A      37H  tb_2009_F13_ML_A_37H.nc
+    # 4  2009      F13        ML        A      37V  tb_2009_F13_ML_A_37V.nc
+    # ...
+    df = pd.DataFrame(finfo).sort_values(by=[KEY_YEAR, KEY_FREQ_POL])
+    groups = list(df.groupby([KEY_YEAR, KEY_SAT_NAME, KEY_SAT_PASS]))
+    rows = []
+    # Partially transpose to form:
+    #    year sat_name sat_pass                      19H  19V 22V 37H 37V ...
+    # 0  2009      F13        A  tb_2009_F13_ML_A_19H.nc  ... ... ... ... ...
+    # 1  2009      F17        A  tb_2009_F17_ML_A_19H.nc  ... ... ... ... ...
+    # 2  2010      F17        A  tb_2010_F17_ML_A_19H.nc  ... ... ... ... ...
+    # ...
+    for k, di in groups:
+        y, name, sp = k
+        row = [y, name, sp]
+        for r in di.itertuples():
+            row.append(r.path)
+        rows.append(row)
+    cols = [KEY_YEAR, KEY_SAT_NAME, KEY_SAT_PASS, *fps]
+    table = pd.DataFrame(rows, columns=cols)
+    return table, fps
+
+
+def _validate_table(table, freq_pols):
+    for _, row in table.iterrows():
+        files = row[freq_pols].values
+        sizes = set()
+        for f in files:
+            n = xr.open_dataset(f).time.size
+            sizes.add(n)
+        if len(sizes) > 1:
+            raise DataLoadingError(
+                f"Data time dimensions did not match for inputs: {files}"
+            )
 
 
 class NCTbDataset(Dataset):
