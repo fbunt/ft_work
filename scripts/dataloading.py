@@ -294,7 +294,9 @@ class AWSDateRangeWrapperDataset(KeyedDataset):
 class ERA5BidailyDataset(KeyedDataset):
     KEY = KEY_ERA5_LABEL
 
-    def __init__(self, paths, var_name, scheme, transform=None):
+    def __init__(
+        self, paths, var_name, scheme, other_mask=None, transform=None
+    ):
         self.ds = xr.open_mfdataset(paths, combine="by_coords")
         if var_name not in self.ds:
             raise KeyError(
@@ -315,6 +317,14 @@ class ERA5BidailyDataset(KeyedDataset):
         self.elon = elon[0] + 180
         self.elat = elat[:, 0]
         self.transform = transform or (lambda x: x)
+        self.n_classes = 2 + int(other_mask is not None)
+        other_mask = (
+            other_mask
+            if other_mask is not None
+            else np.zeros(eg.GRID_NAME_TO_V1_SHAPE[eg.ML], dtype=bool)
+        )
+        self.other_mask = self.transform(other_mask)
+        self.grid_shape = self.other_mask.shape
 
     def data(self):
         return self.ds[self.var_name][self.data_slice]
@@ -326,7 +336,17 @@ class ERA5BidailyDataset(KeyedDataset):
         igrid = ip(self.elat[::-1], self.elon)[::-1]
         # Roll along the lon dimension to center at lon=0
         igrid = np.roll(igrid, (self.elon.size // 2) + 1, axis=1)
-        return self.transform(igrid > 273.15)
+        igrid = self.transform(igrid)
+        out = np.zeros((self.n_classes, *self.grid_shape), dtype=int)
+        # Frozen
+        out[0] = igrid <= 273.15
+        # Thawed
+        out[1] = igrid > 273.15
+        if self.n_classes > 2:
+            # Other
+            out[0:2, self.other_mask] = 0
+            out[2, self.other_mask] = 1
+        return out
 
     def __len__(self):
         return self.length
