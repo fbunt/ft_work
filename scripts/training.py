@@ -95,6 +95,21 @@ for epoch in range(epochs):
     elif epoch > 10:
         for g in opt.param_groups:
             g["lr"] = learning_rate / 10.0
+
+val_ds = NCTbDatasetKeyedWrapper(
+    NCTbDataset("../data/val", transform=transform)
+)
+val_dl = torch.utils.data.DataLoader(val_ds)
+pred = [
+    torch.softmax(model(v.to(device, dtype=torch.float)).detach(), 1)
+    .cpu()
+    .squeeze()
+    .numpy()
+    .argmax(0)
+    for v in val_dl
+]
+pred = np.array(pred)
+np.save("../data/pred/pred.npy", pred)
 fmt = "../models/unet-in_{}-nclass_{}-depth_{}-{}.pt"
 torch.save(
     model.state_dict(),
