@@ -1,5 +1,6 @@
 data/
 output/
 models/
+runs/
 .*/
 *.log
