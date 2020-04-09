@@ -1,3 +1,4 @@
+from torch.utils.tensorboard import SummaryWriter
 import datetime as dt
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,6 +19,7 @@ from dataloading import (
     ViewCopyTransform,
 )
 from model import UNet, local_variation_loss
+
 # from validation_db_orm import get_db_session
 
 
@@ -28,6 +30,7 @@ base_filters = 32
 epochs = 30
 batch_size = 10
 learning_rate = 0.0005
+gamma = 0.9
 learning_momentum = 0.9
 l2_reg_weight = 0.1
 lv_reg_weight = 0.1
@@ -62,12 +65,17 @@ opt = torch.optim.Adam(
     # momentum=learning_momentum,
     weight_decay=l2_reg_weight,
 )
+sched = torch.optim.lr_scheduler.StepLR(opt, 1, gamma)
 
+writer = SummaryWriter("../runs/ft_run")
 loss_vec = []
 
 criterion = nn.CrossEntropyLoss()
 iters = 0
 for epoch in range(epochs):
+    writer.add_scalar(
+        "learning_rate", next(iter(opt.param_groups))["lr"], epoch
+    )
     it = tqdm.tqdm(
         enumerate(dataloader),
         ncols=80,
@@ -87,14 +95,12 @@ for epoch in range(epochs):
         loss.backward()
         opt.step()
         loss_vec.append(loss.item())
+        step = (epoch * len(dataloader)) + i
+        writer.add_scalar("training_loss", loss.item(), step)
         it.write(f"{loss.item()}")
         iters += 1
-    if epoch > 20:
-        for g in opt.param_groups:
-            g["lr"] = learning_rate / 100.0
-    elif epoch > 10:
-        for g in opt.param_groups:
-            g["lr"] = learning_rate / 10.0
+    sched.step()
+writer.close()
 
 val_ds = NCTbDatasetKeyedWrapper(
     NCTbDataset("../data/val", transform=transform)
