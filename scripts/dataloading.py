@@ -452,7 +452,8 @@ class StackGridsDataset(Dataset):
             shape_len += 1
         unsqueezed = []
         for d in data:
-            d = torch.tensor(d)
+            if not isinstance(d, torch.Tensor):
+                d = torch.tensor(d)
             if len(d.shape) < shape_len:
                 d = d.unsqueeze(0)
             unsqueezed.append(d)
