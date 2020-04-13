@@ -36,19 +36,6 @@ class DataLoadingError(Exception):
     pass
 
 
-class KeyedDataset(Dataset):
-    KEY = None
-
-
-KEY_AWS_LABEL = "aws_label"
-KEY_AWS_FUZZY_LABEL = "aws_fuzzy_label"
-KEY_ERA5_LABEL = "era5_label"
-KEY_TB_DATA = "tb_data"
-KEY_INPUT_DATA = "input"
-KEY_TIME = "time"
-KEY_LABEL_DATA = "label"
-
-
 class ViewCopyTransform:
     """A transform takes a view of the input and returns a copy"""
 
@@ -88,9 +75,7 @@ class GaussianRBF:
 DEFAULT_RBF_EPS = 8e-6
 
 
-class AWSFuzzyLabelDataset(KeyedDataset):
-    KEY = KEY_AWS_FUZZY_LABEL
-
+class AWSFuzzyLabelDataset(Dataset):
     def __init__(
         self,
         db_ref,
@@ -203,9 +188,7 @@ class AWSFuzzyLabelDataset(KeyedDataset):
         return self.db_ref().query(DbWMOMeanDate).count()
 
 
-class AWSDateRangeWrapperDataset(KeyedDataset):
-    KEY = KEY_AWS_LABEL
-
+class AWSDateRangeWrapperDataset(Dataset):
     def __init__(self, aws_dataset, start_date, end_date, am_pm):
         """Make an AWS dataset that takes dates indexable with integers.
 
@@ -236,21 +219,7 @@ class AWSDateRangeWrapperDataset(KeyedDataset):
         return len(self.idx_to_date)
 
 
-class NpyDataset(KeyedDataset):
-    def __init__(self, key, data_file):
-        self.KEY = key
-        self.data = np.load(data_file)
-
-    def __getitem__(self, idx):
-        return self.data[idx]
-
-    def __len__(self):
-        return len(self.data)
-
-
-class ERA5BidailyDataset(KeyedDataset):
-    KEY = KEY_ERA5_LABEL
-
+class ERA5BidailyDataset(Dataset):
     def __init__(
         self, paths, var_name, scheme, other_mask=None, transform=None
     ):
@@ -412,67 +381,101 @@ class NCTbDataset(Dataset):
             self._loaders[k] = l
         return loaders
 
-    def _load_input_grids_and_datetime(self, idx):
+    def _load_grids(self, idx):
         tabrow = self.table.iloc[self.index_to_table_row[idx]]
         files = tabrow[self.freq_pols].values
         loaders = self._get_loaders(files)
         inner_idx = self.index_to_row_inner_index[idx]
-        date = utils.datetime64_to_date(loaders[0].time[inner_idx].values)
-        hour = 6 if tabrow[KEY_SAT_PASS] == SAT_DESCENDING else 18
-        datetime = dt.datetime(
-            date.year, date.month, date.day, hour, tzinfo=dt.timezone.utc
-        )
         grids = []
         loaded = [loader.tb[inner_idx].values for loader in loaders]
         for g in loaded:
             g[np.isnan(g)] = 0
         grids.extend(loaded)
-        return (
-            self.transform(np.array(grids)),
-            int(datetime.timestamp()),
-        )
+        return self.transform(np.array(grids))
 
     def __getitem__(self, idx):
-        if idx >= self.size:
+        if idx >= self.size or idx < 0:
             raise IndexError(f"Index {idx} out of range for size {self.size}")
-        input_data, timestamp = self._load_input_grids_and_datetime(idx)
-        return {KEY_TB_DATA: input_data, KEY_TIME: timestamp}
+        data = self._load_grids(idx)
+        return data
 
     def __len__(self):
         return self.size
 
 
-class NCTbDatasetKeyedWrapper(KeyedDataset):
-    """Wraps an NCTbDataset to make it composable with other keyed datasets"""
+class NpyDataset(Dataset):
+    """Wraps a .npy data file."""
 
-    KEY = KEY_TB_DATA
-
-    def __init__(self, dataset):
-        self.tbds = dataset
+    def __init__(self, data_file):
+        self.data = np.load(data_file)
 
     def __getitem__(self, idx):
-        return self.tbds[idx][KEY_TB_DATA]
+        return self.data[idx]
 
     def __len__(self):
-        return len(self.tbds)
+        return len(self.data)
 
 
-class FTDataset(Dataset):
-    def __init__(self, tb_dataset, label_dataset):
-        self.tb = tb_dataset
-        self.label = label_dataset
+class RepeatDataset(Dataset):
+    """Repeats a value(s) and presents a specified length."""
+
+    def __init__(self, data, n):
+        self.data = data
+        self.n = n
 
     def __getitem__(self, idx):
-        data_dict = self.tb[idx]
-        time = data_dict[KEY_TIME]
-        labels = self.label[dt.datetime.utcfromtimestamp(time)]
-        return {
-            KEY_INPUT_DATA: data_dict[KEY_INPUT_DATA],
-            KEY_LABEL_DATA: labels,
-        }
+        return self.data
 
     def __len__(self):
-        return len(self.tb)
+        return self.n
+
+
+class StackGridsDataset(Dataset):
+    """Stacks dataset outputs into single tensor.
+
+    This dataset essentially calls torch.cat([d[idx] for d in datasets], 0)
+    to get an (N_channels, H, W) tensor.
+    """
+
+    def __init__(self, datasets):
+        if not len(datasets):
+            raise DataLoadingError("No datasets were provided")
+        if len(set(len(d) for d in datasets)) > 1:
+            raise DataLoadingError("Dataset sizes must match")
+        self.datasets = datasets
+        self.size = len(self.datasets[0])
+
+    def __getitem__(self, idx):
+        data = [d[idx] for d in self.datasets]
+        shape_len = np.array([len(d.shape) for d in data], dtype=int).max()
+        if shape_len <= 2:
+            shape_len += 1
+        unsqueezed = []
+        for d in data:
+            d = torch.tensor(d)
+            if len(d.shape) < shape_len:
+                d = d.unsqueeze(0)
+            unsqueezed.append(d)
+        return torch.cat(unsqueezed, 0)
+
+    def __len__(self):
+        return self.size
+
+
+class ComposedDataset(Dataset):
+    def __init__(self, datasets):
+        if not len(datasets):
+            raise DataLoadingError("No datasets were provided")
+        if len(set(len(d) for d in datasets)) > 1:
+            raise DataLoadingError("Dataset sizes must match")
+        self.datasets = datasets
+        self.size = len(self.datasets[0])
+
+    def __getitem__(self, idx):
+        return [d[idx] for d in self.datasets]
+
+    def __len__(self):
+        return self.size
 
 
 class ComposedDictDataset(Dataset):
