@@ -8,47 +8,56 @@ import torch.nn as nn
 import tqdm
 
 from dataloading import (
-    # AWSFuzzyLabelDataset,
-    # DatabaseReference,
-    ComposedDictDataset,
-    KEY_ERA5_LABEL,
-    KEY_TB_DATA,
+    ComposedDataset,
     NCTbDataset,
-    NCTbDatasetKeyedWrapper,
     NpyDataset,
+    RepeatDataset,
+    GridsStackDataset,
     ViewCopyTransform,
 )
-from model import UNet, local_variation_loss
+from model import (
+    LABEL_FROZEN,
+    LABEL_OTHER,
+    LABEL_THAWED,
+    UNet,
+    local_variation_loss,
+)
 
 # from validation_db_orm import get_db_session
 
 
-in_chan = 5
+in_chan = 6
 nclasses = 3
 depth = 4
 base_filters = 32
 epochs = 30
 batch_size = 10
 learning_rate = 0.0005
-gamma = 0.9
+gamma = 0.89
 learning_momentum = 0.9
 l2_reg_weight = 0.1
-lv_reg_weight = 0.1
+lv_reg_weight = 0.2
+land_reg_weight = 0.001
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 transform = ViewCopyTransform(15, 62, 12, 191)
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 water_mask = torch.tensor(transform(base_water_mask))
+land_mask = ~water_mask
+land_channel = land_mask.float()
 
 root_data_dir = "../data/train/"
-tb_ds = NCTbDatasetKeyedWrapper(
-    NCTbDataset(root_data_dir, transform=transform)
+tb_ds = NCTbDataset(os.path.join(root_data_dir, "tb"), transform=transform)
+# Tack on land mask as first channel
+tb_ds = GridsStackDataset([RepeatDataset(land_channel, len(tb_ds)), tb_ds])
+era08_ds = NpyDataset(
+    os.path.join(root_data_dir, "era5_t2m/era5-t2m-bidaily-2008-ak.npy"),
 )
-era_ds = NpyDataset(
-    KEY_ERA5_LABEL,
+era09_ds = NpyDataset(
     os.path.join(root_data_dir, "era5_t2m/era5-t2m-bidaily-2009-ak.npy"),
 )
-ds = ComposedDictDataset([tb_ds, era_ds])
+era_ds = torch.utils.data.ConcatDataset([era08_ds, era09_ds])
+ds = ComposedDataset([tb_ds, era_ds])
 dataloader = torch.utils.data.DataLoader(
     ds, batch_size=batch_size, shuffle=True, drop_last=True
 )
@@ -82,18 +91,27 @@ for epoch in range(epochs):
         total=len(dataloader),
         desc=f"Epoch: {epoch + 1}/{epochs}",
     )
-    for i, data in it:
-        input_data = data[KEY_TB_DATA].to(device, dtype=torch.float)
+    for i, (input_data, label) in it:
+        input_data = input_data.to(device, dtype=torch.float)
         # Compress 1-hot encoding to single channel
-        label = data[KEY_ERA5_LABEL].argmax(dim=1).to(device)
+        label = label.argmax(dim=1).to(device)
 
         model.zero_grad()
-        output = model(input_data)
-        loss = criterion(output, label) + lv_reg_weight * local_variation_loss(
-            torch.sigmoid(output)
-        )
+        log_class_prob = model(input_data)
+        class_prob = torch.softmax(log_class_prob, 1)
+
+        loss = criterion(log_class_prob, label)
+        # Minimize high frequency variation
+        loss += lv_reg_weight * local_variation_loss(class_prob)
+        # Minimize the probabilities of FT classes in water regions
+        land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
+        land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
+        # Minimize the probability of OTHER class in land regions
+        land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
+        loss += land_reg_weight * land_loss
         loss.backward()
         opt.step()
+
         loss_vec.append(loss.item())
         step = (epoch * len(dataloader)) + i
         writer.add_scalar("training_loss", loss.item(), step)
@@ -102,9 +120,13 @@ for epoch in range(epochs):
     sched.step()
 writer.close()
 
-val_ds = NCTbDatasetKeyedWrapper(
-    NCTbDataset("../data/val", transform=transform)
+fmt = "../models/unet-am-in_{}-nclass_{}-depth_{}-{}.pt"
+torch.save(
+    model.state_dict(),
+    fmt.format(in_chan, nclasses, depth, dt.datetime.now().timestamp()),
 )
+val_ds = NCTbDataset("../data/val/tb", transform=transform)
+val_ds = GridsStackDataset([RepeatDataset(land_channel, len(val_ds)), val_ds])
 val_dl = torch.utils.data.DataLoader(val_ds)
 pred = [
     torch.softmax(model(v.to(device, dtype=torch.float)).detach(), 1)
@@ -116,10 +138,5 @@ pred = [
 ]
 pred = np.array(pred)
 np.save("../data/pred/pred.npy", pred)
-fmt = "../models/unet-in_{}-nclass_{}-depth_{}-{}.pt"
-torch.save(
-    model.state_dict(),
-    fmt.format(in_chan, nclasses, depth, dt.datetime.now().timestamp()),
-)
 plt.plot(loss_vec)
 plt.show()
