@@ -60,7 +60,6 @@ dataloader = torch.utils.data.DataLoader(
     ds, batch_size=batch_size, shuffle=True, drop_last=True
 )
 
-# db = DatabaseReference("../data/dbs/wmo_gsod.db", get_db_session)
 model = UNet(
     in_chan, nclasses, depth=depth, base_filter_bank_size=base_filters
 )
