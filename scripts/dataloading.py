@@ -334,10 +334,7 @@ def _validate_table(table, freq_pols):
 
 
 class NCTbDataset(Dataset):
-    def __init__(self, root_data_dir, transform=None):
-        utils.validate_dir_path(root_data_dir)
-        self.data_root = root_data_dir
-        tb_dir = os.path.join(self.data_root, "tb")
+    def __init__(self, tb_dir, transform=None):
         utils.validate_dir_path(tb_dir)
         self.tb_dir = tb_dir
         files = glob.glob(os.path.join(self.tb_dir, "*.nc"))
