@@ -33,7 +33,7 @@ base_filters = 32
 epochs = 30
 batch_size = 10
 learning_rate = 0.0005
-gamma = 0.89
+lr_gamma = 0.89
 learning_momentum = 0.9
 l2_reg_weight = 0.1
 lv_reg_weight = 0.2
@@ -74,7 +74,7 @@ opt = torch.optim.Adam(
     # momentum=learning_momentum,
     weight_decay=l2_reg_weight,
 )
-sched = torch.optim.lr_scheduler.StepLR(opt, 1, gamma)
+sched = torch.optim.lr_scheduler.StepLR(opt, 1, lr_gamma)
 
 writer = SummaryWriter("../runs/ft_run")
 loss_vec = []
