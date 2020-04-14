@@ -23,8 +23,6 @@ from model import (
     local_variation_loss,
 )
 
-# from validation_db_orm import get_db_session
-
 
 in_chan = 6
 nclasses = 3
