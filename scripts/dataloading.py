@@ -427,7 +427,7 @@ class RepeatDataset(Dataset):
         return self.n
 
 
-class StackGridsDataset(Dataset):
+class GridsStackDataset(Dataset):
     """Stacks dataset outputs into single tensor.
 
     This dataset essentially calls torch.cat([d[idx] for d in datasets], 0)
