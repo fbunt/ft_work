@@ -102,11 +102,9 @@ model = UNet(
     in_chan, nclasses, depth=depth, base_filter_bank_size=base_filters
 )
 model.to(device)
-# opt = torch.optim.SGD(
-opt = torch.optim.Adam(
+opt = torch.optim.SGD(
     model.parameters(),
     lr=learning_rate,
-    # momentum=learning_momentum,
     weight_decay=l2_reg_weight,
 )
 sched = torch.optim.lr_scheduler.StepLR(opt, 1, lr_gamma)
