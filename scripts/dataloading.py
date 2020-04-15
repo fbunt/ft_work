@@ -427,6 +427,20 @@ class RepeatDataset(Dataset):
         return self.n
 
 
+class RangeSingularGridDataset(Dataset):
+    """Generates single-value grids using values from a range object"""
+
+    def __init__(self, range_obj, grid_shape):
+        self.values = list(range_obj)
+        self.shape = grid_shape
+
+    def __getitem__(self, idx):
+        return np.full(self.shape, self.values[idx])
+
+    def __len__(self):
+        return len(self.values)
+
+
 class GridsStackDataset(Dataset):
     """Stacks dataset outputs into single tensor.
 
