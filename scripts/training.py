@@ -3,6 +3,8 @@ import datetime as dt
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import shutil
+import stat
 import torch
 import torch.nn as nn
 import tqdm
@@ -22,6 +24,42 @@ from model import (
     UNet,
     local_variation_loss,
 )
+
+
+def write_results(root, model, val_dl, device):
+    os.makedirs(root, exist_ok=True)
+    pred_plots = os.path.join(root, "pred_plots")
+    if os.path.isdir(pred_plots):
+        shutil.rmtree(pred_plots)
+    os.makedirs(pred_plots)
+
+    mpath = os.path.join(root, "model.pt")
+    print(f"Saving model: '{mpath}'")
+    torch.save(model.state_dict(), mpath)
+    print("Generating predictions")
+    pred = []
+    for i, v in enumerate(tqdm.tqdm(val_dl, ncols=80)):
+        pred.append(
+            torch.softmax(model(v.to(device, dtype=torch.float)).detach(), 1)
+            .cpu()
+            .squeeze()
+            .numpy()
+            .argmax(0)
+        )
+    pred = np.array(pred)
+    ppath = os.path.join(root, "pred.npy")
+    print(f"Saving predictions: '{ppath}'")
+    np.save(ppath, pred)
+
+    pfmt = os.path.join(pred_plots, "{:03}.png")
+    print(f"Creating prediction plots: '{pred_plots}'")
+    for i, p in enumerate(tqdm.tqdm(pred, ncols=80)):
+        plt.figure()
+        plt.imshow(p)
+        plt.title(f"Day: {i + 1}")
+        plt.savefig(pfmt.format(i + 1))
+        plt.close()
+    # TODO: validate
 
 
 in_chan = 6
@@ -73,8 +111,18 @@ opt = torch.optim.Adam(
 )
 sched = torch.optim.lr_scheduler.StepLR(opt, 1, lr_gamma)
 
-writer = SummaryWriter("../runs/ft_run")
-loss_vec = []
+stamp = str(dt.datetime.now()).replace(" ", "-")
+run_dir = f"../runs/{stamp}"
+os.makedirs(run_dir, exist_ok=True)
+log_dir = os.path.join(run_dir, "logs")
+writer = SummaryWriter(log_dir)
+show_log_sh = os.path.join(run_dir, "show_log.sh")
+with open(show_log_sh, "w") as fd:
+    fd.write("#!/usr/bin/env bash\n")
+    fd.write(f"tensorboard --logdir {os.path.abspath(log_dir)}\n")
+    fd.flush()
+st = os.stat(show_log_sh)
+os.chmod(show_log_sh, st.st_mode | stat.S_IXUSR)
 
 criterion = nn.CrossEntropyLoss()
 iters = 0
@@ -109,7 +157,6 @@ for epoch in range(epochs):
         loss.backward()
         opt.step()
 
-        loss_vec.append(loss.item())
         step = (epoch * len(dataloader)) + i
         writer.add_scalar("training_loss", loss.item(), step)
         it.write(f"{loss.item()}")
@@ -117,23 +164,7 @@ for epoch in range(epochs):
     sched.step()
 writer.close()
 
-fmt = "../models/unet-am-in_{}-nclass_{}-depth_{}-{}.pt"
-torch.save(
-    model.state_dict(),
-    fmt.format(in_chan, nclasses, depth, dt.datetime.now().timestamp()),
-)
 val_ds = NCTbDataset("../data/val/tb", transform=transform)
 val_ds = GridsStackDataset([RepeatDataset(land_channel, len(val_ds)), val_ds])
 val_dl = torch.utils.data.DataLoader(val_ds)
-pred = [
-    torch.softmax(model(v.to(device, dtype=torch.float)).detach(), 1)
-    .cpu()
-    .squeeze()
-    .numpy()
-    .argmax(0)
-    for v in val_dl
-]
-pred = np.array(pred)
-np.save("../data/pred/pred.npy", pred)
-plt.plot(loss_vec)
-plt.show()
+write_results(run_dir, model, val_dl, device)
