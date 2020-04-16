@@ -39,7 +39,9 @@ dropped_dates = []
 idx = []
 for i, (tbi, erai) in enumerate(zip(tb_ds, era_ds)):
     if not np.isnan(tbi).all():
-        tb.append(tbi.numpy())
+        tbi = tbi.numpy()
+        tbi[np.isnan(tbi)] = 0
+        tb.append(tbi)
         era.append(erai)
         dates.append(d)
         idx.append(i)
@@ -83,7 +85,9 @@ with open("../data/cleaned/dropped_dates-2008-2009.csv", "w") as fd:
 # idx = []
 # for i, (tbi, erai) in enumerate(zip(tds15, era_ds)):
 #     if not np.isnan(tbi).all():
-#         tb.append(tbi.numpy())
+#         tbi = tbi.numpy()
+#         tbi[np.isnan(tbi)] = 0
+#         tb.append(tbi)
 #         era.append(erai)
 #         dates.append(d)
 #         idx.append(i)
