@@ -1,3 +1,4 @@
+from collections import namedtuple
 from torch.utils.tensorboard import SummaryWriter
 import datetime as dt
 import matplotlib.pyplot as plt
@@ -26,7 +27,7 @@ from model import (
 )
 
 
-def write_results(root, model, val_dl, device):
+def write_results(root, model, val_dl, config, device):
     os.makedirs(root, exist_ok=True)
     pred_plots = os.path.join(root, "pred_plots")
     if os.path.isdir(pred_plots):
@@ -62,18 +63,39 @@ def write_results(root, model, val_dl, device):
     # TODO: validate
 
 
-in_chan = 6
-nclasses = 3
-depth = 4
-base_filters = 32
-epochs = 30
-batch_size = 10
-learning_rate = 0.0005
-lr_gamma = 0.89
-learning_momentum = 0.9
-l2_reg_weight = 0.1
-lv_reg_weight = 0.2
-land_reg_weight = 0.001
+Config = namedtuple(
+    "Config",
+    (
+        "in_chan",
+        "n_classes",
+        "depth",
+        "base_filters",
+        "epochs",
+        "batch_size",
+        "learning_rate",
+        "lr_gamma",
+        "l2_reg_weight",
+        "lv_reg_weight",
+        "land_reg_weight",
+        "optimizer",
+    ),
+)
+
+
+config = Config(
+    in_chan=6,
+    n_classes=3,
+    depth=4,
+    base_filters=32,
+    epochs=30,
+    batch_size=10,
+    learning_rate=0.0005,
+    lr_gamma=0.89,
+    l2_reg_weight=0.01,
+    lv_reg_weight=0.05,
+    land_reg_weight=0.002,
+    optimizer=torch.optim.Adam,
+)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 transform = ViewCopyTransform(15, 62, 12, 191)
@@ -89,26 +111,34 @@ tb_ds = GridsStackDataset([RepeatDataset(land_channel, len(tb_ds)), tb_ds])
 era_ds = NpyDataset("../data/train/era5-t2m-am-2008-2009-ak.npy")
 ds = ComposedDataset([tb_ds, era_ds])
 dataloader = torch.utils.data.DataLoader(
-    ds, batch_size=batch_size, shuffle=True, drop_last=True
+    ds, batch_size=config.batch_size, shuffle=True, drop_last=True
 )
 
 model = UNet(
-    in_chan, nclasses, depth=depth, base_filter_bank_size=base_filters
+    config.in_chan,
+    config.n_classes,
+    depth=config.depth,
+    base_filter_bank_size=config.base_filters,
 )
 model.to(device)
-opt = torch.optim.SGD(
+opt = config.optimizer(
     model.parameters(),
-    lr=learning_rate,
-    weight_decay=l2_reg_weight,
+    lr=config.learning_rate,
+    weight_decay=config.l2_reg_weight,
 )
-sched = torch.optim.lr_scheduler.StepLR(opt, 1, lr_gamma)
+sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
 
+# Create run dir and fill with info
 stamp = str(dt.datetime.now()).replace(" ", "-")
 run_dir = f"../runs/{stamp}"
 os.makedirs(run_dir, exist_ok=True)
+# Dump configuration info
+with open(os.path.join(run_dir, "config"), "w") as fd:
+    fd.write(f"{config}\n")
 log_dir = os.path.join(run_dir, "logs")
 writer = SummaryWriter(log_dir)
 show_log_sh = os.path.join(run_dir, "show_log.sh")
+# Create script to view logs
 with open(show_log_sh, "w") as fd:
     fd.write("#!/usr/bin/env bash\n")
     fd.write(f"tensorboard --logdir {os.path.abspath(log_dir)}\n")
@@ -118,7 +148,7 @@ os.chmod(show_log_sh, st.st_mode | stat.S_IXUSR)
 
 criterion = nn.CrossEntropyLoss()
 iters = 0
-for epoch in range(epochs):
+for epoch in range(config.epochs):
     writer.add_scalar(
         "learning_rate", next(iter(opt.param_groups))["lr"], epoch
     )
@@ -126,7 +156,7 @@ for epoch in range(epochs):
         enumerate(dataloader),
         ncols=80,
         total=len(dataloader),
-        desc=f"Epoch: {epoch + 1}/{epochs}",
+        desc=f"Epoch: {epoch + 1}/{config.epochs}",
     )
     for i, (input_data, label) in it:
         input_data = input_data.to(device, dtype=torch.float)
@@ -139,19 +169,18 @@ for epoch in range(epochs):
 
         loss = criterion(log_class_prob, label)
         # Minimize high frequency variation
-        loss += lv_reg_weight * local_variation_loss(class_prob)
+        loss += config.lv_reg_weight * local_variation_loss(class_prob)
         # Minimize the probabilities of FT classes in water regions
         land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
         land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
         # Minimize the probability of OTHER class in land regions
         land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
-        loss += land_reg_weight * land_loss
+        loss += config.land_reg_weight * land_loss
         loss.backward()
         opt.step()
 
         step = (epoch * len(dataloader)) + i
         writer.add_scalar("training_loss", loss.item(), step)
-        it.write(f"{loss.item()}")
         iters += 1
     sched.step()
 writer.close()
@@ -159,4 +188,4 @@ writer.close()
 val_ds = NpyDataset("../data/val/tb-2015-D-ak.npy")
 val_ds = GridsStackDataset([RepeatDataset(land_channel, len(val_ds)), val_ds])
 val_dl = torch.utils.data.DataLoader(val_ds)
-write_results(run_dir, model, val_dl, device)
+write_results(run_dir, model, val_dl, config, device)
