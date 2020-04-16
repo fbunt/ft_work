@@ -61,6 +61,10 @@ with open("../data/cleaned/date_map-2008-2009.csv", "w") as fd:
 with open("../data/cleaned/dropped_dates-2008-2009.csv", "w") as fd:
     for d in dropped_dates:
         fd.write(f"{d}\n")
+tb = None
+era = None
+tb_ds = None
+era_ds = None
 
 
 # Validation data
