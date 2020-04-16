@@ -47,10 +47,10 @@ for i, (tbi, erai) in enumerate(zip(tb_ds, era_ds)):
         print(f"Dropping: {d}")
         dropped_dates.append(d)
     d += delta
-tb = np.array(tb)
-era = np.array(era)
+tb = np.stack(tb, axis=0)
+era = np.stack(era, axis=0)
 
-np.save("../data/cleaned/tb-2008-2009-D-ak.npy", era)
+np.save("../data/cleaned/tb-2008-2009-D-ak.npy", tb)
 np.save("../data/cleaned/era5-t2m-am-2008-2009-ak.npy", era)
 with open("../data/cleaned/date_map-2008-2009.csv", "w") as fd:
     for i, d in zip(idx, dates):
@@ -91,10 +91,10 @@ with open("../data/cleaned/dropped_dates-2008-2009.csv", "w") as fd:
 #         print(f"Dropping: {d}")
 #         dropped_dates.append(d)
 #     d += delta
-# tb = np.array(tb)
-# era = np.array(era)
+# tb = np.stack(tb, axis=0)
+# era = np.stack(era, axis=0)
 
-# np.save("../data/cleaned/tb-2015-D-ak.npy", era)
+# np.save("../data/cleaned/tb-2015-D-ak.npy", tb)
 # np.save("../data/cleaned/era5-t2m-am-2015-ak.npy", era)
 # with open("../data/cleaned/date_map-2015.csv", "w") as fd:
 #     for i, d in zip(idx, dates):
