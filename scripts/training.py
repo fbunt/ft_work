@@ -83,16 +83,10 @@ land_mask = ~water_mask
 land_channel = land_mask.float()
 
 root_data_dir = "../data/train/"
-tb_ds = NCTbDataset(os.path.join(root_data_dir, "tb"), transform=transform)
+tb_ds = NpyDataset("../data/train/tb-2008-2009-D-ak.npy")
 # Tack on land mask as first channel
 tb_ds = GridsStackDataset([RepeatDataset(land_channel, len(tb_ds)), tb_ds])
-era08_ds = NpyDataset(
-    os.path.join(root_data_dir, "era5_t2m/era5-t2m-bidaily-2008-ak.npy"),
-)
-era09_ds = NpyDataset(
-    os.path.join(root_data_dir, "era5_t2m/era5-t2m-bidaily-2009-ak.npy"),
-)
-era_ds = torch.utils.data.ConcatDataset([era08_ds, era09_ds])
+era_ds = NpyDataset("../data/train/era5-t2m-am-2008-2009-ak.npy")
 ds = ComposedDataset([tb_ds, era_ds])
 dataloader = torch.utils.data.DataLoader(
     ds, batch_size=batch_size, shuffle=True, drop_last=True
@@ -162,7 +156,7 @@ for epoch in range(epochs):
     sched.step()
 writer.close()
 
-val_ds = NCTbDataset("../data/val/tb", transform=transform)
+val_ds = NpyDataset("../data/val/tb-2015-D-ak.npy")
 val_ds = GridsStackDataset([RepeatDataset(land_channel, len(val_ds)), val_ds])
 val_dl = torch.utils.data.DataLoader(val_ds)
 write_results(run_dir, model, val_dl, device)
