@@ -333,6 +333,24 @@ def _validate_table(table, freq_pols):
             )
 
 
+class NCDataset(Dataset):
+    def __init__(self, paths, var_name, transform=None):
+        utils.validate_file_path_list(paths)
+        self.ds = xr.open_mfdataset(paths, combine="by_coords")
+        if var_name not in self.ds:
+            raise KeyError(
+                f"Variable name '{var_name}' is not present in specified data"
+            )
+        self.var_name = var_name
+        self.transform = transform or (lambda x: x)
+
+    def __getitem__(self, idx):
+        return self.transform(self.ds[self.var_name][idx].values)
+
+    def __len__(self):
+        return len(self.ds[self.var_name])
+
+
 class NCTbDataset(Dataset):
     def __init__(self, tb_dir, transform=None):
         utils.validate_dir_path(tb_dir)
