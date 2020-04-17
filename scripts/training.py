@@ -25,9 +25,30 @@ from model import (
     UNet,
     local_variation_loss,
 )
+from validate import (
+    validate_grid_against_truth_bulk,
+)
 
 
-def write_results(root, model, val_dl, config, device):
+def load_dates(path):
+    dates = []
+    with open(path) as fd:
+        for line in fd:
+            i, ds = line.strip().split(",")
+            dates.append(dt.date.fromisoformat(ds))
+    return dates
+
+
+def write_results(
+    root,
+    model,
+    input_val_ds,
+    era_val_ds,
+    val_dates,
+    config,
+    device,
+    land_mask,
+):
     os.makedirs(root, exist_ok=True)
     pred_plots = os.path.join(root, "pred_plots")
     if os.path.isdir(pred_plots):
@@ -39,9 +60,11 @@ def write_results(root, model, val_dl, config, device):
     torch.save(model.state_dict(), mpath)
     print("Generating predictions")
     pred = []
-    for i, v in enumerate(tqdm.tqdm(val_dl, ncols=80)):
+    for i, v in enumerate(tqdm.tqdm(input_val_ds, ncols=80)):
         pred.append(
-            torch.softmax(model(v.to(device, dtype=torch.float)).detach(), 1)
+            torch.softmax(
+                model(v.unsqueeze(0).to(device, dtype=torch.float)).detach(), 1
+            )
             .cpu()
             .squeeze()
             .numpy()
@@ -60,7 +83,18 @@ def write_results(root, model, val_dl, config, device):
         plt.title(f"Day: {i + 1}")
         plt.savefig(pfmt.format(i + 1), dpi=200)
         plt.close()
-    # TODO: validate
+    print("Validating against ERA5")
+    era = np.stack([v.argmax(0)[land_mask] for v in era_val_ds], 0)
+    era_acc = validate_grid_against_truth_bulk(pred[..., land_mask], era)
+    era_acc *= 100
+    plt.figure()
+    plt.plot(val_dates, era_acc, label="ERA5")
+    plt.legend(loc=0)
+    plt.title(f"Accuracy: {era_acc.mean():.3}% Mean")
+    plt.xlabel("Date")
+    plt.ylabel("Accuracy (%)")
+    plt.savefig(os.path.join(root, "acc_plot.png"), dpi=300)
+    plt.close()
 
 
 Config = namedtuple(
@@ -190,7 +224,18 @@ for epoch in range(config.epochs):
     sched.step()
 writer.close()
 
-val_ds = NpyDataset("../data/val/tb-2015-D-ak.npy")
-val_ds = GridsStackDataset([RepeatDataset(land_channel, len(val_ds)), val_ds])
-val_dl = torch.utils.data.DataLoader(val_ds)
-write_results(run_dir, model, val_dl, config, device)
+input_val_ds = NpyDataset("../data/val/tb-2015-D-ak.npy")
+input_val_ds = GridsStackDataset(
+    [RepeatDataset(land_channel, len(input_val_ds)), input_val_ds]
+)
+era_val_ds = NpyDataset("../data/val/era5-t2m-am-2015-ak.npy")
+val_dates = load_dates("../data/val/date_map-2015.csv")
+write_results(
+    run_dir,
+    model,
+    input_val_ds,
+    era_val_ds,
+    val_dates,
+    config,
+    device,
+)
