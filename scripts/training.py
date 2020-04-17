@@ -25,6 +25,7 @@ from model import (
     UNet,
     local_variation_loss,
 )
+from transforms import AK_VIEW_TRANS
 from validate import (
     validate_grid_against_truth_bulk,
 )
@@ -132,7 +133,7 @@ config = Config(
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-transform = ViewCopyTransform(15, 62, 12, 191)
+transform = AK_VIEW_TRANS
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 water_mask = torch.tensor(transform(base_water_mask))
 land_mask = ~water_mask
