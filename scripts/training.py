@@ -58,7 +58,7 @@ def write_results(root, model, val_dl, config, device):
         plt.figure()
         plt.imshow(p)
         plt.title(f"Day: {i + 1}")
-        plt.savefig(pfmt.format(i + 1))
+        plt.savefig(pfmt.format(i + 1), dpi=200)
         plt.close()
     # TODO: validate
 
