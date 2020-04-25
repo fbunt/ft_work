@@ -272,6 +272,14 @@ def _validate_with_mask(estimate_grids, point_fetcher, point_gridder, mask):
     return results
 
 
+def validate_grid_against_truth_bulk(grid, truth):
+    assert grid.shape == truth.shape, "Input shapes must match"
+    shape = grid.shape
+    acc = (grid == truth).reshape(-1, np.prod(shape[1:])).sum(1).astype(float)
+    acc /= np.prod(shape[1:])
+    return acc
+
+
 LABEL_NH = "NH"
 LABEL_SH = "SH"
 LABEL_GLOBAL = "GLOBAL"
