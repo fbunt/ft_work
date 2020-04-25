@@ -141,6 +141,18 @@ _EASE_NH_MASK = _EASE_LAT >= 0.0
 _EASE_SH_MASK = _EASE_LAT < 0.0
 
 
+def ft_model_zero_threshold(temps):
+    return (temps > 273.15).astype("uint8")
+
+
+def get_empty_data_grid(shape):
+    return np.full(shape, OTHER, dtype="int8")
+
+
+def get_empty_data_grid_like(a):
+    return get_empty_data_grid(a.shape)
+
+
 class PointsGridder:
     """Take points and shift them onto a grid using nearest neighbor approach.
     """
@@ -163,21 +175,61 @@ class PointsGridder:
         # index collision.
         di = sorted(zip(dist, idx, values), reverse=True)
         idx = [i[1] for i in di]
+        values = [i[2] for i in di]
         grid.ravel()[idx] = values
         if self.imask is not None:
             grid[self.imask] = fill
 
 
-def ft_model_zero_threshold(temps):
-    return (temps > 273.15).astype("uint8")
+class WMOValidator:
+    def __init__(self, point_fetcher):
+        self.pf = point_fetcher
 
-
-def get_empty_data_grid(shape):
-    return np.full(shape, OTHER, dtype="int8")
-
-
-def get_empty_data_grid_like(a):
-    return get_empty_data_grid(a.shape)
+    def validate_bounded(
+        self,
+        dates,
+        lon_grid,
+        lat_grid,
+        grid_stack,
+        valid_mask,
+        show_progress=False,
+    ):
+        flat_valid_idxs = set(np.nonzero(valid_mask.ravel())[0])
+        bounds = [
+            lon_grid.min(),
+            lon_grid.max(),
+            lat_grid.min(),
+            lat_grid.max(),
+        ]
+        tree = KDTree(np.array(list(zip(lon_grid.ravel(), lat_grid.ravel()))))
+        acc = []
+        it = tqdm.tqdm(
+            zip(dates, grid_stack),
+            ncols=80,
+            total=len(grid_stack),
+            disable=not show_progress,
+            desc="AWS Validation",
+        )
+        for d, g in it:
+            vpoints, vtemps = self.pf.fetch_bounded(d, bounds)
+            vft = ft_model_zero_threshold(vtemps)
+            dist, idx = tree.query(vpoints)
+            # Filter out points outside of mask
+            di = [v for v in zip(dist, idx, vft) if v[1] in flat_valid_idxs]
+            idict = {}
+            # Filter out points that share the same grid square. Only keep the
+            # points that are closest to the center of the grid square.
+            for d, i, v in di:
+                if i in idict:
+                    # this point is closer, overwrite current value
+                    if d < idict[i][0]:
+                        idict[i] = (d, v)
+                else:
+                    idict[i] = (d, v)
+            idx = list(idict.keys())
+            values = [v for d, v in idict.values()]
+            acc.append(float((g.ravel()[idx] == values).sum()) / len(values))
+        return np.array(acc)
 
 
 COL_YEAR = "year"
