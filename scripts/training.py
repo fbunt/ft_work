@@ -27,8 +27,13 @@ from model import (
 )
 from transforms import AK_VIEW_TRANS
 from validate import (
+    RETRIEVAL_MIN,
+    WMOValidationPointFetcher,
+    WMOValidator,
     validate_grid_against_truth_bulk,
 )
+from validation_db_orm import get_db_session
+import ease_grid as eg
 
 
 def load_dates(path):
@@ -49,6 +54,8 @@ def write_results(
     config,
     device,
     land_mask,
+    db,
+    view_trans,
 ):
     os.makedirs(root, exist_ok=True)
     pred_plots = os.path.join(root, "pred_plots")
@@ -56,6 +63,7 @@ def write_results(
         shutil.rmtree(pred_plots)
     os.makedirs(pred_plots)
 
+    land_mask = land_mask.numpy()
     mpath = os.path.join(root, "model.pt")
     print(f"Saving model: '{mpath}'")
     torch.save(model.state_dict(), mpath)
@@ -88,10 +96,20 @@ def write_results(
     era = np.stack([v.argmax(0)[land_mask] for v in era_val_ds], 0)
     era_acc = validate_grid_against_truth_bulk(pred[..., land_mask], era)
     era_acc *= 100
+    pf = WMOValidationPointFetcher(db, RETRIEVAL_MIN)
+    elon, elat = [view_trans(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
+    aws_val = WMOValidator(pf)
+    aws_acc = aws_val.validate_bounded(
+        val_dates, elon, elat, pred, land_mask, True
+    )
+    aws_acc *= 100
     plt.figure()
-    plt.plot(val_dates, era_acc, label="ERA5")
+    plt.plot(val_dates, era_acc, lw=1, label="ERA5")
+    plt.plot(val_dates, aws_acc, lw=1, label="AWS")
     plt.legend(loc=0)
-    plt.title(f"Accuracy: {era_acc.mean():.3}% Mean")
+    plt.title(
+        f"Mean Accuracy: ERA: {era_acc.mean():.3}% AWS: {aws_acc.mean():.3}"
+    )
     plt.xlabel("Date")
     plt.ylabel("Accuracy (%)")
     plt.savefig(os.path.join(root, "acc_plot.png"), dpi=300)
@@ -239,4 +257,7 @@ write_results(
     val_dates,
     config,
     device,
+    land_mask,
+    get_db_session("../data/dbs/wmo_gsod.db"),
+    transform,
 )
