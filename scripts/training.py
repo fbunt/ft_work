@@ -139,14 +139,14 @@ config = Config(
     in_chan=6,
     n_classes=3,
     depth=4,
-    base_filters=32,
-    epochs=30,
+    base_filters=64,
+    epochs=50,
     batch_size=10,
     learning_rate=0.0005,
     lr_gamma=0.89,
     l2_reg_weight=0.01,
     lv_reg_weight=0.05,
-    land_reg_weight=0.002,
+    land_reg_weight=0.0001,
     optimizer=torch.optim.Adam,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
