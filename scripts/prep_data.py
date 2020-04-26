@@ -10,11 +10,11 @@ transform = dl.ViewCopyTransform(15, 62, 12, 191)
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 
 # Training data
-tb_files = sorted(glob.glob("../data/tb/tb_2008_F17_ML_D*.nc"))
+tb_files = sorted(glob.glob("../data/tb/2008/tb_2008_F17_ML_D*.nc"))
 tds08 = dl.GridsStackDataset(
     [dl.NCDataset([f], "tb", transform=transform) for f in tb_files]
 )
-tb_files = sorted(glob.glob("../data/tb/tb_2009_F17_ML_D*.nc"))
+tb_files = sorted(glob.glob("../data/tb/2009/tb_2009_F17_ML_D*.nc"))
 tds09 = dl.GridsStackDataset(
     [dl.NCDataset([f], "tb", transform=transform) for f in tb_files]
 )
@@ -68,7 +68,7 @@ era_ds = None
 
 
 # Validation data
-tb_files = sorted(glob.glob("../data/tb/tb_2015_F17_ML_D*.nc"))
+tb_files = sorted(glob.glob("../data/tb/2015/tb_2015_F17_ML_D*.nc"))
 tds15 = dl.GridsStackDataset(
     [dl.NCDataset([f], "tb", transform=transform) for f in tb_files]
 )
