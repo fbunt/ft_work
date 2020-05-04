@@ -1,6 +1,7 @@
 from collections import namedtuple
 from scipy.spatial import cKDTree as KDTree
 import argparse
+import itertools
 import numpy as np
 import pandas as pd
 import rasterio as rio
@@ -193,8 +194,17 @@ class WMOValidator:
         grid_stack,
         valid_mask,
         show_progress=False,
+        variable_mask=False,
     ):
-        flat_valid_idxs = set(np.nonzero(valid_mask.ravel())[0])
+        flat_valid_idxs_iter = None
+        if not variable_mask:
+            flat_valid_idxs_iter = itertools.repeat(
+                set(np.nonzero(valid_mask.ravel())[0])
+            )
+        else:
+            flat_valid_idxs_iter = [
+                set(np.nonzero(vmask.ravel())[0]) for vmask in valid_mask
+            ]
         bounds = [
             lon_grid.min(),
             lon_grid.max(),
@@ -204,13 +214,13 @@ class WMOValidator:
         tree = KDTree(np.array(list(zip(lon_grid.ravel(), lat_grid.ravel()))))
         acc = []
         it = tqdm.tqdm(
-            zip(dates, grid_stack),
+            zip(dates, grid_stack, flat_valid_idxs_iter),
             ncols=80,
             total=len(grid_stack),
             disable=not show_progress,
             desc="AWS Validation",
         )
-        for d, g in it:
+        for d, g, flat_valid_idxs in it:
             vpoints, vtemps = self.pf.fetch_bounded(d, bounds)
             vft = ft_model_zero_threshold(vtemps)
             dist, idx = tree.query(vpoints)
