@@ -2,6 +2,7 @@ from collections import namedtuple
 from torch.utils.tensorboard import SummaryWriter
 import datetime as dt
 import matplotlib.pyplot as plt
+import matplotlib.ticker as tkr
 import numpy as np
 import os
 import shutil
@@ -112,6 +113,25 @@ def write_results(
         val_dates, elon, elat, pred, mask_iter, True, variable_mask=True
     )
     aws_acc *= 100
+    # ERA
+    plt.figure()
+    plt.plot(val_dates, era_acc, lw=1, label="ERA5")
+    plt.title(f"ERA Accuracy: {era_acc.mean():.3}%")
+    plt.xlabel("Date")
+    plt.ylabel("Accuracy (%)")
+    plt.gca().yaxis.set_minor_locator(tkr.MultipleLocator(5))
+    plt.grid(True, which="both", alpha=0.7, lw=0.5, ls=":")
+    plt.savefig(os.path.join(root, "acc_era_plot.png"), dpi=300)
+    # AWS
+    plt.figure()
+    plt.plot(val_dates, aws_acc, lw=1, label="AWS")
+    plt.title(f"AWS Accuracy: {aws_acc.mean():.3}%")
+    plt.xlabel("Date")
+    plt.ylabel("Accuracy (%)")
+    plt.gca().yaxis.set_minor_locator(tkr.MultipleLocator(5))
+    plt.grid(True, which="both", alpha=0.7, lw=0.5, ls=":")
+    plt.savefig(os.path.join(root, "acc_aws_plot.png"), dpi=300)
+    # Both
     plt.figure()
     plt.plot(val_dates, era_acc, lw=1, label="ERA5")
     plt.plot(val_dates, aws_acc, lw=1, label="AWS")
@@ -121,6 +141,8 @@ def write_results(
     )
     plt.xlabel("Date")
     plt.ylabel("Accuracy (%)")
+    plt.gca().yaxis.set_minor_locator(tkr.MultipleLocator(5))
+    plt.grid(True, which="both", alpha=0.7, lw=0.5, ls=":")
     plt.savefig(os.path.join(root, "acc_plot.png"), dpi=300)
     plt.close()
 
