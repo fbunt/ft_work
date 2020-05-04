@@ -49,6 +49,7 @@ def write_results(
     model,
     input_val_ds,
     era_val_ds,
+    val_mask_ds,
     val_dates,
     config,
     device,
@@ -91,15 +92,24 @@ def write_results(
         plt.title(f"Day: {i + 1}")
         plt.savefig(pfmt.format(i + 1), dpi=200)
         plt.close()
+    # Validate against ERA5
     print("Validating against ERA5")
-    era = np.stack([v.argmax(0)[land_mask] for v in era_val_ds], 0)
-    era_acc = validate_grid_against_truth_bulk(pred[..., land_mask], era)
+    masked_pred = [p[land_mask & vmask] for p, vmask in zip(pred, val_mask_ds)]
+    era = [
+        v.argmax(0)[land_mask & vmask]
+        for v, vmask in zip(era_val_ds, val_mask_ds)
+    ]
+    era_acc = np.array(
+        [(p == e).sum() / p.size for p, e in zip(masked_pred, era)]
+    )
     era_acc *= 100
+    # Validate against AWS DB
     pf = WMOValidationPointFetcher(db, RETRIEVAL_MIN)
     elon, elat = [view_trans(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
     aws_val = WMOValidator(pf)
+    mask_iter = (land_mask & vmask for vmask in val_mask_ds)
     aws_acc = aws_val.validate_bounded(
-        val_dates, elon, elat, pred, land_mask, True
+        val_dates, elon, elat, pred, mask_iter, True, variable_mask=True
     )
     aws_acc *= 100
     plt.figure()
@@ -247,12 +257,14 @@ input_val_ds = GridsStackDataset(
     [RepeatDataset(land_channel, len(input_val_ds)), input_val_ds]
 )
 era_val_ds = NpyDataset("../data/val/era5-t2m-am-2015-ak.npy")
+val_mask_ds = NpyDataset("../data/val/tb_valid_mask-2015-D-ak.npy")
 val_dates = load_dates("../data/val/date_map-2015.csv")
 write_results(
     run_dir,
     model,
     input_val_ds,
     era_val_ds,
+    val_mask_ds,
     val_dates,
     config,
     device,
