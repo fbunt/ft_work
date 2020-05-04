@@ -189,10 +189,10 @@ land_mask = ~water_mask
 land_channel = land_mask.float()
 
 root_data_dir = "../data/train/"
-tb_ds = NpyDataset("../data/train/tb-2008-2009-D-ak.npy")
+tb_ds = NpyDataset("../data/train/tb-2007-2010-D-ak.npy")
 # Tack on land mask as first channel
 tb_ds = GridsStackDataset([RepeatDataset(land_channel, len(tb_ds)), tb_ds])
-era_ds = NpyDataset("../data/train/era5-t2m-am-2008-2009-ak.npy")
+era_ds = NpyDataset("../data/train/era5-t2m-am-2007-2010-ak.npy")
 ds = ComposedDataset([tb_ds, era_ds])
 dataloader = torch.utils.data.DataLoader(
     ds, batch_size=config.batch_size, shuffle=True, drop_last=True
