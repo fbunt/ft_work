@@ -182,6 +182,80 @@ class PointsGridder:
             grid[self.imask] = fill
 
 
+def validate_bounded(
+    pf,
+    grid_stack,
+    dates,
+    lon_grid,
+    lat_grid,
+    valid_mask,
+    show_progress=False,
+    variable_mask=False,
+):
+    """
+        Validate the given grids using AWS data points within the given
+        geo-grids and dates.
+
+        pf: WMOValidationPointFetcher instance
+        grid_stack: A list or array of 2D frozen/thawed grids to validate
+        dates: List of dates. Same length as `grid_stack`
+        lon_grid: A 2D grid of longitude points that matches the last 2 dims of
+            `grid_stack`
+        lat_grid: A 2D grid of latitude points that matches the last 2 dims of
+            `grid_stack`
+        valid_mask: A single 2D grid or list/array of 2D grids specifying the
+            valid regions of data that shoud be validated. Usage is controlled
+            by `variable_mask`.
+        show_progress: if True, a progress bar is displayed. DEFAULT: False
+        variable_mask: if True, `valid_mask` is treated as an iterable of 2D
+            masks. It is treated as a single mask otherwise. DEFAULT: False
+        """
+    flat_valid_idxs_iter = None
+    if not variable_mask:
+        flat_valid_idxs_iter = itertools.repeat(
+            set(np.nonzero(valid_mask.ravel())[0])
+        )
+    else:
+        flat_valid_idxs_iter = [
+            set(np.nonzero(vmask.ravel())[0]) for vmask in valid_mask
+        ]
+    geo_bounds = [
+        lon_grid.min(),
+        lon_grid.max(),
+        lat_grid.min(),
+        lat_grid.max(),
+    ]
+    tree = KDTree(np.array(list(zip(lon_grid.ravel(), lat_grid.ravel()))))
+    acc = np.zeros(len(grid_stack))
+    it = tqdm.tqdm(
+        zip(dates, grid_stack, flat_valid_idxs_iter),
+        ncols=80,
+        total=len(grid_stack),
+        disable=not show_progress,
+        desc="AWS Validation",
+    )
+    for j, (d, g, flat_valid_idxs) in enumerate(it):
+        vpoints, vtemps = pf.fetch_bounded(d, geo_bounds)
+        vft = ft_model_zero_threshold(vtemps)
+        dist, idx = tree.query(vpoints)
+        # Filter out points outside of mask
+        di = [v for v in zip(dist, idx, vft) if v[1] in flat_valid_idxs]
+        idict = {}
+        # Filter out points that share the same grid square. Only keep the
+        # points that are closest to the center of the grid square.
+        for d, i, v in di:
+            if i in idict:
+                # this point is closer, overwrite current value
+                if d < idict[i][0]:
+                    idict[i] = (d, v)
+            else:
+                idict[i] = (d, v)
+        idx = list(idict.keys())
+        values = [v for d, v in idict.values()]
+        acc[j] = float((g.ravel()[idx] == values).sum()) / len(values)
+    return acc
+
+
 class WMOValidator:
     def __init__(self, point_fetcher):
         self.pf = point_fetcher
@@ -196,67 +270,16 @@ class WMOValidator:
         show_progress=False,
         variable_mask=False,
     ):
-        """
-        Validate the given grids using AWS data points within the given
-        geo-grids and dates.
-
-        grid_stack: A list or array of 2D frozen/thawed grids to validate
-        dates: List of dates. Same length as `grid_stack`
-        lon_grid: A 2D grid of longitude points that matches the last 2 dims of
-            `grid_stack`
-        lat_grid: A 2D grid of latitude points that matches the last 2 dims of
-            `grid_stack`
-        valid_mask: A single 2D grid or list/array of 2D grids specifying the
-            valid regions of data that shoud be validated. Usage is controlled
-            by `variable_mask`.
-        show_progress: if True, a progress bar is displayed. DEFAULT: False
-        variable_mask: if True, `valid_mask` is treated as an iterable of 2D
-            masks. It is treated as a single mask otherwise. DEFAULT: False
-        """
-        flat_valid_idxs_iter = None
-        if not variable_mask:
-            flat_valid_idxs_iter = itertools.repeat(
-                set(np.nonzero(valid_mask.ravel())[0])
-            )
-        else:
-            flat_valid_idxs_iter = [
-                set(np.nonzero(vmask.ravel())[0]) for vmask in valid_mask
-            ]
-        geo_bounds = [
-            lon_grid.min(),
-            lon_grid.max(),
-            lat_grid.min(),
-            lat_grid.max(),
-        ]
-        tree = KDTree(np.array(list(zip(lon_grid.ravel(), lat_grid.ravel()))))
-        acc = []
-        it = tqdm.tqdm(
-            zip(dates, grid_stack, flat_valid_idxs_iter),
-            ncols=80,
-            total=len(grid_stack),
-            disable=not show_progress,
-            desc="AWS Validation",
+        return validate_bounded(
+            self.pf,
+            grid_stack,
+            dates,
+            lon_grid,
+            lat_grid,
+            valid_mask,
+            show_progress=False,
+            variable_mask=False,
         )
-        for d, g, flat_valid_idxs in it:
-            vpoints, vtemps = self.pf.fetch_bounded(d, geo_bounds)
-            vft = ft_model_zero_threshold(vtemps)
-            dist, idx = tree.query(vpoints)
-            # Filter out points outside of mask
-            di = [v for v in zip(dist, idx, vft) if v[1] in flat_valid_idxs]
-            idict = {}
-            # Filter out points that share the same grid square. Only keep the
-            # points that are closest to the center of the grid square.
-            for d, i, v in di:
-                if i in idict:
-                    # this point is closer, overwrite current value
-                    if d < idict[i][0]:
-                        idict[i] = (d, v)
-                else:
-                    idict[i] = (d, v)
-            idx = list(idict.keys())
-            values = [v for d, v in idict.values()]
-            acc.append(float((g.ravel()[idx] == values).sum()) / len(values))
-        return np.array(acc)
 
 
 COL_YEAR = "year"
