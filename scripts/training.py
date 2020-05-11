@@ -85,14 +85,6 @@ def write_results(
     print(f"Saving predictions: '{ppath}'")
     np.save(ppath, pred)
 
-    pfmt = os.path.join(pred_plots, "{:03}.png")
-    print(f"Creating prediction plots: '{pred_plots}'")
-    for i, p in enumerate(tqdm.tqdm(pred, ncols=80)):
-        plt.figure()
-        plt.imshow(p)
-        plt.title(f"Day: {i + 1}")
-        plt.savefig(pfmt.format(i + 1), dpi=200)
-        plt.close()
     # Validate against ERA5
     print("Validating against ERA5")
     masked_pred = [p[land_mask & vmask] for p, vmask in zip(pred, val_mask_ds)]
@@ -113,6 +105,19 @@ def write_results(
         pred, val_dates, elon, elat, mask_iter, True, variable_mask=True
     )
     aws_acc *= 100
+    acc_file = os.path.join(root, "acc.csv")
+    with open(acc_file, "w") as fd:
+        for d, ae, aa in zip(val_dates, era_acc, aws_acc):
+            fd.write(f"{d},{ae},{aa}\n")
+    # Save prediction plots
+    print(f"Creating prediction plots: '{pred_plots}'")
+    pfmt = os.path.join(pred_plots, "{:03}.png")
+    for i, p in enumerate(tqdm.tqdm(pred, ncols=80)):
+        plt.figure()
+        plt.imshow(p)
+        plt.title(f"Day: {i + 1}")
+        plt.savefig(pfmt.format(i + 1), dpi=200)
+        plt.close()
     # ERA
     plt.figure()
     plt.plot(val_dates, era_acc, lw=1, label="ERA5")
