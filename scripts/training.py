@@ -110,7 +110,7 @@ def write_results(
     aws_val = WMOValidator(pf)
     mask_iter = (land_mask & vmask for vmask in val_mask_ds)
     aws_acc = aws_val.validate_bounded(
-        val_dates, elon, elat, pred, mask_iter, True, variable_mask=True
+        pred, val_dates, elon, elat, mask_iter, True, variable_mask=True
     )
     aws_acc *= 100
     # ERA

@@ -188,14 +188,31 @@ class WMOValidator:
 
     def validate_bounded(
         self,
+        grid_stack,
         dates,
         lon_grid,
         lat_grid,
-        grid_stack,
         valid_mask,
         show_progress=False,
         variable_mask=False,
     ):
+        """
+        Validate the given grids using AWS data points within the given
+        geo-grids and dates.
+
+        grid_stack: A list or array of 2D frozen/thawed grids to validate
+        dates: List of dates. Same length as `grid_stack`
+        lon_grid: A 2D grid of longitude points that matches the last 2 dims of
+            `grid_stack`
+        lat_grid: A 2D grid of latitude points that matches the last 2 dims of
+            `grid_stack`
+        valid_mask: A single 2D grid or list/array of 2D grids specifying the
+            valid regions of data that shoud be validated. Usage is controlled
+            by `variable_mask`.
+        show_progress: if True, a progress bar is displayed. DEFAULT: False
+        variable_mask: if True, `valid_mask` is treated as an iterable of 2D
+            masks. It is treated as a single mask otherwise. DEFAULT: False
+        """
         flat_valid_idxs_iter = None
         if not variable_mask:
             flat_valid_idxs_iter = itertools.repeat(
@@ -205,7 +222,7 @@ class WMOValidator:
             flat_valid_idxs_iter = [
                 set(np.nonzero(vmask.ravel())[0]) for vmask in valid_mask
             ]
-        bounds = [
+        geo_bounds = [
             lon_grid.min(),
             lon_grid.max(),
             lat_grid.min(),
@@ -221,7 +238,7 @@ class WMOValidator:
             desc="AWS Validation",
         )
         for d, g, flat_valid_idxs in it:
-            vpoints, vtemps = self.pf.fetch_bounded(d, bounds)
+            vpoints, vtemps = self.pf.fetch_bounded(d, geo_bounds)
             vft = ft_model_zero_threshold(vtemps)
             dist, idx = tree.query(vpoints)
             # Filter out points outside of mask
