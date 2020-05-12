@@ -1,4 +1,5 @@
 from collections import namedtuple
+from scipy.spatial import cKDTree as KDTree
 from torch.utils.tensorboard import SummaryWriter
 import datetime as dt
 import matplotlib.pyplot as plt
@@ -13,10 +14,10 @@ import tqdm
 
 from dataloading import (
     ComposedDataset,
-    NCTbDataset,
+    GridsStackDataset,
+    IndexEchoDataset,
     NpyDataset,
     RepeatDataset,
-    GridsStackDataset,
 )
 from model import (
     LABEL_FROZEN,
@@ -30,7 +31,8 @@ from validate import (
     RETRIEVAL_MIN,
     WMOValidationPointFetcher,
     WMOValidator,
-    validate_grid_against_truth_bulk,
+    ft_model_zero_threshold,
+    get_nearest_flat_idxs_and_values,
 )
 from validation_db_orm import get_db_session
 import ease_grid as eg
@@ -102,7 +104,13 @@ def write_results(
     aws_val = WMOValidator(pf)
     mask_iter = (land_mask & vmask for vmask in val_mask_ds)
     aws_acc = aws_val.validate_bounded(
-        pred, val_dates, elon, elat, mask_iter, True, variable_mask=True
+        pred,
+        val_dates,
+        elon,
+        elat,
+        mask_iter,
+        show_progress=True,
+        variable_mask=True,
     )
     aws_acc *= 100
     acc_file = os.path.join(root, "acc.csv")
@@ -152,6 +160,59 @@ def write_results(
     plt.close()
 
 
+def aws_loss_func(batch_pred_logits, batch_idxs, batch_labels, config, device):
+    loss = 0
+    for pred, flat_idxs, labels in zip(
+        batch_pred_logits, batch_idxs, batch_labels
+    ):
+        if not sum(flat_idxs.size()):
+            continue
+        # Add batch dim to left and flatten the (H, W) dims
+        pred = pred.view(1, config.n_classes, -1)
+        # Index in with indices corresponding to AWS stations
+        pred = pred[..., flat_idxs]
+        labels = labels.unsqueeze(0).to(device)
+        loss += torch.nn.functional.cross_entropy(pred, labels)
+    return loss
+
+
+def get_aws_data(
+    dates_path, masks_path, db_path, land_mask, transform, ret_type
+):
+    train_dates = load_dates(dates_path)
+    mask_ds = NpyDataset(masks_path)
+    db = get_db_session(db_path)
+    aws_pf = WMOValidationPointFetcher(db, retrieval_type=ret_type)
+    lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
+    tree = KDTree(np.array(list(zip(lon.ravel(), lat.ravel()))))
+    geo_bounds = [
+        lon.min(),
+        lon.max(),
+        lat.min(),
+        lat.max(),
+    ]
+    valid_flat_idxs = []
+    aws_labels = []
+    for d, mask in tqdm.tqdm(
+        zip(train_dates, mask_ds),
+        ncols=80,
+        total=len(train_dates),
+        desc="Loading AWS",
+    ):
+        vpoints, vtemps = aws_pf.fetch_bounded(d, geo_bounds)
+        vft = ft_model_zero_threshold(vtemps).astype(int)
+        mask = mask & land_mask
+        # The set of valid indices
+        valid_idxs = set(np.nonzero(mask.ravel())[0])
+        idxs, vft = get_nearest_flat_idxs_and_values(
+            tree, vpoints, vft, valid_idxs
+        )
+        valid_flat_idxs.append(torch.tensor(idxs).long())
+        aws_labels.append(torch.tensor(vft))
+    db.close()
+    return list(zip(valid_flat_idxs, aws_labels))
+
+
 Config = namedtuple(
     "Config",
     (
@@ -166,6 +227,7 @@ Config = namedtuple(
         "l2_reg_weight",
         "lv_reg_weight",
         "land_reg_weight",
+        "aws_loss_weight",
         "optimizer",
     ),
 )
@@ -183,6 +245,7 @@ config = Config(
     l2_reg_weight=0.01,
     lv_reg_weight=0.05,
     land_reg_weight=0.0001,
+    aws_loss_weight=0.01,
     optimizer=torch.optim.Adam,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -191,14 +254,26 @@ transform = AK_VIEW_TRANS
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 water_mask = torch.tensor(transform(base_water_mask))
 land_mask = ~water_mask
+land_mask_np = land_mask.numpy()
 land_channel = land_mask.float()
 
 root_data_dir = "../data/train/"
+
+aws_data = get_aws_data(
+    "../data/train/date_map-2007-2010.csv",
+    "../data/train/tb_valid_mask-2007-2010-D-ak.npy",
+    "../data/dbs/wmo_gsod.db",
+    land_mask_np,
+    transform,
+    RETRIEVAL_MIN,
+)
+
 tb_ds = NpyDataset("../data/train/tb-2007-2010-D-ak.npy")
 # Tack on land mask as first channel
 tb_ds = GridsStackDataset([RepeatDataset(land_channel, len(tb_ds)), tb_ds])
 era_ds = NpyDataset("../data/train/era5-t2m-am-2007-2010-ak.npy")
-ds = ComposedDataset([tb_ds, era_ds])
+idx_ds = IndexEchoDataset(len(tb_ds))
+ds = ComposedDataset([idx_ds, tb_ds, era_ds])
 dataloader = torch.utils.data.DataLoader(
     ds, batch_size=config.batch_size, shuffle=True, drop_last=True
 )
@@ -247,17 +322,25 @@ for epoch in range(config.epochs):
         total=len(dataloader),
         desc=f"Epoch: {epoch + 1}/{config.epochs}",
     )
-    for i, (input_data, label) in it:
+    for i, (idxs, input_data, label) in it:
         step = (epoch * len(dataloader)) + i
         input_data = input_data.to(device, dtype=torch.float)
         # Compress 1-hot encoding to single channel
         label = label.argmax(dim=1).to(device)
+        # valid_mask = valid_mask.to(device)
 
+        model.train()
         model.zero_grad()
         log_class_prob = model(input_data)
         class_prob = torch.softmax(log_class_prob, 1)
 
         loss = criterion(log_class_prob, label)
+        # Mask missing data from classification penalty
+        # for logitsi, labi, mask in zip(log_class_prob, label, valid_mask):
+        #     mask = mask & land_channel.to(device, dtype=bool)
+        #     logitsi = logitsi[..., mask].unsqueeze(0)
+        #     labi = labi[..., mask].unsqueeze(0)
+        #     loss += criterion(logitsi, labi)
         writer.add_scalar("CE Loss", loss.item(), step)
         # Minimize high frequency variation
         lv_loss = config.lv_reg_weight * local_variation_loss(class_prob)
@@ -271,6 +354,20 @@ for epoch in range(config.epochs):
         land_loss *= config.land_reg_weight
         writer.add_scalar("Land Loss", land_loss.item(), step)
         loss += land_loss
+        # AWS loss
+        batch_aws_data = [aws_data[j] for j in idxs]
+        batch_aws_flat_idxs = [v[0] for v in batch_aws_data]
+        batch_aws_labels = [v[1] for v in batch_aws_data]
+        aws_loss = config.aws_loss_weight * aws_loss_func(
+            log_class_prob,
+            batch_aws_flat_idxs,
+            batch_aws_labels,
+            config,
+            device,
+        )
+        writer.add_scalar("AWS Loss", aws_loss.item(), step)
+        loss += aws_loss
+
         loss.backward()
         opt.step()
 
