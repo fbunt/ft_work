@@ -182,6 +182,43 @@ class PointsGridder:
             grid[self.imask] = fill
 
 
+def get_nearest_flat_idxs_and_values(tree, points, values, valid_flat_idxs):
+    """Use the tree to find the indices and values that lie closest to their
+    respective grid points.
+
+    valid_flat_idxs is a set of indices that are considered valid. It is used
+    to filter points that are in invalid regions.
+
+    Parameters:
+        tree: a KDTree
+        points: an (N, 2) sized list/array of points to query the tree with
+        values: an (N,) sized list/array of values
+        valid_flat_idxs: a set of valid indices to filter query results against
+
+    Returns:
+        idxs: list of flat indices that resulted from querying `tree`. These
+            are the indices of points that had the smallest associated
+            distance.
+        final_values: the corresponding values that were pulled from `values`
+    """
+    dist, idx = tree.query(points)
+    # Filter out points outside of mask
+    di = [v for v in zip(dist, idx, values) if v[1] in valid_flat_idxs]
+    idict = {}
+    # Filter out points that share the same grid square. Only keep the
+    # points that are closest to the center of the grid square.
+    for d, i, v in di:
+        if i in idict:
+            # this point is closer, overwrite current value
+            if d < idict[i][0]:
+                idict[i] = (d, v)
+        else:
+            idict[i] = (d, v)
+    idxs = list(idict.keys())
+    final_values = [v for d, v in idict.values()]
+    return idxs, final_values
+
+
 def validate_bounded(
     pf,
     grid_stack,
@@ -196,19 +233,25 @@ def validate_bounded(
         Validate the given grids using AWS data points within the given
         geo-grids and dates.
 
-        pf: WMOValidationPointFetcher instance
-        grid_stack: A list or array of 2D frozen/thawed grids to validate
-        dates: List of dates. Same length as `grid_stack`
-        lon_grid: A 2D grid of longitude points that matches the last 2 dims of
+        Parameters:
+            pf: WMOValidationPointFetcher instance
+            grid_stack: A list or array of 2D frozen/thawed grids to validate
+            dates: List of dates. Same length as `grid_stack`
+            lon_grid: A 2D grid of longitude points that matches the last 2
+                dims of `grid_stack`
+            lat_grid: A 2D grid of latitude points that matches the last 2 dims
+                of `grid_stack`
+            valid_mask: A single 2D grid or list/array of 2D grids specifying
+                the valid regions of data that shoud be validated. Usage is
+                controlled by `variable_mask`.
+            show_progress: if True, a progress bar is displayed.
+                DEFAULT: False
+            variable_mask: if True, `valid_mask` is treated as an iterable of
+                2D masks. It is treated as a single mask otherwise.
+                DEFAULT: False
+
+        Returns: Array of percent accuracy values with same length as
             `grid_stack`
-        lat_grid: A 2D grid of latitude points that matches the last 2 dims of
-            `grid_stack`
-        valid_mask: A single 2D grid or list/array of 2D grids specifying the
-            valid regions of data that shoud be validated. Usage is controlled
-            by `variable_mask`.
-        show_progress: if True, a progress bar is displayed. DEFAULT: False
-        variable_mask: if True, `valid_mask` is treated as an iterable of 2D
-            masks. It is treated as a single mask otherwise. DEFAULT: False
         """
     flat_valid_idxs_iter = None
     if not variable_mask:
@@ -237,26 +280,16 @@ def validate_bounded(
     for j, (d, g, flat_valid_idxs) in enumerate(it):
         vpoints, vtemps = pf.fetch_bounded(d, geo_bounds)
         vft = ft_model_zero_threshold(vtemps)
-        dist, idx = tree.query(vpoints)
-        # Filter out points outside of mask
-        di = [v for v in zip(dist, idx, vft) if v[1] in flat_valid_idxs]
-        idict = {}
-        # Filter out points that share the same grid square. Only keep the
-        # points that are closest to the center of the grid square.
-        for d, i, v in di:
-            if i in idict:
-                # this point is closer, overwrite current value
-                if d < idict[i][0]:
-                    idict[i] = (d, v)
-            else:
-                idict[i] = (d, v)
-        idx = list(idict.keys())
-        values = [v for d, v in idict.values()]
-        acc[j] = float((g.ravel()[idx] == values).sum()) / len(values)
+        idxs, values = get_nearest_flat_idxs_and_values(
+            tree, vpoints, vft, flat_valid_idxs
+        )
+        acc[j] = float((g.ravel()[idxs] == values).sum()) / len(values)
     return acc
 
 
 class WMOValidator:
+    """Wrapper around `validate_bounded` function"""
+
     def __init__(self, point_fetcher):
         self.pf = point_fetcher
 
@@ -277,8 +310,8 @@ class WMOValidator:
             lon_grid,
             lat_grid,
             valid_mask,
-            show_progress=False,
-            variable_mask=False,
+            show_progress=show_progress,
+            variable_mask=variable_mask,
         )
 
 
