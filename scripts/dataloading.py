@@ -431,6 +431,17 @@ class NpyDataset(Dataset):
         return len(self.data)
 
 
+class IndexEchoDataset(Dataset):
+    def __init__(self, n):
+        self.n = n
+
+    def __getitem__(self, idx):
+        return idx
+
+    def __len__(self):
+        return self.n
+
+
 class RepeatDataset(Dataset):
     """Repeats a value(s) and presents a specified length."""
 
