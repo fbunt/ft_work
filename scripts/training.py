@@ -227,6 +227,7 @@ Config = namedtuple(
         "l2_reg_weight",
         "lv_reg_weight",
         "land_reg_weight",
+        "use_aws",
         "aws_loss_weight",
         "optimizer",
     ),
@@ -245,7 +246,8 @@ config = Config(
     l2_reg_weight=0.01,
     lv_reg_weight=0.05,
     land_reg_weight=0.0001,
-    aws_loss_weight=0.01,
+    use_aws=False,
+    aws_loss_weight=1e-4,
     optimizer=torch.optim.Adam,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -259,14 +261,15 @@ land_channel = land_mask.float()
 
 root_data_dir = "../data/train/"
 
-aws_data = get_aws_data(
-    "../data/train/date_map-2007-2010.csv",
-    "../data/train/tb_valid_mask-2007-2010-D-ak.npy",
-    "../data/dbs/wmo_gsod.db",
-    land_mask_np,
-    transform,
-    RETRIEVAL_MIN,
-)
+if config.use_aws:
+    aws_data = get_aws_data(
+        "../data/train/date_map-2007-2010.csv",
+        "../data/train/tb_valid_mask-2007-2010-D-ak.npy",
+        "../data/dbs/wmo_gsod.db",
+        land_mask_np,
+        transform,
+        RETRIEVAL_MIN,
+    )
 
 tb_ds = NpyDataset("../data/train/tb-2007-2010-D-ak.npy")
 # Tack on land mask as first channel
@@ -322,7 +325,7 @@ for epoch in range(config.epochs):
         total=len(dataloader),
         desc=f"Epoch: {epoch + 1}/{config.epochs}",
     )
-    for i, (idxs, input_data, label) in it:
+    for i, (ds_idxs, input_data, label) in it:
         step = (epoch * len(dataloader)) + i
         input_data = input_data.to(device, dtype=torch.float)
         # Compress 1-hot encoding to single channel
@@ -355,18 +358,19 @@ for epoch in range(config.epochs):
         writer.add_scalar("Land Loss", land_loss.item(), step)
         loss += land_loss
         # AWS loss
-        batch_aws_data = [aws_data[j] for j in idxs]
-        batch_aws_flat_idxs = [v[0] for v in batch_aws_data]
-        batch_aws_labels = [v[1] for v in batch_aws_data]
-        aws_loss = config.aws_loss_weight * aws_loss_func(
-            log_class_prob,
-            batch_aws_flat_idxs,
-            batch_aws_labels,
-            config,
-            device,
-        )
-        writer.add_scalar("AWS Loss", aws_loss.item(), step)
-        loss += aws_loss
+        if config.use_aws:
+            batch_aws_data = [aws_data[j] for j in ds_idxs]
+            batch_aws_flat_idxs = [v[0] for v in batch_aws_data]
+            batch_aws_labels = [v[1] for v in batch_aws_data]
+            aws_loss = config.aws_loss_weight * aws_loss_func(
+                log_class_prob,
+                batch_aws_flat_idxs,
+                batch_aws_labels,
+                config,
+                device,
+            )
+            writer.add_scalar("AWS Loss", aws_loss.item(), step)
+            loss += aws_loss
 
         loss.backward()
         opt.step()
