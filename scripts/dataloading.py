@@ -493,7 +493,9 @@ class GridsStackDataset(Dataset):
         unsqueezed = []
         for d in data:
             if not isinstance(d, torch.Tensor):
-                d = torch.tensor(d)
+                # XXX: the float() is a hack and should probably be made more
+                #      systematic
+                d = torch.tensor(d).float()
             if len(d.shape) < shape_len:
                 d = d.unsqueeze(0)
             unsqueezed.append(d)
