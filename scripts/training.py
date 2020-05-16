@@ -341,12 +341,6 @@ for epoch in range(config.epochs):
         class_prob = torch.softmax(log_class_prob, 1)
 
         loss = criterion(log_class_prob, label)
-        # Mask missing data from classification penalty
-        # for logitsi, labi, mask in zip(log_class_prob, label, valid_mask):
-        #     mask = mask & land_channel.to(device, dtype=bool)
-        #     logitsi = logitsi[..., mask].unsqueeze(0)
-        #     labi = labi[..., mask].unsqueeze(0)
-        #     loss += criterion(logitsi, labi)
         writer.add_scalar("CE Loss", loss.item(), step)
         # Minimize high frequency variation
         lv_loss = config.lv_reg_weight * local_variation_loss(class_prob)
