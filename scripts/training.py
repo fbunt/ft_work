@@ -235,7 +235,7 @@ Config = namedtuple(
 
 
 config = Config(
-    in_chan=6,
+    in_chan=7,
     n_classes=3,
     depth=4,
     base_filters=64,
@@ -271,9 +271,12 @@ if config.use_aws:
         RETRIEVAL_MIN,
     )
 
+solar_ds = NpyDataset("../data/train/solar_rad-2007-2010-AM-ak.npy")
 tb_ds = NpyDataset("../data/train/tb-2007-2010-D-ak.npy")
 # Tack on land mask as first channel
-tb_ds = GridsStackDataset([RepeatDataset(land_channel, len(tb_ds)), tb_ds])
+tb_ds = GridsStackDataset(
+    [RepeatDataset(land_channel, len(tb_ds)), solar_ds, tb_ds]
+)
 era_ds = NpyDataset("../data/train/era5-t2m-am-2007-2010-ak.npy")
 idx_ds = IndexEchoDataset(len(tb_ds))
 ds = ComposedDataset([idx_ds, tb_ds, era_ds])
@@ -380,9 +383,14 @@ for epoch in range(config.epochs):
     sched.step()
 writer.close()
 
+solar_val_ds = NpyDataset("../data/val/solar_rad-2015-AM-ak.npy")
 input_val_ds = NpyDataset("../data/val/tb-2015-D-ak.npy")
 input_val_ds = GridsStackDataset(
-    [RepeatDataset(land_channel, len(input_val_ds)), input_val_ds]
+    [
+        RepeatDataset(land_channel, len(input_val_ds)),
+        solar_val_ds,
+        input_val_ds,
+    ]
 )
 era_val_ds = NpyDataset("../data/val/era5-t2m-am-2015-ak.npy")
 val_mask_ds = NpyDataset("../data/val/tb_valid_mask-2015-D-ak.npy")
