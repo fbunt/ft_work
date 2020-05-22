@@ -222,6 +222,8 @@ Config = namedtuple(
         "base_filters",
         "epochs",
         "batch_size",
+        "batch_shuffle",
+        "drop_last",
         "learning_rate",
         "lr_gamma",
         "l2_reg_weight",
@@ -240,7 +242,9 @@ config = Config(
     depth=4,
     base_filters=64,
     epochs=50,
-    batch_size=10,
+    batch_size=19,
+    batch_shuffle=False,
+    drop_last=False,
     learning_rate=0.0005,
     lr_gamma=0.89,
     l2_reg_weight=0.01,
@@ -290,7 +294,10 @@ era_ds = NpyDataset("../data/train/era5-t2m-am-2007-2010-ak.npy")
 idx_ds = IndexEchoDataset(len(tb_ds))
 ds = ComposedDataset([idx_ds, tb_ds, era_ds])
 dataloader = torch.utils.data.DataLoader(
-    ds, batch_size=config.batch_size, shuffle=True, drop_last=True
+    ds,
+    batch_size=config.batch_size,
+    shuffle=config.batch_shuffle,
+    drop_last=config.drop_last,
 )
 
 model = UNet(
