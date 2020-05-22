@@ -258,6 +258,9 @@ water_mask = torch.tensor(transform(base_water_mask))
 land_mask = ~water_mask
 land_mask_np = land_mask.numpy()
 land_channel = land_mask.float()
+dem_channel = torch.tensor(transform(np.load("../data/z/dem.npy"))).float()
+elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
+lat_channel = torch.tensor(transform(elat)).float()
 
 root_data_dir = "../data/train/"
 
@@ -275,7 +278,13 @@ solar_ds = NpyDataset("../data/train/solar_rad-2007-2010-AM-ak.npy")
 tb_ds = NpyDataset("../data/train/tb-2007-2010-D-ak.npy")
 # Tack on land mask as first channel
 tb_ds = GridsStackDataset(
-    [RepeatDataset(land_channel, len(tb_ds)), solar_ds, tb_ds]
+    [
+        RepeatDataset(land_channel, len(tb_ds)),
+        # RepeatDataset(dem_channel, len(tb_ds)),
+        # RepeatDataset(lat_channel, len(tb_ds)),
+        # solar_ds,
+        tb_ds,
+    ]
 )
 era_ds = NpyDataset("../data/train/era5-t2m-am-2007-2010-ak.npy")
 idx_ds = IndexEchoDataset(len(tb_ds))
@@ -382,7 +391,9 @@ input_val_ds = NpyDataset("../data/val/tb-2015-D-ak.npy")
 input_val_ds = GridsStackDataset(
     [
         RepeatDataset(land_channel, len(input_val_ds)),
-        solar_val_ds,
+        # RepeatDataset(dem_channel, len(input_val_ds)),
+        # RepeatDataset(lat_channel, len(input_val_ds)),
+        # solar_val_ds,
         input_val_ds,
     ]
 )
