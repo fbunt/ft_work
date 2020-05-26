@@ -237,12 +237,12 @@ Config = namedtuple(
 
 
 config = Config(
-    in_chan=7,
+    in_chan=6,
     n_classes=3,
     depth=4,
     base_filters=64,
     epochs=50,
-    batch_size=19,
+    batch_size=18,
     batch_shuffle=False,
     drop_last=False,
     learning_rate=0.0005,
