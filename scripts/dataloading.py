@@ -421,8 +421,11 @@ class NCTbDataset(Dataset):
 class NpyDataset(Dataset):
     """Wraps a .npy data file."""
 
-    def __init__(self, data_file):
-        self.data = np.load(data_file)
+    def __init__(self, data_file_or_array):
+        if isinstance(data_file_or_array, np.ndarray):
+            self.data = data_file_or_array
+        else:
+            self.data = np.load(data_file_or_array)
 
     def __getitem__(self, idx):
         return self.data[idx]
