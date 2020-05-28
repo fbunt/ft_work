@@ -459,12 +459,12 @@ class RepeatDataset(Dataset):
         return self.n
 
 
-class RangeSingularGridDataset(Dataset):
-    """Generates single-value grids using values from a range object"""
+class SingleValueGridDataset(Dataset):
+    """Generates homogenous grids from a list of values with the given shape"""
 
-    def __init__(self, range_obj, grid_shape):
-        self.values = list(range_obj)
-        self.shape = grid_shape
+    def __init__(self, values, shape):
+        self.values = values
+        self.shape = shape
 
     def __getitem__(self, idx):
         return np.full(self.shape, self.values[idx])
