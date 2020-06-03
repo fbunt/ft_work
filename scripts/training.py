@@ -18,6 +18,7 @@ from dataloading import (
     IndexEchoDataset,
     NpyDataset,
     RepeatDataset,
+    SingleValueGridDataset,
 )
 from model import (
     LABEL_FROZEN,
@@ -213,6 +214,24 @@ def get_aws_data(
     return list(zip(valid_flat_idxs, aws_labels))
 
 
+def normalize(x):
+    if len(x.shape) < 4:
+        return (x - x.mean()) / x.std()
+    else:
+        for i in range(x.shape[1]):
+            sub = x[:, i]
+            x[:, i] = (sub - sub.mean()) / sub.std()
+        return x
+
+
+def build_day_of_year_ds(dates_path, shape):
+    dates = load_dates(dates_path)
+    doys = np.array([d.timetuple().tm_yday for d in dates], dtype=float)
+    doys = normalize(doys)
+    ds = SingleValueGridDataset(doys, shape)
+    return ds
+
+
 Config = namedtuple(
     "Config",
     (
@@ -237,7 +256,7 @@ Config = namedtuple(
 
 
 config = Config(
-    in_chan=6,
+    in_chan=10,
     n_classes=3,
     depth=4,
     base_filters=64,
@@ -261,12 +280,15 @@ base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 water_mask = torch.tensor(transform(base_water_mask))
 land_mask = ~water_mask
 land_mask_np = land_mask.numpy()
-land_channel = land_mask.float()
-dem_channel = torch.tensor(transform(np.load("../data/z/dem.npy"))).float()
+land_channel = torch.tensor(normalize(land_mask.numpy())).float()
+dem_channel = torch.tensor(
+    transform(normalize(np.load("../data/z/dem.npy")))
+).float()
 elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
-lat_channel = torch.tensor(transform(elat)).float()
-
-root_data_dir = "../data/train/"
+lat_channel = torch.tensor(transform(normalize(elat))).float()
+doy_ds = build_day_of_year_ds(
+    "../data/train/date_map-2007-2010.csv", land_mask_np.shape
+)
 
 if config.use_aws:
     aws_data = get_aws_data(
@@ -278,15 +300,18 @@ if config.use_aws:
         RETRIEVAL_MIN,
     )
 
-solar_ds = NpyDataset("../data/train/solar_rad-2007-2010-AM-ak.npy")
-tb_ds = NpyDataset("../data/train/tb-2007-2010-D-ak.npy")
+solar_ds = NpyDataset(
+    normalize(np.load("../data/train/solar_rad-2007-2010-AM-ak.npy"))
+)
+tb_ds = NpyDataset(normalize(np.load("../data/train/tb-2007-2010-D-ak.npy")))
 # Tack on land mask as first channel
 tb_ds = GridsStackDataset(
     [
         RepeatDataset(land_channel, len(tb_ds)),
-        # RepeatDataset(dem_channel, len(tb_ds)),
-        # RepeatDataset(lat_channel, len(tb_ds)),
-        # solar_ds,
+        RepeatDataset(dem_channel, len(tb_ds)),
+        RepeatDataset(lat_channel, len(tb_ds)),
+        doy_ds,
+        solar_ds,
         tb_ds,
     ]
 )
@@ -393,14 +418,20 @@ for epoch in range(config.epochs):
     sched.step()
 writer.close()
 
-solar_val_ds = NpyDataset("../data/val/solar_rad-2015-AM-ak.npy")
-input_val_ds = NpyDataset("../data/val/tb-2015-D-ak.npy")
+val_doy_ds = build_day_of_year_ds(
+    "../data/val/date_map-2015.csv", land_mask_np.shape
+)
+solar_val_ds = NpyDataset(
+    normalize(np.load("../data/val/solar_rad-2015-AM-ak.npy"))
+)
+input_val_ds = NpyDataset(normalize(np.load("../data/val/tb-2015-D-ak.npy")))
 input_val_ds = GridsStackDataset(
     [
         RepeatDataset(land_channel, len(input_val_ds)),
-        # RepeatDataset(dem_channel, len(input_val_ds)),
-        # RepeatDataset(lat_channel, len(input_val_ds)),
-        # solar_val_ds,
+        RepeatDataset(dem_channel, len(input_val_ds)),
+        RepeatDataset(lat_channel, len(input_val_ds)),
+        val_doy_ds,
+        solar_val_ds,
         input_val_ds,
     ]
 )
