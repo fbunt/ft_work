@@ -14,10 +14,10 @@ base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 # Solar
 solar_ds = torch.utils.data.ConcatDataset(
     [
-        dl.NpyDataset("../data/solar/solar_rad-2007-ak.npy"),
-        dl.NpyDataset("../data/solar/solar_rad-2008-ak.npy"),
-        dl.NpyDataset("../data/solar/solar_rad-2009-ak.npy"),
-        dl.NpyDataset("../data/solar/solar_rad-2010-ak.npy"),
+        dl.NpyDataset("../data/solar/solar_rad-daily-2007-ak.npy"),
+        dl.NpyDataset("../data/solar/solar_rad-daily-2008-ak.npy"),
+        dl.NpyDataset("../data/solar/solar_rad-daily-2009-ak.npy"),
+        dl.NpyDataset("../data/solar/solar_rad-daily-2010-ak.npy"),
     ]
 )
 # TB
@@ -103,7 +103,7 @@ era_ds = None
 
 
 # Validation data
-solar_ds = dl.NpyDataset("../data/solar/solar_rad-2015-ak.npy")
+solar_ds = dl.NpyDataset("../data/solar/solar_rad-daily-2015-ak.npy")
 tb_files = sorted(glob.glob("../data/tb/2015/tb_2015_F17_ML_D*.nc"))
 tds15 = dl.GridsStackDataset(
     [dl.NCDataset([f], "tb", transform=transform) for f in tb_files]
