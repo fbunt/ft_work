@@ -1,5 +1,6 @@
 from collections import namedtuple
 from scipy.spatial import cKDTree as KDTree
+from torch.utils.data import Subset
 from torch.utils.tensorboard import SummaryWriter
 import datetime as dt
 import matplotlib.pyplot as plt
@@ -256,7 +257,7 @@ Config = namedtuple(
 
 
 config = Config(
-    in_chan=10,
+    in_chan=15,
     n_classes=3,
     depth=4,
     base_filters=64,
@@ -303,21 +304,24 @@ if config.use_aws:
 solar_ds = NpyDataset(
     normalize(np.load("../data/train/solar_rad-2007-2010-AM-ak.npy"))
 )
-tb_ds = NpyDataset(normalize(np.load("../data/train/tb-2007-2010-D-ak.npy")))
-# Tack on land mask as first channel
-tb_ds = GridsStackDataset(
+tb_ds = NpyDataset(np.load("../data/train/tb-2007-2010-D-ak.npy"))
+reduced_indices = list(range(1, len(tb_ds)))
+train_ds = GridsStackDataset(
     [
-        RepeatDataset(land_channel, len(tb_ds)),
-        RepeatDataset(dem_channel, len(tb_ds)),
-        RepeatDataset(lat_channel, len(tb_ds)),
-        doy_ds,
-        solar_ds,
-        tb_ds,
+        Subset(RepeatDataset(land_channel, len(tb_ds)), reduced_indices),
+        Subset(RepeatDataset(dem_channel, len(tb_ds)), reduced_indices),
+        Subset(RepeatDataset(lat_channel, len(tb_ds)), reduced_indices),
+        Subset(doy_ds, reduced_indices),
+        Subset(solar_ds, reduced_indices),
+        Subset(tb_ds, list(range(0, len(tb_ds) - 1))),
+        Subset(tb_ds, reduced_indices),
     ]
 )
-era_ds = NpyDataset("../data/train/era5-t2m-am-2007-2010-ak.npy")
-idx_ds = IndexEchoDataset(len(tb_ds))
-ds = ComposedDataset([idx_ds, tb_ds, era_ds])
+era_ds = Subset(
+    NpyDataset("../data/train/era5-t2m-am-2007-2010-ak.npy"), reduced_indices
+)
+idx_ds = IndexEchoDataset(len(train_ds))
+ds = ComposedDataset([idx_ds, train_ds, era_ds])
 dataloader = torch.utils.data.DataLoader(
     ds,
     batch_size=config.batch_size,
@@ -424,20 +428,30 @@ val_doy_ds = build_day_of_year_ds(
 solar_val_ds = NpyDataset(
     normalize(np.load("../data/val/solar_rad-2015-AM-ak.npy"))
 )
-input_val_ds = NpyDataset(normalize(np.load("../data/val/tb-2015-D-ak.npy")))
+input_val_ds = NpyDataset(np.load("../data/val/tb-2015-D-ak.npy"))
+reduced_indices = list(range(1, len(input_val_ds)))
 input_val_ds = GridsStackDataset(
     [
-        RepeatDataset(land_channel, len(input_val_ds)),
-        RepeatDataset(dem_channel, len(input_val_ds)),
-        RepeatDataset(lat_channel, len(input_val_ds)),
-        val_doy_ds,
-        solar_val_ds,
-        input_val_ds,
+        Subset(
+            RepeatDataset(land_channel, len(input_val_ds)), reduced_indices
+        ),
+        Subset(RepeatDataset(dem_channel, len(input_val_ds)), reduced_indices),
+        Subset(RepeatDataset(lat_channel, len(input_val_ds)), reduced_indices),
+        Subset(val_doy_ds, reduced_indices),
+        Subset(solar_val_ds, reduced_indices),
+        Subset(input_val_ds, list(range(0, len(input_val_ds) - 1))),
+        Subset(input_val_ds, reduced_indices),
     ]
 )
-era_val_ds = NpyDataset("../data/val/era5-t2m-am-2015-ak.npy")
-val_mask_ds = NpyDataset("../data/val/tb_valid_mask-2015-D-ak.npy")
-val_dates = load_dates("../data/val/date_map-2015.csv")
+era_val_ds = Subset(
+    NpyDataset("../data/val/era5-t2m-am-2015-ak.npy"), reduced_indices
+)
+val_mask_ds = Subset(
+    NpyDataset("../data/val/tb_valid_mask-2015-D-ak.npy"), reduced_indices
+)
+val_dates = Subset(
+    load_dates("../data/val/date_map-2015.csv"), reduced_indices
+)
 write_results(
     run_dir,
     model,
