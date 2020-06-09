@@ -12,6 +12,7 @@ from typing import (
 )
 import concurrent.futures as cfutures
 import itertools
+import tqdm
 
 
 class AsyncJobError(Exception):
@@ -142,7 +143,11 @@ def run_async(
         }
         remaining_futures = set(futures_to_ids)
         try:
-            for w in cfutures.as_completed(futures_to_ids):
+            for w in tqdm.tqdm(
+                cfutures.as_completed(futures_to_ids),
+                ncols=80,
+                total=len(futures_to_ids),
+            ):
                 remaining_futures.remove(w)
                 id_ = futures_to_ids[w]
                 try:
