@@ -250,8 +250,13 @@ Config = namedtuple(
         "lv_reg_weight",
         "land_reg_weight",
         "use_aws",
-        "aws_loss_weight",
         "optimizer",
+        "aws_loss_weight",
+        "use_dem",
+        "use_latitude",
+        "use_day_of_year",
+        "use_solar",
+        "use_prior_day",
     ),
 )
 
@@ -268,11 +273,21 @@ config = Config(
     learning_rate=0.0005,
     lr_gamma=0.89,
     l2_reg_weight=0.01,
-    lv_reg_weight=0.05,
+    lv_reg_weight=0.06,
     land_reg_weight=0.0001,
-    use_aws=False,
-    aws_loss_weight=1e-4,
+    use_aws=True,
+    aws_loss_weight=5e-4,
     optimizer=torch.optim.Adam,
+    # 1 channel
+    use_dem=True,
+    # 1 channel
+    use_latitude=True,
+    # 1 channel
+    use_day_of_year=True,
+    # 1 channel
+    use_solar=True,
+    # 5 channels
+    use_prior_day=True,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -301,27 +316,58 @@ if config.use_aws:
         RETRIEVAL_MIN,
     )
 
-solar_ds = NpyDataset(
-    normalize(np.load("../data/train/solar_rad-2007-2010-AM-ak.npy"))
-)
+# Input dataset creation
+datasets = []
 tb_ds = NpyDataset(np.load("../data/train/tb-2007-2010-D-ak.npy"))
 reduced_indices = list(range(1, len(tb_ds)))
-train_ds = GridsStackDataset(
-    [
-        Subset(RepeatDataset(land_channel, len(tb_ds)), reduced_indices),
-        Subset(RepeatDataset(dem_channel, len(tb_ds)), reduced_indices),
-        Subset(RepeatDataset(lat_channel, len(tb_ds)), reduced_indices),
-        Subset(doy_ds, reduced_indices),
-        Subset(solar_ds, reduced_indices),
-        Subset(tb_ds, list(range(0, len(tb_ds) - 1))),
-        Subset(tb_ds, reduced_indices),
-    ]
-)
+# Land channel
+ds = RepeatDataset(land_channel, len(tb_ds))
+if config.use_prior_day:
+    ds = Subset(ds, reduced_indices)
+    datasets.append(ds)
+# DEM channel
+if config.use_dem:
+    ds = RepeatDataset(dem_channel, len(tb_ds))
+    if config.use_prior_day:
+        ds = Subset(ds, reduced_indices)
+    datasets.append(ds)
+# Latitude channel
+if config.use_latitude:
+    ds = RepeatDataset(lat_channel, len(tb_ds))
+    if config.use_prior_day:
+        ds = Subset(ds, reduced_indices)
+    datasets.append(ds)
+# Day of year channel
+if config.use_day_of_year:
+    ds = build_day_of_year_ds(
+        "../data/train/date_map-2007-2010.csv", land_mask_np.shape
+    )
+    if config.use_prior_day:
+        ds = Subset(ds, reduced_indices)
+    datasets.append(ds)
+# Solar radiation channel
+if config.use_solar:
+    ds = NpyDataset(
+        normalize(np.load("../data/train/solar_rad-2007-2010-AM-ak.npy"))
+    )
+    if config.use_prior_day:
+        ds = Subset(ds, reduced_indices)
+    datasets.append(ds)
+# Prior day Tb channels
+if config.use_prior_day:
+    ds = Subset(tb_ds, list(range(0, len(tb_ds) - 1)))
+    datasets.append(ds)
+# Tb channels
+if config.use_prior_day:
+    tb_ds = Subset(tb_ds, reduced_indices)
+datasets.append(tb_ds)
+
+input_ds = GridsStackDataset(datasets)
 era_ds = Subset(
     NpyDataset("../data/train/era5-t2m-am-2007-2010-ak.npy"), reduced_indices
 )
-idx_ds = IndexEchoDataset(len(train_ds))
-ds = ComposedDataset([idx_ds, train_ds, era_ds])
+idx_ds = IndexEchoDataset(len(input_ds))
+ds = ComposedDataset([idx_ds, input_ds, era_ds])
 dataloader = torch.utils.data.DataLoader(
     ds,
     batch_size=config.batch_size,
@@ -422,27 +468,52 @@ for epoch in range(config.epochs):
     sched.step()
 writer.close()
 
-val_doy_ds = build_day_of_year_ds(
-    "../data/val/date_map-2015.csv", land_mask_np.shape
-)
-solar_val_ds = NpyDataset(
-    normalize(np.load("../data/val/solar_rad-2015-AM-ak.npy"))
-)
-input_val_ds = NpyDataset(np.load("../data/val/tb-2015-D-ak.npy"))
-reduced_indices = list(range(1, len(input_val_ds)))
-input_val_ds = GridsStackDataset(
-    [
-        Subset(
-            RepeatDataset(land_channel, len(input_val_ds)), reduced_indices
-        ),
-        Subset(RepeatDataset(dem_channel, len(input_val_ds)), reduced_indices),
-        Subset(RepeatDataset(lat_channel, len(input_val_ds)), reduced_indices),
-        Subset(val_doy_ds, reduced_indices),
-        Subset(solar_val_ds, reduced_indices),
-        Subset(input_val_ds, list(range(0, len(input_val_ds) - 1))),
-        Subset(input_val_ds, reduced_indices),
-    ]
-)
+datasets = []
+tb_ds = NpyDataset(np.load("../data/val/tb-2015-D-ak.npy"))
+reduced_indices = list(range(1, len(tb_ds)))
+# Land channel
+ds = RepeatDataset(land_channel, len(tb_ds))
+if config.use_prior_day:
+    ds = Subset(ds, reduced_indices)
+    datasets.append(ds)
+# DEM channel
+if config.use_dem:
+    ds = RepeatDataset(dem_channel, len(tb_ds))
+    if config.use_prior_day:
+        ds = Subset(ds, reduced_indices)
+    datasets.append(ds)
+# Latitude channel
+if config.use_latitude:
+    ds = RepeatDataset(lat_channel, len(tb_ds))
+    if config.use_prior_day:
+        ds = Subset(ds, reduced_indices)
+    datasets.append(ds)
+# Day of year channel
+if config.use_day_of_year:
+    ds = build_day_of_year_ds(
+        "../data/val/date_map-2015.csv", land_mask_np.shape
+    )
+    if config.use_prior_day:
+        ds = Subset(ds, reduced_indices)
+    datasets.append(ds)
+# Solar radiation channel
+if config.use_solar:
+    ds = NpyDataset(
+        normalize(np.load("../data/val/solar_rad-2015-AM-ak.npy"))
+    )
+    if config.use_prior_day:
+        ds = Subset(ds, reduced_indices)
+    datasets.append(ds)
+# Prior day Tb channels
+if config.use_prior_day:
+    ds = Subset(tb_ds, list(range(0, len(tb_ds) - 1)))
+    datasets.append(ds)
+# Tb channels
+if config.use_prior_day:
+    tb_ds = Subset(tb_ds, reduced_indices)
+datasets.append(tb_ds)
+
+input_val_ds = GridsStackDataset(datasets)
 era_val_ds = Subset(
     NpyDataset("../data/val/era5-t2m-am-2015-ak.npy"), reduced_indices
 )
