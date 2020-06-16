@@ -26,7 +26,7 @@ def dataset_to_array(ds):
     n = len(ds)
     shape = (n, *ds[0].shape)
     ar = np.zeros(shape)
-    for i, x in enumerate(ds):
+    for i, x in enumerate(tqdm.tqdm(ds, ncols=80, desc="DS to array")):
         ar[i] = x
     return ar
 
