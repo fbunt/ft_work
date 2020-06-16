@@ -102,8 +102,9 @@ def prep(start_date, solar, tb, era, out_dir, region):
 
 AK = "ak"
 NH = "nh"
-reg2trans = {AK: AK_VIEW_TRANS, NH: NH_VIEW_TRANS}
-region = NH
+GL = "gl"
+reg2trans = {AK: AK_VIEW_TRANS, NH: NH_VIEW_TRANS, GL: None}
+region = GL
 transform = reg2trans[region]
 
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
