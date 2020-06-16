@@ -54,6 +54,7 @@ def fill_gaps(x, nanmask):
                     right = 0
                 cleaned[i][m] = np.nanmean([x[left][m], x[right][m]], axis=0)
         nanmask = np.isnan(cleaned)
+        print(f"Percent nan: {np.isnan(cleaned).sum() / cleaned.size * 100} %")
         if not nanmask.any():
             break
         x = cleaned.copy()
@@ -102,7 +103,7 @@ def prep(start_date, solar, tb, era, out_dir, region):
 AK = "ak"
 NH = "nh"
 reg2trans = {AK: AK_VIEW_TRANS, NH: NH_VIEW_TRANS}
-region = AK
+region = NH
 transform = reg2trans[region]
 
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
