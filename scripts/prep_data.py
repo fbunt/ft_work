@@ -109,6 +109,7 @@ base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 out_dir = "../data/cleaned"
 
 # Training data
+print("Loading solar")
 solar = dataset_to_array(
     torch.utils.data.ConcatDataset(
         [
@@ -125,7 +126,9 @@ path_groups = [
     glob.glob("../data/tb/2009/tb_2009_F17_ML_D*.nc"),
     glob.glob("../data/tb/2010/tb_2010_F17_ML_D*.nc"),
 ]
+print("Loading tb")
 tb = dataset_to_array(build_tb_ds(path_groups, transform))
+print("Loading ERA")
 era = dataset_to_array(
     dl.ERA5BidailyDataset(
         [
@@ -144,12 +147,15 @@ prep(dt.date(2007, 1, 1), solar, tb, era, out_dir, region)
 
 
 # Validation data
+print("Loading solar")
 solar = dataset_to_array(
     dl.NpyDataset("../data/solar/solar_rad-daily-2015-{region}.npy")
 )
+print("Loading tb")
 tb = dataset_to_array(
     build_tb_ds([glob.glob("../data/tb/2015/tb_2015_F17_ML_D*.nc")], transform)
 )
+print("Loading ERA")
 era = dataset_to_array(
     dl.ERA5BidailyDataset(
         ["../data/era5/t2m/bidaily/era5-t2m-bidaily-2015.nc"],
