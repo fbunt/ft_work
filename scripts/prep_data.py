@@ -149,7 +149,7 @@ prep(dt.date(2007, 1, 1), solar, tb, era, out_dir, region)
 # Validation data
 print("Loading solar")
 solar = dataset_to_array(
-    dl.NpyDataset("../data/solar/solar_rad-daily-2015-{region}.npy")
+    dl.NpyDataset(f"../data/solar/solar_rad-daily-2015-{region}.npy")
 )
 print("Loading tb")
 tb = dataset_to_array(
