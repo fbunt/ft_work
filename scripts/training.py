@@ -219,16 +219,18 @@ def normalize(x):
     if len(x.shape) < 4:
         return (x - x.mean()) / x.std()
     else:
+        x = x.copy()
         for i in range(x.shape[1]):
             sub = x[:, i]
             x[:, i] = (sub - sub.mean()) / sub.std()
         return x
 
 
-def build_day_of_year_ds(dates_path, shape):
+def build_day_of_year_ds(dates_path, shape, config):
     dates = load_dates(dates_path)
     doys = np.array([d.timetuple().tm_yday for d in dates], dtype=float)
-    doys = normalize(doys)
+    if config.normalize:
+        doys = normalize(doys)
     ds = SingleValueGridDataset(doys, shape)
     return ds
 
@@ -244,7 +246,10 @@ def build_input_dataset(
     solar_path,
 ):
     datasets = []
-    tb_ds = NpyDataset(np.load(tb_path))
+    tb_ds = np.load(tb_path)
+    if config.normalize:
+        tb_ds = normalize(tb_ds)
+    tb_ds = NpyDataset(tb_ds)
     reduced_indices = list(range(1, len(tb_ds)))
     # Land channel
     ds = RepeatDataset(land_mask, len(tb_ds))
@@ -254,25 +259,32 @@ def build_input_dataset(
     # DEM channel
     if config.use_dem:
         dem_channel = torch.tensor(np.load(dem_path)).float()
+        if config.normalize:
+            dem_channel = normalize(dem_channel)
         ds = RepeatDataset(dem_channel, len(tb_ds))
         if config.use_prior_day:
             ds = Subset(ds, reduced_indices)
         datasets.append(ds)
     # Latitude channel
     if config.use_latitude:
-        ds = RepeatDataset(lat_channel, len(tb_ds))
+        if config.normalize:
+            latitude_grid = normalize(latitude_grid)
+        ds = RepeatDataset(latitude_grid, len(tb_ds))
         if config.use_prior_day:
             ds = Subset(ds, reduced_indices)
         datasets.append(ds)
     # Day of year channel
     if config.use_day_of_year:
-        ds = build_day_of_year_ds(date_map_path, date_ds_shape)
+        ds = build_day_of_year_ds(date_map_path, date_ds_shape, config)
         if config.use_prior_day:
             ds = Subset(ds, reduced_indices)
         datasets.append(ds)
     # Solar radiation channel
     if config.use_solar:
-        ds = NpyDataset(normalize(np.load(solar_path)))
+        ds = np.load(solar_path)
+        if config.normalize:
+            ds = normalize(ds)
+        ds = NpyDataset(ds)
         if config.use_prior_day:
             ds = Subset(ds, reduced_indices)
         datasets.append(ds)
@@ -305,6 +317,7 @@ Config = namedtuple(
         "land_reg_weight",
         "use_aws",
         "optimizer",
+        "normalize",
         "aws_loss_weight",
         "use_dem",
         "use_latitude",
@@ -332,6 +345,7 @@ config = Config(
     use_aws=True,
     aws_loss_weight=5e-4,
     optimizer=torch.optim.Adam,
+    normalize=True,
     # 1 channel
     use_dem=True,
     # 1 channel
@@ -350,15 +364,10 @@ base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 water_mask = torch.tensor(transform(base_water_mask))
 land_mask = ~water_mask
 land_mask_np = land_mask.numpy()
-land_channel = torch.tensor(normalize(land_mask.numpy())).float()
-dem_channel = torch.tensor(
-    transform(normalize(np.load("../data/z/dem.npy")))
-).float()
+land_channel = torch.tensor(land_mask.numpy()).float()
+dem_channel = torch.tensor(transform(np.load("../data/z/dem.npy"))).float()
 elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
-lat_channel = torch.tensor(transform(normalize(elat))).float()
-doy_ds = build_day_of_year_ds(
-    "../data/train/date_map-2007-2010.csv", land_mask_np.shape
-)
+lat_channel = torch.tensor(transform(elat)).float()
 
 if config.use_aws:
     aws_data = get_aws_data(
