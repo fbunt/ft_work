@@ -250,7 +250,7 @@ def build_input_dataset(
     ds = RepeatDataset(land_mask, len(tb_ds))
     if config.use_prior_day:
         ds = Subset(ds, reduced_indices)
-        datasets.append(ds)
+    datasets.append(ds)
     # DEM channel
     if config.use_dem:
         dem_channel = torch.tensor(np.load(dem_path)).float()
