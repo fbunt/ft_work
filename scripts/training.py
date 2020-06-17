@@ -253,9 +253,7 @@ def build_input_dataset(
         datasets.append(ds)
     # DEM channel
     if config.use_dem:
-        dem_channel = torch.tensor(
-            transform(normalize(np.load(dem_path)))
-        ).float()
+        dem_channel = torch.tensor(np.load(dem_path)).float()
         ds = RepeatDataset(dem_channel, len(tb_ds))
         if config.use_prior_day:
             ds = Subset(ds, reduced_indices)
@@ -496,13 +494,13 @@ dataloader = None
 
 # Validation
 input_ds = build_input_dataset(
+    config,
     "../data/val/tb-2015-D-ak.npy",
     "../data/z/dem-ak.npy",
     land_channel,
     lat_channel,
     "../data/val/date_map-2015.csv",
     land_mask_np.shape,
-    "../data/val/solar_rad-2015-AM-ak.npy",
     "../data/val/solar_rad-2015-AM-ak.npy",
 )
 reduced_indices = list(range(1, len(input_ds) + 1))
