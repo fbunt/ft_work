@@ -347,6 +347,7 @@ config = Config(
     # Base channels:
     #  * land mask: 1
     #  * tb: 5
+    in_chan=6,
     n_classes=3,
     depth=4,
     base_filters=64,
