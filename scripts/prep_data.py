@@ -79,7 +79,7 @@ def prep(start_date, solar, tb, era, out_dir, region):
     tb = fill_gaps(tb, nanmask)
     # Only need one of the identical masks
     nanmask = nanmask[:, 0]
-    vmask = nanmask
+    vmask = ~nanmask
 
     start_year = dates[0].year
     end_year = dates[-1].year
