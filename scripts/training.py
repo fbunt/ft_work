@@ -91,11 +91,17 @@ def write_results(
 
     # Validate against ERA5
     print("Validating against ERA5")
-    masked_pred = [p[land_mask & vmask] for p, vmask in zip(pred, val_mask_ds)]
-    era = [
-        v.argmax(0)[land_mask & vmask]
-        for v, vmask in zip(era_val_ds, val_mask_ds)
-    ]
+    if config.val_use_valid_mask:
+        masked_pred = [
+            p[land_mask & vmask] for p, vmask in zip(pred, val_mask_ds)
+        ]
+        era = [
+            v.argmax(0)[land_mask & vmask]
+            for v, vmask in zip(era_val_ds, val_mask_ds)
+        ]
+    else:
+        masked_pred = [p[land_mask] for p in pred]
+        era = [v.argmax(0)[land_mask] for v in era_val_ds]
     era_acc = np.array(
         [(p == e).sum() / p.size for p, e in zip(masked_pred, era)]
     )
@@ -104,15 +110,18 @@ def write_results(
     pf = WMOValidationPointFetcher(db, RETRIEVAL_MIN)
     elon, elat = [view_trans(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
     aws_val = WMOValidator(pf)
-    mask_iter = (land_mask & vmask for vmask in val_mask_ds)
+    if config.val_use_valid_mask:
+        mask = (land_mask & vmask for vmask in val_mask_ds)
+    else:
+        mask = land_mask
     aws_acc = aws_val.validate_bounded(
         pred,
         val_dates,
         elon,
         elat,
-        mask_iter,
+        mask,
         show_progress=True,
-        variable_mask=True,
+        variable_mask=config.val_use_valid_mask,
     )
     aws_acc *= 100
     acc_file = os.path.join(root, "acc.csv")
@@ -321,6 +330,7 @@ Config = namedtuple(
         "land_reg_weight",
         "use_aws",
         "aws_use_valid_mask",
+        "val_use_valid_mask",
         "optimizer",
         "normalize",
         "aws_loss_weight",
@@ -352,6 +362,7 @@ config = Config(
     use_aws=True,
     aws_use_valid_mask=False,
     aws_loss_weight=5e-4,
+    val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
     normalize=True,
     # 1 channel
