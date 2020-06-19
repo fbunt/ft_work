@@ -42,6 +42,8 @@ def get_n_dates(start_date, n):
 
 
 def fill_gaps(x, nanmask):
+    # TODO: find successor/predecessor
+    # TODO: weighted avg based on days forward and back
     cleaned = x.copy()
     j = 0
     while True:
