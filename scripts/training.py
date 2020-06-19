@@ -366,10 +366,11 @@ base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 water_mask = torch.tensor(transform(base_water_mask))
 land_mask = ~water_mask
 land_mask_np = land_mask.numpy()
-land_channel = torch.tensor(land_mask.numpy()).float()
+land_channel = torch.tensor(land_mask_np).float()
 dem_channel = torch.tensor(transform(np.load("../data/z/dem.npy"))).float()
 elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
 lat_channel = torch.tensor(transform(elat)).float()
+data_grid_shape = land_mask_np.shape
 
 if config.use_aws:
     aws_data = get_aws_data(
@@ -388,7 +389,7 @@ input_ds = build_input_dataset(
     land_channel,
     lat_channel,
     "../data/train/date_map-2007-2010.csv",
-    land_mask_np.shape,
+    data_grid_shape,
     "../data/train/solar_rad-2007-2010-AM-ak.npy",
 )
 # Validation dataset
@@ -511,7 +512,7 @@ input_ds = build_input_dataset(
     land_channel,
     lat_channel,
     "../data/val/date_map-2015.csv",
-    land_mask_np.shape,
+    data_grid_shape,
     "../data/val/solar_rad-2015-AM-ak.npy",
 )
 reduced_indices = list(range(1, len(input_ds) + 1))
