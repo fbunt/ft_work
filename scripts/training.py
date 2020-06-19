@@ -374,8 +374,8 @@ data_grid_shape = land_mask_np.shape
 
 if config.use_aws:
     aws_data = get_aws_data(
-        "../data/train/date_map-2007-2010.csv",
-        "../data/train/tb_valid_mask-2007-2010-D-ak.npy",
+        "../data/cleaned/date_map-2007-2010.csv",
+        "../data/cleaned/tb_valid_mask-2007-2010-D-ak.npy",
         "../data/dbs/wmo_gsod.db",
         land_mask_np,
         transform,
@@ -384,16 +384,16 @@ if config.use_aws:
 # Input dataset creation
 input_ds = build_input_dataset(
     config,
-    "../data/train/tb-2007-2010-D-ak.npy",
+    "../data/cleaned/tb-2007-2010-D-ak.npy",
     "../data/z/dem-ak.npy",
     land_channel,
     lat_channel,
-    "../data/train/date_map-2007-2010.csv",
+    "../data/cleaned/date_map-2007-2010.csv",
     data_grid_shape,
-    "../data/train/solar_rad-2007-2010-AM-ak.npy",
+    "../data/cleaned/solar_rad-2007-2010-AM-ak.npy",
 )
 # Validation dataset
-era_ds = NpyDataset("../data/train/era5-t2m-am-2007-2010-ak.npy")
+era_ds = NpyDataset("../data/cleaned/era5-t2m-am-2007-2010-ak.npy")
 if config.use_prior_day:
     era_ds = Subset(era_ds, list(range(1, len(input_ds) + 1)))
 idx_ds = IndexEchoDataset(len(input_ds))
@@ -507,18 +507,18 @@ dataloader = None
 # Validation
 input_ds = build_input_dataset(
     config,
-    "../data/val/tb-2015-D-ak.npy",
+    "../data/cleaned/tb-2015-D-ak.npy",
     "../data/z/dem-ak.npy",
     land_channel,
     lat_channel,
-    "../data/val/date_map-2015.csv",
+    "../data/cleaned/date_map-2015.csv",
     data_grid_shape,
-    "../data/val/solar_rad-2015-AM-ak.npy",
+    "../data/cleaned/solar_rad-2015-AM-ak.npy",
 )
 reduced_indices = list(range(1, len(input_ds) + 1))
-era_ds = NpyDataset("../data/val/era5-t2m-am-2015-ak.npy")
-val_mask_ds = NpyDataset("../data/val/tb_valid_mask-2015-D-ak.npy")
-val_dates = load_dates("../data/val/date_map-2015.csv")
+era_ds = NpyDataset("../data/cleaned/era5-t2m-am-2015-ak.npy")
+val_mask_ds = NpyDataset("../data/cleaned/tb_valid_mask-2015-D-ak.npy")
+val_dates = load_dates("../data/cleaned/date_map-2015.csv")
 if config.use_prior_day:
     era_ds = Subset(era_ds, reduced_indices)
     val_mask_ds = Subset(val_mask_ds, reduced_indices)
