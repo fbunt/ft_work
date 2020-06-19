@@ -358,24 +358,24 @@ config = Config(
     learning_rate=0.0005,
     lr_gamma=0.89,
     l2_reg_weight=0.01,
-    lv_reg_weight=0.06,
+    lv_reg_weight=0.05,
     land_reg_weight=0.0001,
     use_aws=True,
     aws_use_valid_mask=False,
     aws_loss_weight=5e-4,
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
-    normalize=True,
+    normalize=False,
     # 1 channel
-    use_dem=True,
+    use_dem=False,
     # 1 channel
-    use_latitude=True,
+    use_latitude=False,
     # 1 channel
-    use_day_of_year=True,
+    use_day_of_year=False,
     # 1 channel
-    use_solar=True,
+    use_solar=False,
     # 5 channels
-    use_prior_day=True,
+    use_prior_day=False,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
