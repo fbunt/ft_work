@@ -179,7 +179,7 @@ def aws_loss_func(batch_pred_logits, batch_idxs, batch_labels, config, device):
 
 
 def get_aws_data(
-    dates_path, masks_path, db_path, land_mask, transform, ret_type
+    dates_path, masks_path, db_path, land_mask, transform, ret_type, config
 ):
     train_dates = load_dates(dates_path)
     mask_ds = NpyDataset(masks_path)
@@ -195,6 +195,7 @@ def get_aws_data(
     ]
     valid_flat_idxs = []
     aws_labels = []
+    use_valid_mask = config.aws_use_valid_mask
     for d, mask in tqdm.tqdm(
         zip(train_dates, mask_ds),
         ncols=80,
@@ -203,7 +204,10 @@ def get_aws_data(
     ):
         vpoints, vtemps = aws_pf.fetch_bounded(d, geo_bounds)
         vft = ft_model_zero_threshold(vtemps).astype(int)
-        mask = mask & land_mask
+        if use_valid_mask:
+            mask = mask & land_mask
+        else:
+            mask = land_mask
         # The set of valid indices
         valid_idxs = set(np.nonzero(mask.ravel())[0])
         idxs, vft = get_nearest_flat_idxs_and_values(
@@ -316,6 +320,7 @@ Config = namedtuple(
         "lv_reg_weight",
         "land_reg_weight",
         "use_aws",
+        "aws_use_valid_mask",
         "optimizer",
         "normalize",
         "aws_loss_weight",
@@ -345,6 +350,7 @@ config = Config(
     lv_reg_weight=0.06,
     land_reg_weight=0.0001,
     use_aws=True,
+    aws_use_valid_mask=False,
     aws_loss_weight=5e-4,
     optimizer=torch.optim.Adam,
     normalize=True,
@@ -380,6 +386,7 @@ if config.use_aws:
         land_mask_np,
         transform,
         RETRIEVAL_MIN,
+        config,
     )
 # Input dataset creation
 input_ds = build_input_dataset(
