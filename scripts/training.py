@@ -251,7 +251,7 @@ def build_day_of_year_ds(dates_path, shape, config):
 def build_input_dataset(
     config,
     tb_path,
-    dem_path,
+    dem,
     land_mask,
     latitude_grid,
     date_map_path,
@@ -271,7 +271,7 @@ def build_input_dataset(
     datasets.append(ds)
     # DEM channel
     if config.use_dem:
-        dem_channel = torch.tensor(np.load(dem_path)).float()
+        dem_channel = torch.tensor(dem).float()
         if config.normalize:
             dem_channel = normalize(dem_channel)
         ds = RepeatDataset(dem_channel, len(tb_ds))
@@ -403,7 +403,7 @@ if config.use_aws:
 input_ds = build_input_dataset(
     config,
     "../data/cleaned/tb-2007-2010-D-ak.npy",
-    "../data/z/dem-ak.npy",
+    transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
     "../data/cleaned/date_map-2007-2010.csv",
@@ -526,7 +526,7 @@ dataloader = None
 input_ds = build_input_dataset(
     config,
     "../data/cleaned/tb-2015-D-ak.npy",
-    "../data/z/dem-ak.npy",
+    transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
     "../data/cleaned/date_map-2015.csv",
