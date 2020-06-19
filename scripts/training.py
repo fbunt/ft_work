@@ -163,7 +163,7 @@ def write_results(
 
 
 def aws_loss_func(batch_pred_logits, batch_idxs, batch_labels, config, device):
-    loss = 0
+    loss = 0.0
     for pred, flat_idxs, labels in zip(
         batch_pred_logits, batch_idxs, batch_labels
     ):
