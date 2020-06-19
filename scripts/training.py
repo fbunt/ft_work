@@ -329,7 +329,9 @@ Config = namedtuple(
 
 
 config = Config(
-    in_chan=15,
+    # Base channels:
+    #  * land mask: 1
+    #  * tb: 5
     n_classes=3,
     depth=4,
     base_filters=64,
