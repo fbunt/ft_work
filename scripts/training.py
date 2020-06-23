@@ -392,7 +392,7 @@ data_grid_shape = land_mask_np.shape
 
 if config.use_aws:
     aws_data = get_aws_data(
-        "../data/cleaned/date_map-2007-2010.csv",
+        "../data/cleaned/date_map-2007-2010-ak.csv",
         "../data/cleaned/tb_valid_mask-D-2007-2010-ak.npy",
         "../data/dbs/wmo_gsod.db",
         land_mask_np,
@@ -407,7 +407,7 @@ input_ds = build_input_dataset(
     transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
-    "../data/cleaned/date_map-2007-2010.csv",
+    "../data/cleaned/date_map-2007-2010-ak.csv",
     data_grid_shape,
     "../data/cleaned/solar_rad-AM-2007-2010-ak.npy",
 )
@@ -530,14 +530,14 @@ input_ds = build_input_dataset(
     transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
-    "../data/cleaned/date_map-2015.csv",
+    "../data/cleaned/date_map-2015-ak.csv",
     data_grid_shape,
     "../data/cleaned/solar_rad-AM-2015-ak.npy",
 )
 reduced_indices = list(range(1, len(input_ds) + 1))
 era_ds = NpyDataset("../data/cleaned/era5-t2m-am-2015-ak.npy")
 val_mask_ds = NpyDataset("../data/cleaned/tb_valid_mask-D-2015-ak.npy")
-val_dates = load_dates("../data/cleaned/date_map-2015.csv")
+val_dates = load_dates("../data/cleaned/date_map-2015-ak.csv")
 if config.use_prior_day:
     era_ds = Subset(era_ds, reduced_indices)
     val_mask_ds = Subset(val_mask_ds, reduced_indices)
