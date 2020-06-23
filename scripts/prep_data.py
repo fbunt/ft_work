@@ -41,6 +41,10 @@ def get_n_dates(start_date, n):
     return dates
 
 
+def get_missing_ratio(x):
+    return np.isnan(x).sum() / x.size
+
+
 def fill_gaps(x, nanmask):
     # TODO: find successor/predecessor
     # TODO: weighted avg based on days forward and back
@@ -64,13 +68,17 @@ def fill_gaps(x, nanmask):
     return cleaned
 
 
-def prep(start_date, solar, tb, era, out_dir, region):
+def prep(start_date, solar, tb, era, out_dir, region, missing_cutoff=0.6):
     out_dir = os.path.abspath(out_dir)
     n = len(solar)
     dates = np.array(get_n_dates(start_date, n))
     # Filter out indices where all Tb data is missing
-    good_idxs = [i for i in range(n) if not np.isnan(tb[i]).all()]
-    bad_idxs = [i for i in range(n) if np.isnan(tb[i]).all()]
+    good_idxs = [
+        i for i in range(n) if get_missing_ratio(tb[i]) < missing_cutoff
+    ]
+    bad_idxs = [
+        i for i in range(n) if get_missing_ratio(tb[i]) >= missing_cutoff
+    ]
     n = len(good_idxs)
     dropped_dates = dates[bad_idxs]
     dates = dates[good_idxs]
