@@ -125,7 +125,7 @@ reg2trans = {
     NH: NH_VIEW_TRANS,
     N45: N45_VIEW_TRANS,
     N45W: N45W_VIEW_TRANS,
-    GL: None,
+    GL: lambda x: x,
 }
 region = N45W
 transform = reg2trans[region]
@@ -138,10 +138,18 @@ print("Loading solar")
 solar = dataset_to_array(
     torch.utils.data.ConcatDataset(
         [
-            dl.NpyDataset(f"../data/solar/solar_rad-daily-2007-{region}.npy"),
-            dl.NpyDataset(f"../data/solar/solar_rad-daily-2008-{region}.npy"),
-            dl.NpyDataset(f"../data/solar/solar_rad-daily-2009-{region}.npy"),
-            dl.NpyDataset(f"../data/solar/solar_rad-daily-2010-{region}.npy"),
+            dl.NpyDataset(
+                f"../data/solar/solar_rad-daily-2007.npy", transform
+            ),
+            dl.NpyDataset(
+                f"../data/solar/solar_rad-daily-2008.npy", transform
+            ),
+            dl.NpyDataset(
+                f"../data/solar/solar_rad-daily-2009.npy", transform
+            ),
+            dl.NpyDataset(
+                f"../data/solar/solar_rad-daily-2010.npy", transform
+            ),
         ]
     )
 )
@@ -174,7 +182,7 @@ prep(dt.date(2007, 1, 1), solar, tb, era, out_dir, region)
 # Validation data
 print("Loading solar")
 solar = dataset_to_array(
-    dl.NpyDataset(f"../data/solar/solar_rad-daily-2015-{region}.npy")
+    dl.NpyDataset(f"../data/solar/solar_rad-daily-2015.npy", transform)
 )
 print("Loading tb")
 tb = dataset_to_array(
