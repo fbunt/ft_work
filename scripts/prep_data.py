@@ -138,18 +138,10 @@ print("Loading solar")
 solar = dataset_to_array(
     torch.utils.data.ConcatDataset(
         [
-            dl.NpyDataset(
-                f"../data/solar/solar_rad-daily-2007.npy", transform
-            ),
-            dl.NpyDataset(
-                f"../data/solar/solar_rad-daily-2008.npy", transform
-            ),
-            dl.NpyDataset(
-                f"../data/solar/solar_rad-daily-2009.npy", transform
-            ),
-            dl.NpyDataset(
-                f"../data/solar/solar_rad-daily-2010.npy", transform
-            ),
+            dl.NpyDataset("../data/solar/solar_rad-daily-2007.npy", transform),
+            dl.NpyDataset("../data/solar/solar_rad-daily-2008.npy", transform),
+            dl.NpyDataset("../data/solar/solar_rad-daily-2009.npy", transform),
+            dl.NpyDataset("../data/solar/solar_rad-daily-2010.npy", transform),
         ]
     )
 )
