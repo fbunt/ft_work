@@ -102,10 +102,10 @@ def prep(start_date, solar, tb, era, out_dir, region, missing_cutoff=0.6):
     np.save(f"{out_dir}/tb-{year_str}-D-{region}.npy", tb)
     np.save(f"{out_dir}/era5-t2m-am-{year_str}-{region}.npy", era)
     np.save(f"{out_dir}/tb_valid_mask-{year_str}-D-{region}.npy", vmask)
-    with open(f"{out_dir}/date_map-{year_str}.csv", "w") as fd:
+    with open(f"{out_dir}/date_map-{year_str}-{region}.csv", "w") as fd:
         for i, d in zip(good_idxs, dates):
             fd.write(f"{i},{d}\n")
-    with open(f"{out_dir}/dropped_dates-{year_str}.csv", "w") as fd:
+    with open(f"{out_dir}/dropped_dates-{year_str}-{region}.csv", "w") as fd:
         for d in dropped_dates:
             fd.write(f"{d}\n")
 
