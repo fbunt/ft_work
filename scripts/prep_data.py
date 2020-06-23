@@ -5,7 +5,12 @@ import os
 import torch
 import tqdm
 
-from transforms import AK_VIEW_TRANS, NH_VIEW_TRANS
+from transforms import (
+    AK_VIEW_TRANS,
+    NH_VIEW_TRANS,
+    N45_VIEW_TRANS,
+    N45W_VIEW_TRANS,
+)
 import dataloading as dl
 
 
@@ -41,7 +46,13 @@ def get_n_dates(start_date, n):
     return dates
 
 
+def get_missing_ratio(x):
+    return np.isnan(x).sum() / x.size
+
+
 def fill_gaps(x, nanmask):
+    # TODO: find successor/predecessor
+    # TODO: weighted avg based on days forward and back
     cleaned = x.copy()
     j = 0
     while True:
@@ -62,13 +73,17 @@ def fill_gaps(x, nanmask):
     return cleaned
 
 
-def prep(start_date, solar, tb, era, out_dir, region):
+def prep(start_date, solar, tb, era, out_dir, region, missing_cutoff=0.6):
     out_dir = os.path.abspath(out_dir)
     n = len(solar)
     dates = np.array(get_n_dates(start_date, n))
     # Filter out indices where all Tb data is missing
-    good_idxs = [i for i in range(n) if not np.isnan(tb[i]).all()]
-    bad_idxs = [i for i in range(n) if np.isnan(tb[i]).all()]
+    good_idxs = [
+        i for i in range(n) if get_missing_ratio(tb[i]) < missing_cutoff
+    ]
+    bad_idxs = [
+        i for i in range(n) if get_missing_ratio(tb[i]) >= missing_cutoff
+    ]
     n = len(good_idxs)
     dropped_dates = dates[bad_idxs]
     dates = dates[good_idxs]
@@ -88,23 +103,31 @@ def prep(start_date, solar, tb, era, out_dir, region):
         year_str = str(start_year)
     else:
         year_str = f"{start_year}-{end_year}"
-    np.save(f"{out_dir}/solar_rad-{year_str}-AM-{region}.npy", solar)
-    np.save(f"{out_dir}/tb-{year_str}-D-{region}.npy", tb)
+    np.save(f"{out_dir}/solar_rad-AM-{year_str}-{region}.npy", solar)
+    np.save(f"{out_dir}/tb-D-{year_str}-{region}.npy", tb)
     np.save(f"{out_dir}/era5-t2m-am-{year_str}-{region}.npy", era)
-    np.save(f"{out_dir}/tb_valid_mask-{year_str}-D-{region}.npy", vmask)
-    with open(f"{out_dir}/date_map-{year_str}.csv", "w") as fd:
+    np.save(f"{out_dir}/tb_valid_mask-D-{year_str}-{region}.npy", vmask)
+    with open(f"{out_dir}/date_map-{year_str}-{region}.csv", "w") as fd:
         for i, d in zip(good_idxs, dates):
             fd.write(f"{i},{d}\n")
-    with open(f"{out_dir}/dropped_dates-{year_str}.csv", "w") as fd:
+    with open(f"{out_dir}/dropped_dates-{year_str}-{region}.csv", "w") as fd:
         for d in dropped_dates:
             fd.write(f"{d}\n")
 
 
 AK = "ak"
 NH = "nh"
+N45 = "n45"
+N45W = "n45w"
 GL = "gl"
-reg2trans = {AK: AK_VIEW_TRANS, NH: NH_VIEW_TRANS, GL: None}
-region = GL
+reg2trans = {
+    AK: AK_VIEW_TRANS,
+    NH: NH_VIEW_TRANS,
+    N45: N45_VIEW_TRANS,
+    N45W: N45W_VIEW_TRANS,
+    GL: lambda x: x,
+}
+region = N45W
 transform = reg2trans[region]
 
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
@@ -115,10 +138,10 @@ print("Loading solar")
 solar = dataset_to_array(
     torch.utils.data.ConcatDataset(
         [
-            dl.NpyDataset(f"../data/solar/solar_rad-daily-2007-{region}.npy"),
-            dl.NpyDataset(f"../data/solar/solar_rad-daily-2008-{region}.npy"),
-            dl.NpyDataset(f"../data/solar/solar_rad-daily-2009-{region}.npy"),
-            dl.NpyDataset(f"../data/solar/solar_rad-daily-2010-{region}.npy"),
+            dl.NpyDataset("../data/solar/solar_rad-daily-2007.npy", transform),
+            dl.NpyDataset("../data/solar/solar_rad-daily-2008.npy", transform),
+            dl.NpyDataset("../data/solar/solar_rad-daily-2009.npy", transform),
+            dl.NpyDataset("../data/solar/solar_rad-daily-2010.npy", transform),
         ]
     )
 )
@@ -151,7 +174,7 @@ prep(dt.date(2007, 1, 1), solar, tb, era, out_dir, region)
 # Validation data
 print("Loading solar")
 solar = dataset_to_array(
-    dl.NpyDataset(f"../data/solar/solar_rad-daily-2015-{region}.npy")
+    dl.NpyDataset(f"../data/solar/solar_rad-daily-2015.npy", transform)
 )
 print("Loading tb")
 tb = dataset_to_array(
