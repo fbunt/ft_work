@@ -5,7 +5,12 @@ import os
 import torch
 import tqdm
 
-from transforms import AK_VIEW_TRANS, NH_VIEW_TRANS
+from transforms import (
+    AK_VIEW_TRANS,
+    NH_VIEW_TRANS,
+    N45_VIEW_TRANS,
+    N45W_VIEW_TRANS,
+)
 import dataloading as dl
 
 
@@ -112,9 +117,17 @@ def prep(start_date, solar, tb, era, out_dir, region, missing_cutoff=0.6):
 
 AK = "ak"
 NH = "nh"
+N45 = "n45"
+N45W = "n45w"
 GL = "gl"
-reg2trans = {AK: AK_VIEW_TRANS, NH: NH_VIEW_TRANS, GL: None}
-region = GL
+reg2trans = {
+    AK: AK_VIEW_TRANS,
+    NH: NH_VIEW_TRANS,
+    N45: N45_VIEW_TRANS,
+    N45W: N45W_VIEW_TRANS,
+    GL: None,
+}
+region = N45W
 transform = reg2trans[region]
 
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
