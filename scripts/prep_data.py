@@ -98,10 +98,10 @@ def prep(start_date, solar, tb, era, out_dir, region, missing_cutoff=0.6):
         year_str = str(start_year)
     else:
         year_str = f"{start_year}-{end_year}"
-    np.save(f"{out_dir}/solar_rad-{year_str}-AM-{region}.npy", solar)
-    np.save(f"{out_dir}/tb-{year_str}-D-{region}.npy", tb)
+    np.save(f"{out_dir}/solar_rad-AM-{year_str}-{region}.npy", solar)
+    np.save(f"{out_dir}/tb-D-{year_str}-{region}.npy", tb)
     np.save(f"{out_dir}/era5-t2m-am-{year_str}-{region}.npy", era)
-    np.save(f"{out_dir}/tb_valid_mask-{year_str}-D-{region}.npy", vmask)
+    np.save(f"{out_dir}/tb_valid_mask-D-{year_str}-{region}.npy", vmask)
     with open(f"{out_dir}/date_map-{year_str}-{region}.csv", "w") as fd:
         for i, d in zip(good_idxs, dates):
             fd.write(f"{i},{d}\n")

@@ -393,7 +393,7 @@ data_grid_shape = land_mask_np.shape
 if config.use_aws:
     aws_data = get_aws_data(
         "../data/cleaned/date_map-2007-2010.csv",
-        "../data/cleaned/tb_valid_mask-2007-2010-D-ak.npy",
+        "../data/cleaned/tb_valid_mask-D-2007-2010-ak.npy",
         "../data/dbs/wmo_gsod.db",
         land_mask_np,
         transform,
@@ -403,13 +403,13 @@ if config.use_aws:
 # Input dataset creation
 input_ds = build_input_dataset(
     config,
-    "../data/cleaned/tb-2007-2010-D-ak.npy",
+    "../data/cleaned/tb-D-2007-2010-ak.npy",
     transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
     "../data/cleaned/date_map-2007-2010.csv",
     data_grid_shape,
-    "../data/cleaned/solar_rad-2007-2010-AM-ak.npy",
+    "../data/cleaned/solar_rad-AM-2007-2010-ak.npy",
 )
 # Validation dataset
 era_ds = NpyDataset("../data/cleaned/era5-t2m-am-2007-2010-ak.npy")
@@ -526,17 +526,17 @@ dataloader = None
 # Validation
 input_ds = build_input_dataset(
     config,
-    "../data/cleaned/tb-2015-D-ak.npy",
+    "../data/cleaned/tb-D-2015-ak.npy",
     transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
     "../data/cleaned/date_map-2015.csv",
     data_grid_shape,
-    "../data/cleaned/solar_rad-2015-AM-ak.npy",
+    "../data/cleaned/solar_rad-AM-2015-ak.npy",
 )
 reduced_indices = list(range(1, len(input_ds) + 1))
 era_ds = NpyDataset("../data/cleaned/era5-t2m-am-2015-ak.npy")
-val_mask_ds = NpyDataset("../data/cleaned/tb_valid_mask-2015-D-ak.npy")
+val_mask_ds = NpyDataset("../data/cleaned/tb_valid_mask-D-2015-ak.npy")
 val_dates = load_dates("../data/cleaned/date_map-2015.csv")
 if config.use_prior_day:
     era_ds = Subset(era_ds, reduced_indices)
