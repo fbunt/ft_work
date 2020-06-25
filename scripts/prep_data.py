@@ -50,27 +50,55 @@ def get_missing_ratio(x):
     return np.isnan(x).sum() / x.size
 
 
-def fill_gaps(x, nanmask):
-    # TODO: find successor/predecessor
-    # TODO: weighted avg based on days forward and back
-    cleaned = x.copy()
-    j = 0
-    while True:
-        for i in tqdm.tqdm(range(len(x)), ncols=80, desc=f"Gap Fill {j + 1}"):
-            m = nanmask[i]
-            if m.any():
-                left = i - 1
-                right = i + 1
-                if right == len(x):
-                    right = 0
-                cleaned[i][m] = np.nanmean([x[left][m], x[right][m]], axis=0)
-        nanmask = np.isnan(cleaned)
-        print(f"Percent nan: {np.isnan(cleaned).sum() / cleaned.size * 100} %")
-        if not nanmask.any():
-            break
-        x = cleaned.copy()
+def get_predecessor(x, i, missing):
+    px = x[i].copy()
+    count = np.zeros(px.shape, dtype=int)
+    j = i - 1
+    while missing.any():
+        px[missing] = x[j, missing]
+        count[missing] += 1
+        missing = np.isnan(px)
+        j -= 1
+    idx = count != 0
+    return px[idx], count[idx]
+
+
+def get_successor(x, i, missing):
+    sx = x[i].copy()
+    count = np.zeros(sx.shape, dtype=int)
+    j = i + 1
+    if j >= len(x):
+        j = 0
+    while missing.any():
+        sx[missing] = x[j, missing]
+        count[missing] += 1
+        missing = np.isnan(sx)
         j += 1
-    return cleaned
+        if j >= len(x):
+            j = 0
+    idx = count != 0
+    return sx[idx], count[idx]
+
+
+def fill_gaps(x):
+    gap_filled = x.copy()
+    for i in tqdm.tqdm(range(len(x)), ncols=80, desc="Gap fill"):
+        gaps = np.isnan(x[i])
+        if not gaps.any():
+            continue
+        # count is how far the alg had to go to find a value
+        # Get past value
+        pred, pcount = get_predecessor(x, i, gaps)
+        # Get future value
+        succ, scount = get_successor(x, i, gaps)
+        # Weighted mean
+        total = pcount + scount
+        # The predecessor/successor with the higher count should be weighted
+        # less and the opposing weight should be 1 - w.
+        pweight = 1 - (pcount / total)
+        sweight = 1 - (scount / total)
+        gap_filled[i][gaps] = (pweight * pred) + (sweight * succ)
+    return gap_filled
 
 
 def prep(start_date, solar, tb, era, out_dir, region, missing_cutoff=0.6):
@@ -90,8 +118,8 @@ def prep(start_date, solar, tb, era, out_dir, region, missing_cutoff=0.6):
     solar = solar[good_idxs]
     tb = tb[good_idxs]
     era = era[good_idxs]
+    tb = fill_gaps(tb)
     nanmask = np.isnan(tb)
-    tb = fill_gaps(tb, nanmask)
     # Only need one of the identical masks
     nanmask = nanmask[:, 0]
     vmask = ~nanmask
