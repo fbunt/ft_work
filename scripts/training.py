@@ -374,7 +374,7 @@ config = Config(
     depth=4,
     base_filters=64,
     epochs=50,
-    batch_size=18,
+    batch_size=10,
     batch_shuffle=False,
     drop_last=False,
     learning_rate=5e-4,
@@ -384,7 +384,7 @@ config = Config(
     land_reg_weight=1e-4,
     use_aws=True,
     aws_use_valid_mask=False,
-    aws_loss_weight=5e-4,
+    aws_loss_weight=5e-2,
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
     normalize=False,
@@ -398,7 +398,7 @@ config = Config(
     use_solar=False,
     # 5 channels
     use_prior_day=False,
-    region=AK,
+    region=N45W,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
