@@ -28,7 +28,12 @@ from model import (
     UNet,
     local_variation_loss,
 )
-from transforms import AK_VIEW_TRANS
+from transforms import (
+    AK_VIEW_TRANS,
+    N45_VIEW_TRANS,
+    N45W_VIEW_TRANS,
+    NH_VIEW_TRANS,
+)
 from validate import (
     RETRIEVAL_MIN,
     WMOValidationPointFetcher,
@@ -342,9 +347,23 @@ Config = namedtuple(
         "use_day_of_year",
         "use_solar",
         "use_prior_day",
+        "region",
     ),
 )
 
+
+# Region codes
+AK = "ak"
+N45 = "n45"
+N45W = "n45w"
+NH = "nh"
+
+region_to_trans = {
+    AK: AK_VIEW_TRANS,
+    N45: N45_VIEW_TRANS,
+    N45W: N45W_VIEW_TRANS,
+    NH: NH_VIEW_TRANS,
+}
 
 config = Config(
     # Base channels:
@@ -379,10 +398,11 @@ config = Config(
     use_solar=False,
     # 5 channels
     use_prior_day=False,
+    region=AK,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-transform = AK_VIEW_TRANS
+transform = region_to_trans[config.region]
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 water_mask = torch.tensor(transform(base_water_mask))
 land_mask = ~water_mask
@@ -395,8 +415,8 @@ data_grid_shape = land_mask_np.shape
 
 if config.use_aws:
     aws_data = get_aws_data(
-        "../data/cleaned/date_map-2007-2010-ak.csv",
-        "../data/cleaned/tb_valid_mask-D-2007-2010-ak.npy",
+        f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
+        f"../data/cleaned/tb_valid_mask-D-2007-2010-{config.region}.npy",
         "../data/dbs/wmo_gsod.db",
         land_mask_np,
         transform,
@@ -406,16 +426,18 @@ if config.use_aws:
 # Input dataset creation
 input_ds = build_input_dataset(
     config,
-    "../data/cleaned/tb-D-2007-2010-ak.npy",
+    f"../data/cleaned/tb-D-2007-2010-{config.region}.npy",
     transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
-    "../data/cleaned/date_map-2007-2010-ak.csv",
+    f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
     data_grid_shape,
-    "../data/cleaned/solar_rad-AM-2007-2010-ak.npy",
+    f"../data/cleaned/solar_rad-AM-2007-2010-{config.region}.npy",
 )
 # Validation dataset
-era_ds = NpyDataset("../data/cleaned/era5-t2m-am-2007-2010-ak.npy")
+era_ds = NpyDataset(
+    f"../data/cleaned/era5-t2m-am-2007-2010-{config.region}.npy"
+)
 if config.use_prior_day:
     era_ds = Subset(era_ds, list(range(1, len(input_ds) + 1)))
 idx_ds = IndexEchoDataset(len(input_ds))
@@ -529,18 +551,20 @@ dataloader = None
 # Validation
 input_ds = build_input_dataset(
     config,
-    "../data/cleaned/tb-D-2015-ak.npy",
+    f"../data/cleaned/tb-D-2015-{config.region}.npy",
     transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
-    "../data/cleaned/date_map-2015-ak.csv",
+    f"../data/cleaned/date_map-2015-{config.region}.csv",
     data_grid_shape,
-    "../data/cleaned/solar_rad-AM-2015-ak.npy",
+    f"../data/cleaned/solar_rad-AM-2015-{config.region}.npy",
 )
 reduced_indices = list(range(1, len(input_ds) + 1))
-era_ds = NpyDataset("../data/cleaned/era5-t2m-am-2015-ak.npy")
-val_mask_ds = NpyDataset("../data/cleaned/tb_valid_mask-D-2015-ak.npy")
-val_dates = load_dates("../data/cleaned/date_map-2015-ak.csv")
+era_ds = NpyDataset(f"../data/cleaned/era5-t2m-am-2015-{config.region}.npy")
+val_mask_ds = NpyDataset(
+    f"../data/cleaned/tb_valid_mask-D-2015-{config.region}.npy"
+)
+val_dates = load_dates(f"../data/cleaned/date_map-2015-{config.region}.csv")
 if config.use_prior_day:
     era_ds = Subset(era_ds, reduced_indices)
     val_mask_ds = Subset(val_mask_ds, reduced_indices)
