@@ -128,18 +128,10 @@ def write_results(
     with open(acc_file, "w") as fd:
         for d, ae, aa in zip(val_dates, era_acc, aws_acc):
             fd.write(f"{d},{ae},{aa}\n")
-    # Save prediction plots
-    print(f"Creating prediction plots: '{pred_plots}'")
-    pfmt = os.path.join(pred_plots, "{:03}.png")
-    for i, p in enumerate(tqdm.tqdm(pred, ncols=80)):
-        plt.figure()
-        plt.imshow(p)
-        plt.title(f"Day: {i + 1}")
-        plt.savefig(pfmt.format(i + 1), dpi=200)
-        plt.close()
     # ERA
     plt.figure()
     plt.plot(val_dates, era_acc, lw=1, label="ERA5")
+    plt.ylim(0, 100)
     plt.title(f"ERA Accuracy: {era_acc.mean():.3}%")
     plt.xlabel("Date")
     plt.ylabel("Accuracy (%)")
@@ -149,6 +141,7 @@ def write_results(
     # AWS
     plt.figure()
     plt.plot(val_dates, aws_acc, lw=1, label="AWS")
+    plt.ylim(0, 100)
     plt.title(f"AWS Accuracy: {aws_acc.mean():.3}%")
     plt.xlabel("Date")
     plt.ylabel("Accuracy (%)")
@@ -159,6 +152,7 @@ def write_results(
     plt.figure()
     plt.plot(val_dates, era_acc, lw=1, label="ERA5")
     plt.plot(val_dates, aws_acc, lw=1, label="AWS")
+    plt.ylim(0, 100)
     plt.legend(loc=0)
     plt.title(
         f"Mean Accuracy: ERA: {era_acc.mean():.3}% AWS: {aws_acc.mean():.3}"
@@ -169,6 +163,15 @@ def write_results(
     plt.grid(True, which="both", alpha=0.7, lw=0.5, ls=":")
     plt.savefig(os.path.join(root, "acc_plot.png"), dpi=300)
     plt.close()
+    # Save prediction plots
+    print(f"Creating prediction plots: '{pred_plots}'")
+    pfmt = os.path.join(pred_plots, "{:03}.png")
+    for i, p in enumerate(tqdm.tqdm(pred, ncols=80)):
+        plt.figure()
+        plt.imshow(p)
+        plt.title(f"Day: {i + 1}")
+        plt.savefig(pfmt.format(i + 1), dpi=400)
+        plt.close()
 
 
 def aws_loss_func(batch_pred_logits, batch_idxs, batch_labels, config, device):
