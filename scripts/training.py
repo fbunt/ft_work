@@ -28,7 +28,12 @@ from model import (
     UNet,
     local_variation_loss,
 )
-from transforms import AK_VIEW_TRANS, N45W_VIEW_TRANS
+from transforms import (
+    AK_VIEW_TRANS,
+    N45_VIEW_TRANS,
+    N45W_VIEW_TRANS,
+    NH_VIEW_TRANS,
+)
 from validate import (
     RETRIEVAL_MIN,
     WMOValidationPointFetcher,
@@ -128,18 +133,10 @@ def write_results(
     with open(acc_file, "w") as fd:
         for d, ae, aa in zip(val_dates, era_acc, aws_acc):
             fd.write(f"{d},{ae},{aa}\n")
-    # Save prediction plots
-    print(f"Creating prediction plots: '{pred_plots}'")
-    pfmt = os.path.join(pred_plots, "{:03}.png")
-    for i, p in enumerate(tqdm.tqdm(pred, ncols=80)):
-        plt.figure()
-        plt.imshow(p)
-        plt.title(f"Day: {i + 1}")
-        plt.savefig(pfmt.format(i + 1), dpi=200)
-        plt.close()
     # ERA
     plt.figure()
     plt.plot(val_dates, era_acc, lw=1, label="ERA5")
+    plt.ylim(0, 100)
     plt.title(f"ERA Accuracy: {era_acc.mean():.3}%")
     plt.xlabel("Date")
     plt.ylabel("Accuracy (%)")
@@ -149,6 +146,7 @@ def write_results(
     # AWS
     plt.figure()
     plt.plot(val_dates, aws_acc, lw=1, label="AWS")
+    plt.ylim(0, 100)
     plt.title(f"AWS Accuracy: {aws_acc.mean():.3}%")
     plt.xlabel("Date")
     plt.ylabel("Accuracy (%)")
@@ -159,6 +157,7 @@ def write_results(
     plt.figure()
     plt.plot(val_dates, era_acc, lw=1, label="ERA5")
     plt.plot(val_dates, aws_acc, lw=1, label="AWS")
+    plt.ylim(0, 100)
     plt.legend(loc=0)
     plt.title(
         f"Mean Accuracy: ERA: {era_acc.mean():.3}% AWS: {aws_acc.mean():.3}"
@@ -169,6 +168,15 @@ def write_results(
     plt.grid(True, which="both", alpha=0.7, lw=0.5, ls=":")
     plt.savefig(os.path.join(root, "acc_plot.png"), dpi=300)
     plt.close()
+    # Save prediction plots
+    print(f"Creating prediction plots: '{pred_plots}'")
+    pfmt = os.path.join(pred_plots, "{:03}.png")
+    for i, p in enumerate(tqdm.tqdm(pred, ncols=80)):
+        plt.figure()
+        plt.imshow(p)
+        plt.title(f"Day: {i + 1}")
+        plt.savefig(pfmt.format(i + 1), dpi=400)
+        plt.close()
 
 
 def aws_loss_func(batch_pred_logits, batch_idxs, batch_labels, config, device):
@@ -339,9 +347,23 @@ Config = namedtuple(
         "use_day_of_year",
         "use_solar",
         "use_prior_day",
+        "region",
     ),
 )
 
+
+# Region codes
+AK = "ak"
+N45 = "n45"
+N45W = "n45w"
+NH = "nh"
+
+region_to_trans = {
+    AK: AK_VIEW_TRANS,
+    N45: N45_VIEW_TRANS,
+    N45W: N45W_VIEW_TRANS,
+    NH: NH_VIEW_TRANS,
+}
 
 config = Config(
     # Base channels:
@@ -355,11 +377,11 @@ config = Config(
     batch_size=10,
     batch_shuffle=False,
     drop_last=False,
-    learning_rate=0.0005,
+    learning_rate=5e-4,
     lr_gamma=0.89,
-    l2_reg_weight=0.01,
-    lv_reg_weight=0.05,
-    land_reg_weight=0.0001,
+    l2_reg_weight=1e-2,
+    lv_reg_weight=5e-2,
+    land_reg_weight=1e-4,
     use_aws=True,
     aws_use_valid_mask=False,
     aws_loss_weight=5e-2,
@@ -376,10 +398,11 @@ config = Config(
     use_solar=False,
     # 5 channels
     use_prior_day=False,
+    region=N45W,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-transform = N45W_VIEW_TRANS
+transform = region_to_trans[config.region]
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 water_mask = torch.tensor(transform(base_water_mask))
 land_mask = ~water_mask
@@ -392,8 +415,8 @@ data_grid_shape = land_mask_np.shape
 
 if config.use_aws:
     aws_data = get_aws_data(
-        "../data/cleaned/date_map-2007-2010-n45w.csv",
-        "../data/cleaned/tb_valid_mask-D-2007-2010-n45w.npy",
+        f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
+        f"../data/cleaned/tb_valid_mask-D-2007-2010-{config.region}.npy",
         "../data/dbs/wmo_gsod.db",
         land_mask_np,
         transform,
@@ -403,16 +426,18 @@ if config.use_aws:
 # Input dataset creation
 input_ds = build_input_dataset(
     config,
-    "../data/cleaned/tb-D-2007-2010-n45w.npy",
+    f"../data/cleaned/tb-D-2007-2010-{config.region}.npy",
     transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
-    "../data/cleaned/date_map-2007-2010-n45w.csv",
+    f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
     data_grid_shape,
-    "../data/cleaned/solar_rad-AM-2007-2010-n45w.npy",
+    f"../data/cleaned/solar_rad-AM-2007-2010-{config.region}.npy",
 )
 # Validation dataset
-era_ds = NpyDataset("../data/cleaned/era5-t2m-am-2007-2010-n45w.npy")
+era_ds = NpyDataset(
+    f"../data/cleaned/era5-t2m-am-2007-2010-{config.region}.npy"
+)
 if config.use_prior_day:
     era_ds = Subset(era_ds, list(range(1, len(input_ds) + 1)))
 idx_ds = IndexEchoDataset(len(input_ds))
@@ -526,18 +551,20 @@ dataloader = None
 # Validation
 input_ds = build_input_dataset(
     config,
-    "../data/cleaned/tb-D-2015-n45w.npy",
+    f"../data/cleaned/tb-D-2015-{config.region}.npy",
     transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
-    "../data/cleaned/date_map-2015-n45w.csv",
+    f"../data/cleaned/date_map-2015-{config.region}.csv",
     data_grid_shape,
-    "../data/cleaned/solar_rad-AM-2015-n45w.npy",
+    f"../data/cleaned/solar_rad-AM-2015-{config.region}.npy",
 )
 reduced_indices = list(range(1, len(input_ds) + 1))
-era_ds = NpyDataset("../data/cleaned/era5-t2m-am-2015-n45w.npy")
-val_mask_ds = NpyDataset("../data/cleaned/tb_valid_mask-D-2015-n45w.npy")
-val_dates = load_dates("../data/cleaned/date_map-2015-n45w.csv")
+era_ds = NpyDataset(f"../data/cleaned/era5-t2m-am-2015-{config.region}.npy")
+val_mask_ds = NpyDataset(
+    f"../data/cleaned/tb_valid_mask-D-2015-{config.region}.npy"
+)
+val_dates = load_dates(f"../data/cleaned/date_map-2015-{config.region}.csv")
 if config.use_prior_day:
     era_ds = Subset(era_ds, reduced_indices)
     val_mask_ds = Subset(val_mask_ds, reduced_indices)
