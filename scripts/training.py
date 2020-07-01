@@ -336,7 +336,6 @@ Config = namedtuple(
         "l2_reg_weight",
         "lv_reg_weight",
         "land_reg_weight",
-        "use_aws",
         "aws_use_valid_mask",
         "val_use_valid_mask",
         "optimizer",
@@ -382,7 +381,6 @@ config = Config(
     l2_reg_weight=1e-2,
     lv_reg_weight=5e-2,
     land_reg_weight=1e-4,
-    use_aws=True,
     aws_use_valid_mask=False,
     aws_loss_weight=5e-2,
     val_use_valid_mask=False,
@@ -413,16 +411,16 @@ elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
 lat_channel = torch.tensor(transform(elat)).float()
 data_grid_shape = land_mask_np.shape
 
-if config.use_aws:
-    aws_data = get_aws_data(
-        f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
-        f"../data/cleaned/tb_valid_mask-D-2007-2010-{config.region}.npy",
-        "../data/dbs/wmo_gsod.db",
-        land_mask_np,
-        transform,
-        RETRIEVAL_MIN,
-        config,
-    )
+# AWS
+aws_data = get_aws_data(
+    f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
+    f"../data/cleaned/tb_valid_mask-D-2007-2010-{config.region}.npy",
+    "../data/dbs/wmo_gsod.db",
+    land_mask_np,
+    transform,
+    RETRIEVAL_MIN,
+    config,
+)
 # Input dataset creation
 input_ds = build_input_dataset(
     config,
@@ -520,19 +518,18 @@ for epoch in range(config.epochs):
         writer.add_scalar("Land Loss", land_loss.item(), step)
         loss += land_loss
         # AWS loss
-        if config.use_aws:
-            batch_aws_data = [aws_data[j] for j in ds_idxs]
-            batch_aws_flat_idxs = [v[0] for v in batch_aws_data]
-            batch_aws_labels = [v[1] for v in batch_aws_data]
-            aws_loss = config.aws_loss_weight * aws_loss_func(
-                log_class_prob,
-                batch_aws_flat_idxs,
-                batch_aws_labels,
-                config,
-                device,
-            )
-            writer.add_scalar("AWS Loss", aws_loss.item(), step)
-            loss += aws_loss
+        batch_aws_data = [aws_data[j] for j in ds_idxs]
+        batch_aws_flat_idxs = [v[0] for v in batch_aws_data]
+        batch_aws_labels = [v[1] for v in batch_aws_data]
+        aws_loss = aws_loss_func(
+            log_class_prob,
+            batch_aws_flat_idxs,
+            batch_aws_labels,
+            config,
+            device,
+        )
+        writer.add_scalar("AWS Loss", aws_loss.item(), step)
+        loss += era_loss
 
         loss.backward()
         opt.step()
