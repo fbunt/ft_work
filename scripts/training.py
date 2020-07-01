@@ -503,20 +503,18 @@ for epoch in range(config.epochs):
         log_class_prob = model(input_data)
         class_prob = torch.softmax(log_class_prob, 1)
 
-        loss = criterion(log_class_prob, label)
-        writer.add_scalar("CE Loss", loss.item(), step)
+        loss = 0
+        era_loss = criterion(log_class_prob, label)
+        writer.add_scalar("CE Loss", era_loss.item(), step)
         # Minimize high frequency variation
-        lv_loss = config.lv_reg_weight * local_variation_loss(class_prob)
+        lv_loss = local_variation_loss(class_prob)
         writer.add_scalar("LV Loss", lv_loss.item(), step)
-        loss += lv_loss
         # Minimize the probabilities of FT classes in water regions
         land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
         land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
         # Minimize the probability of OTHER class in land regions
         land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
-        land_loss *= config.land_reg_weight
         writer.add_scalar("Land Loss", land_loss.item(), step)
-        loss += land_loss
         # AWS loss
         batch_aws_data = [aws_data[j] for j in ds_idxs]
         batch_aws_flat_idxs = [v[0] for v in batch_aws_data]
@@ -530,6 +528,9 @@ for epoch in range(config.epochs):
         )
         writer.add_scalar("AWS Loss", aws_loss.item(), step)
         loss += era_loss
+        loss += lv_loss * config.lv_reg_weight
+        loss += land_loss * config.land_reg_weight
+        loss += aws_loss * config.aws_loss_weight
 
         loss.backward()
         opt.step()
