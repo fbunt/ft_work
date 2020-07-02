@@ -504,18 +504,26 @@ for epoch in range(config.epochs):
         class_prob = torch.softmax(log_class_prob, 1)
 
         loss = 0
+        #
+        # ERA
+        #
         era_loss = criterion(log_class_prob, label)
         writer.add_scalar("CE Loss", era_loss.item(), step)
         # Minimize high frequency variation
         lv_loss = local_variation_loss(class_prob)
         writer.add_scalar("LV Loss", lv_loss.item(), step)
+        #
+        # Land/Water
+        #
         # Minimize the probabilities of FT classes in water regions
         land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
         land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
         # Minimize the probability of OTHER class in land regions
         land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
         writer.add_scalar("Land Loss", land_loss.item(), step)
+        #
         # AWS loss
+        #
         batch_aws_data = [aws_data[j] for j in ds_idxs]
         batch_aws_flat_idxs = [v[0] for v in batch_aws_data]
         batch_aws_labels = [v[1] for v in batch_aws_data]
