@@ -334,11 +334,32 @@ def build_input_dataset(
 
 def combine_loss(era_loss, aws_loss, land_loss, lv_loss, config):
     loss = 0
-    loss += era_loss * config.era_weight
-    loss += aws_loss * config.aws_loss_weight
-    loss += land_loss * config.land_reg_weight
-    loss += lv_loss * config.lv_reg_weight
+    if not config.use_relative_weights:
+        loss += era_loss * config.era_weight
+        loss += aws_loss * config.aws_loss_weight
+        loss += land_loss * config.land_reg_weight
+        loss += lv_loss * config.lv_reg_weight
+    else:
+        losses = [era_loss, aws_loss, land_loss]
+        loss_items = [l.item() for l in losses]
+        fractions = [
+            config.era_rel_weight,
+            config.aws_rel_weight,
+            config.land_rel_weight,
+        ]
+        total = sum(loss_items)
+        # Calculate the weight that forces the loss to contribute the specified
+        # fraction to the total loss
+        for li, f, lo in zip(loss_items, fractions, losses):
+            weight = f * total / li
+            loss += weight * lo
+        # Tack on smaller loss values afterword
+        loss += lv_loss * config.lv_reg_weight
     return loss
+
+
+def _validate_relative_weights(*weights):
+    assert sum(weights) == 1.0, "Relative weights must sum to 1.0"
 
 
 Config = namedtuple(
@@ -354,21 +375,25 @@ Config = namedtuple(
         "drop_last",
         "learning_rate",
         "lr_gamma",
-        "l2_reg_weight",
-        "era_weight",
-        "lv_reg_weight",
-        "land_reg_weight",
         "aws_use_valid_mask",
         "val_use_valid_mask",
         "optimizer",
         "normalize",
-        "aws_loss_weight",
         "use_dem",
         "use_latitude",
         "use_day_of_year",
         "use_solar",
         "use_prior_day",
         "region",
+        "l2_reg_weight",
+        "era_weight",
+        "aws_loss_weight",
+        "land_reg_weight",
+        "lv_reg_weight",
+        "use_relative_weights",
+        "era_rel_weight",
+        "aws_rel_weight",
+        "land_rel_weight",
     ),
 )
 
@@ -400,12 +425,7 @@ config = Config(
     drop_last=False,
     learning_rate=5e-4,
     lr_gamma=0.89,
-    l2_reg_weight=1e-2,
-    era_weight=1e0,
-    lv_reg_weight=5e-2,
-    land_reg_weight=1e-4,
     aws_use_valid_mask=False,
-    aws_loss_weight=5e-2,
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
     normalize=False,
@@ -419,9 +439,22 @@ config = Config(
     use_solar=False,
     # 5 channels
     use_prior_day=False,
-    region=N45W,
+    region=AK,
+    l2_reg_weight=1e-2,
+    era_weight=1e0,
+    aws_loss_weight=5e-2,
+    land_reg_weight=1e-4,
+    lv_reg_weight=5e-2,
+    use_relative_weights=False,
+    era_rel_weight=0.70,
+    aws_rel_weight=0.05,
+    land_rel_weight=0.25,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if config.use_relative_weights:
+    _validate_relative_weights(
+        config.era_rel_weight, config.aws_rel_weight, config.land_rel_weight
+    )
 
 transform = region_to_trans[config.region]
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
