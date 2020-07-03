@@ -186,6 +186,7 @@ def write_results(
         plt.figure()
         plt.imshow(p, cmap=cmap, vmin=LABEL_FROZEN, vmax=LABEL_OTHER)
         plt.title(f"Day: {i + 1}")
+        plt.tight_layout(pad=2)
         plt.savefig(pfmt.format(i + 1), dpi=400)
         plt.close()
 
