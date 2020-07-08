@@ -81,15 +81,12 @@ def write_results(
     print("Generating predictions")
     pred = []
     for i, v in enumerate(tqdm.tqdm(input_val_ds, ncols=80)):
-        pred.append(
-            torch.softmax(
-                model(v.unsqueeze(0).to(device, dtype=torch.float)).detach(), 1
-            )
-            .cpu()
-            .squeeze()
-            .numpy()
-            .argmax(0)
+        p = torch.softmax(
+            model(v.unsqueeze(0).to(device, dtype=torch.float)).detach(), 1
         )
+        p = p.cpu().squeeze().numpy().argmax(0)
+        p[..., ~land_mask] = LABEL_OTHER
+        pred.append(p)
     pred = np.array(pred)
     ppath = os.path.join(root, "pred.npy")
     print(f"Saving predictions: '{ppath}'")
@@ -332,28 +329,11 @@ def build_input_dataset(
     return GridsStackDataset(datasets)
 
 
-def combine_loss(era_loss, aws_loss, land_loss, lv_loss, config):
+def combine_loss(era_loss, aws_loss, lv_loss, config):
     loss = 0
     if not config.use_relative_weights:
         loss += era_loss * config.era_weight
         loss += aws_loss * config.aws_loss_weight
-        loss += land_loss * config.land_reg_weight
-        loss += lv_loss * config.lv_reg_weight
-    else:
-        losses = [era_loss, aws_loss, land_loss]
-        loss_items = [l.item() for l in losses]
-        fractions = [
-            config.era_rel_weight,
-            config.aws_rel_weight,
-            config.land_rel_weight,
-        ]
-        total = sum(loss_items)
-        # Calculate the weight that forces the loss to contribute the specified
-        # fraction to the total loss
-        for li, f, lo in zip(loss_items, fractions, losses):
-            weight = f * total / li
-            loss += weight * lo
-        # Tack on smaller loss values afterword
         loss += lv_loss * config.lv_reg_weight
     return loss
 
@@ -562,7 +542,9 @@ for epoch in range(config.epochs):
         #
         # ERA
         #
-        era_loss = criterion(log_class_prob, label)
+        era_loss = criterion(
+            log_class_prob[..., land_mask], label[..., land_mask]
+        )
         writer.add_scalar("CE Loss", era_loss.item(), step)
         #
         # AWS loss
@@ -579,21 +561,12 @@ for epoch in range(config.epochs):
         )
         writer.add_scalar("AWS Loss", aws_loss.item(), step)
         #
-        # Land/Water
-        #
-        # Minimize the probabilities of FT classes in water regions
-        land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
-        land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
-        # Minimize the probability of OTHER class in land regions
-        land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
-        writer.add_scalar("Land Loss", land_loss.item(), step)
-        #
         # Local variation
         #
         # Minimize high frequency variation
         lv_loss = local_variation_loss(class_prob)
         writer.add_scalar("LV Loss", lv_loss.item(), step)
-        loss = combine_loss(era_loss, aws_loss, land_loss, lv_loss, config)
+        loss = combine_loss(era_loss, aws_loss, lv_loss, config)
 
         loss.backward()
         opt.step()
