@@ -395,12 +395,12 @@ config = Config(
     # Base channels:
     #  * land mask: 1
     #  * tb: 5
-    in_chan=6,
-    n_classes=3,
+    in_chan=15,
+    n_classes=2,
     depth=4,
     base_filters=64,
     epochs=50,
-    batch_size=10,
+    batch_size=16,
     batch_shuffle=False,
     drop_last=False,
     learning_rate=5e-4,
@@ -408,18 +408,18 @@ config = Config(
     aws_use_valid_mask=False,
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
-    normalize=False,
+    normalize=True,
     # 1 channel
-    use_dem=False,
+    use_dem=True,
     # 1 channel
-    use_latitude=False,
+    use_latitude=True,
     # 1 channel
-    use_day_of_year=False,
+    use_day_of_year=True,
     # 1 channel
-    use_solar=False,
+    use_solar=True,
     # 5 channels
-    use_prior_day=False,
-    region=AK,
+    use_prior_day=True,
+    region=N45W,
     l2_reg_weight=1e-2,
     era_weight=1e0,
     aws_loss_weight=5e-2,
