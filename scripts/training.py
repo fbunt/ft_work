@@ -1,5 +1,4 @@
 from collections import namedtuple
-from matplotlib.colors import ListedColormap
 from scipy.spatial import cKDTree as KDTree
 from torch.utils.data import Subset
 from torch.utils.tensorboard import SummaryWriter
@@ -35,6 +34,7 @@ from transforms import (
     N45W_VIEW_TRANS,
     NH_VIEW_TRANS,
 )
+from utils import FT_CMAP
 from validate import (
     RETRIEVAL_MIN,
     WMOValidationPointFetcher,
@@ -172,19 +172,9 @@ def write_results(
     # Save prediction plots
     print(f"Creating prediction plots: '{pred_plots}'")
     pfmt = os.path.join(pred_plots, "{:03}.png")
-    cmap = ListedColormap(
-        [
-            # Light blue: frozen
-            (0.5294117647058824, 0.807843137254902, 0.9803921568627451, 0.5),
-            # Red: thawed
-            "olive",
-            # Blue: other/water
-            (0, 0, 1),
-        ]
-    )
     for i, p in enumerate(tqdm.tqdm(pred, ncols=80)):
         plt.figure()
-        plt.imshow(p, cmap=cmap, vmin=LABEL_FROZEN, vmax=LABEL_OTHER)
+        plt.imshow(p, cmap=FT_CMAP, vmin=LABEL_FROZEN, vmax=LABEL_OTHER)
         plt.title(f"Day: {i + 1}")
         plt.tight_layout(pad=2)
         plt.savefig(pfmt.format(i + 1), dpi=400)

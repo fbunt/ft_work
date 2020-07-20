@@ -1,7 +1,19 @@
+from matplotlib.colors import ListedColormap
 import datetime as dt
 import itertools
 import numpy as np
 import os
+
+FT_CMAP = ListedColormap(
+    [
+        # Light blue: frozen
+        (0.5294117647058824, 0.807843137254902, 0.9803921568627451, 0.5),
+        # Olive: thawed
+        "olive",
+        # Blue: other/water
+        (0, 0, 1),
+    ]
+)
 
 
 def day_of_year_to_date(year, day_of_year):
