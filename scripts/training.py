@@ -429,7 +429,7 @@ config = Config(
     use_solar=False,
     # 5 channels
     use_prior_day=False,
-    region=AK,
+    region=N45W,
     l2_reg_weight=1e-2,
     era_weight=1e0,
     aws_loss_weight=5e-2,
