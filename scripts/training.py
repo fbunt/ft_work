@@ -275,10 +275,11 @@ def build_input_dataset(
     tb_ds = NpyDataset(tb_ds)
     reduced_indices = list(range(1, len(tb_ds)))
     # Land channel
-    ds = RepeatDataset(land_mask, len(tb_ds))
-    if config.use_prior_day:
-        ds = Subset(ds, reduced_indices)
-    datasets.append(ds)
+    if config.use_land_mask:
+        ds = RepeatDataset(land_mask, len(tb_ds))
+        if config.use_prior_day:
+            ds = Subset(ds, reduced_indices)
+        datasets.append(ds)
     # DEM channel
     if config.use_dem:
         dem_channel = torch.tensor(dem).float()
@@ -369,6 +370,7 @@ Config = namedtuple(
         "val_use_valid_mask",
         "optimizer",
         "normalize",
+        "use_land_mask",
         "use_dem",
         "use_latitude",
         "use_day_of_year",
@@ -403,7 +405,6 @@ region_to_trans = {
 
 config = Config(
     # Base channels:
-    #  * land mask: 1
     #  * tb: 5
     in_chan=6,
     n_classes=3,
@@ -419,6 +420,8 @@ config = Config(
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
     normalize=False,
+    # 1 channel
+    use_land_mask=True,
     # 1 channel
     use_dem=False,
     # 1 channel
