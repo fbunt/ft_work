@@ -567,11 +567,11 @@ for epoch in range(config.epochs):
         if not config.mask_water:
             loss += land_loss
         loss += lv_loss
+        writer.add_scalar("training_loss", loss.item(), step)
 
         loss.backward()
         opt.step()
 
-        writer.add_scalar("training_loss", loss.item(), step)
         iters += 1
     sched.step()
 writer.close()
