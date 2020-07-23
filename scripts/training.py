@@ -392,7 +392,7 @@ region_to_trans = {
 config = Config(
     # Base channels:
     #  * tb: 5
-    in_chan=15,
+    in_chan=12,
     n_classes=2,
     depth=4,
     base_filters=64,
@@ -405,16 +405,16 @@ config = Config(
     aws_use_valid_mask=False,
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
-    normalize=True,
+    normalize=False,
     mask_water=True,
     # 1 channel
-    use_land_mask=True,
+    use_land_mask=False,
     # 1 channel
-    use_dem=False,
+    use_dem=True,
     # 1 channel
-    use_latitude=True,
+    use_latitude=False,
     # 1 channel
-    use_day_of_year=True,
+    use_day_of_year=False,
     # 1 channel
     use_solar=True,
     # 5 channels
