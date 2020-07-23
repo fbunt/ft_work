@@ -81,11 +81,25 @@ def write_results(
     print("Generating predictions")
     pred = []
     for i, v in enumerate(tqdm.tqdm(input_val_ds, ncols=80)):
-        p = torch.softmax(
-            model(v.unsqueeze(0).to(device, dtype=torch.float)).detach(), 1
-        )
-        p = p.cpu().squeeze().numpy().argmax(0)
-        p[..., ~land_mask] = LABEL_OTHER
+        if config.mask_water:
+            p = torch.softmax(
+                model(v.unsqueeze(0).to(device, dtype=torch.float)).detach(), 1
+            )
+            p = p.cpu().squeeze().numpy().argmax(0)
+            p[..., ~land_mask] = LABEL_OTHER
+        else:
+            p = (
+                torch.softmax(
+                    model(
+                        v.unsqueeze(0).to(device, dtype=torch.float)
+                    ).detach(),
+                    1,
+                )
+                .cpu()
+                .squeeze()
+                .numpy()
+                .argmax(0)
+            )
         pred.append(p)
     pred = np.array(pred)
     ppath = os.path.join(root, "pred.npy")
@@ -341,6 +355,7 @@ Config = namedtuple(
         "val_use_valid_mask",
         "optimizer",
         "normalize",
+        "mask_water",
         "use_land_mask",
         "use_dem",
         "use_latitude",
@@ -419,6 +434,14 @@ if config.use_relative_weights:
     _validate_relative_weights(
         config.era_rel_weight, config.aws_rel_weight, config.land_rel_weight
     )
+if config.mask_water:
+    assert (
+        config.n_classes == 2
+    ), "Can only have 2 output channels if masking water"
+else:
+    assert (
+        config.n_classes == 3
+    ), "Must have 3 output channels if not masking water"
 
 transform = region_to_trans[config.region]
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
@@ -546,6 +569,17 @@ for epoch in range(config.epochs):
         )
         aws_loss *= config.aws_loss_weight
         writer.add_scalar("AWS Loss", aws_loss.item(), step)
+        if not config.mask_water:
+            #
+            # Land/Water
+            #
+            # Minimize the probabilities of FT classes in water regions
+            land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
+            land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
+            # Minimize the probability of OTHER class in land regions
+            land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
+            land_loss *= config.land_reg_weight
+            writer.add_scalar("Land Loss", land_loss.item(), step)
         #
         # Local variation
         #
@@ -555,6 +589,8 @@ for epoch in range(config.epochs):
         writer.add_scalar("LV Loss", lv_loss.item(), step)
         loss = era_loss
         loss += aws_loss
+        if not config.mask_water:
+            loss += land_loss
         loss += lv_loss
 
         loss.backward()
