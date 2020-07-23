@@ -405,10 +405,6 @@ config = Config(
     lv_reg_weight=5e-2,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if config.use_relative_weights:
-    _validate_relative_weights(
-        config.era_rel_weight, config.aws_rel_weight, config.land_rel_weight
-    )
 if config.mask_water:
     assert (
         config.n_classes == 2
