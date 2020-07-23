@@ -29,10 +29,9 @@ from model import (
     local_variation_loss,
 )
 from transforms import (
-    AK_VIEW_TRANS,
-    N45_VIEW_TRANS,
-    N45W_VIEW_TRANS,
-    NH_VIEW_TRANS,
+    AK,
+    N45W,
+    REGION_TO_TRANS,
 )
 from utils import FT_CMAP
 from validate import (
@@ -376,19 +375,6 @@ Config = namedtuple(
 )
 
 
-# Region codes
-AK = "ak"
-N45 = "n45"
-N45W = "n45w"
-NH = "nh"
-
-region_to_trans = {
-    AK: AK_VIEW_TRANS,
-    N45: N45_VIEW_TRANS,
-    N45W: N45W_VIEW_TRANS,
-    NH: NH_VIEW_TRANS,
-}
-
 config = Config(
     # Base channels:
     #  * tb: 5
@@ -444,7 +430,7 @@ else:
         config.n_classes == 3
     ), "Must have 3 output channels if not masking water"
 
-transform = region_to_trans[config.region]
+transform = REGION_TO_TRANS[config.region]
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 water_mask = torch.tensor(transform(base_water_mask))
 land_mask = ~water_mask
