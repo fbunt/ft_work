@@ -320,15 +320,6 @@ def build_input_dataset(
     return GridsStackDataset(datasets)
 
 
-def combine_loss(era_loss, aws_loss, lv_loss, config):
-    loss = 0
-    if not config.use_relative_weights:
-        loss += era_loss * config.era_weight
-        loss += aws_loss * config.aws_loss_weight
-        loss += lv_loss * config.lv_reg_weight
-    return loss
-
-
 def _validate_relative_weights(*weights):
     assert sum(weights) == 1.0, "Relative weights must sum to 1.0"
 
@@ -538,6 +529,7 @@ for epoch in range(config.epochs):
         era_loss = criterion(
             log_class_prob[..., land_mask], label[..., land_mask]
         )
+        era_loss *= config.era_weight
         writer.add_scalar("CE Loss", era_loss.item(), step)
         #
         # AWS loss
@@ -552,14 +544,18 @@ for epoch in range(config.epochs):
             config,
             device,
         )
+        aws_loss *= config.aws_loss_weight
         writer.add_scalar("AWS Loss", aws_loss.item(), step)
         #
         # Local variation
         #
         # Minimize high frequency variation
         lv_loss = local_variation_loss(class_prob)
+        lv_loss *= config.lv_reg_weight
         writer.add_scalar("LV Loss", lv_loss.item(), step)
-        loss = combine_loss(era_loss, aws_loss, lv_loss, config)
+        loss = era_loss
+        loss += aws_loss
+        loss += lv_loss
 
         loss.backward()
         opt.step()
