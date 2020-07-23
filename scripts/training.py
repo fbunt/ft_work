@@ -333,10 +333,6 @@ def build_input_dataset(
     return GridsStackDataset(datasets)
 
 
-def _validate_relative_weights(*weights):
-    assert sum(weights) == 1.0, "Relative weights must sum to 1.0"
-
-
 Config = namedtuple(
     "Config",
     (
@@ -367,10 +363,6 @@ Config = namedtuple(
         "aws_loss_weight",
         "land_reg_weight",
         "lv_reg_weight",
-        "use_relative_weights",
-        "era_rel_weight",
-        "aws_rel_weight",
-        "land_rel_weight",
     ),
 )
 
@@ -411,10 +403,6 @@ config = Config(
     aws_loss_weight=5e-2,
     land_reg_weight=1e-4,
     lv_reg_weight=5e-2,
-    use_relative_weights=False,
-    era_rel_weight=0.70,
-    aws_rel_weight=0.05,
-    land_rel_weight=0.25,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if config.use_relative_weights:
