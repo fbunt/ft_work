@@ -406,6 +406,7 @@ config = Config(
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
     normalize=True,
+    mask_water=True,
     # 1 channel
     use_land_mask=True,
     # 1 channel
