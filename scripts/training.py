@@ -29,10 +29,9 @@ from model import (
     local_variation_loss,
 )
 from transforms import (
-    AK_VIEW_TRANS,
-    N45_VIEW_TRANS,
-    N45W_VIEW_TRANS,
-    NH_VIEW_TRANS,
+    AK,
+    N45W,
+    REGION_TO_TRANS,
 )
 from utils import FT_CMAP
 from validate import (
@@ -81,15 +80,26 @@ def write_results(
     print("Generating predictions")
     pred = []
     for i, v in enumerate(tqdm.tqdm(input_val_ds, ncols=80)):
-        pred.append(
-            torch.softmax(
+        if config.mask_water:
+            p = torch.softmax(
                 model(v.unsqueeze(0).to(device, dtype=torch.float)).detach(), 1
             )
-            .cpu()
-            .squeeze()
-            .numpy()
-            .argmax(0)
-        )
+            p = p.cpu().squeeze().numpy().argmax(0)
+            p[..., ~land_mask] = LABEL_OTHER
+        else:
+            p = (
+                torch.softmax(
+                    model(
+                        v.unsqueeze(0).to(device, dtype=torch.float)
+                    ).detach(),
+                    1,
+                )
+                .cpu()
+                .squeeze()
+                .numpy()
+                .argmax(0)
+            )
+        pred.append(p)
     pred = np.array(pred)
     ppath = os.path.join(root, "pred.npy")
     print(f"Saving predictions: '{ppath}'")
@@ -323,32 +333,6 @@ def build_input_dataset(
     return GridsStackDataset(datasets)
 
 
-def combine_loss(era_loss, aws_loss, land_loss, lv_loss, config):
-    loss = 0
-    if not config.use_relative_weights:
-        loss += era_loss * config.era_weight
-        loss += aws_loss * config.aws_loss_weight
-        loss += land_loss * config.land_reg_weight
-        loss += lv_loss * config.lv_reg_weight
-    else:
-        losses = [era_loss, aws_loss, land_loss]
-        loss_items = [l.item() for l in losses]
-        fractions = [
-            config.era_rel_weight,
-            config.aws_rel_weight,
-            config.land_rel_weight,
-        ]
-        total = sum(loss_items)
-        # Calculate the weight that forces the loss to contribute the specified
-        # fraction to the total loss
-        for li, f, lo in zip(loss_items, fractions, losses):
-            weight = f * total / li
-            loss += weight * lo
-        # Tack on smaller loss values afterword
-        loss += lv_loss * config.lv_reg_weight
-    return loss
-
-
 def _validate_relative_weights(*weights):
     assert sum(weights) == 1.0, "Relative weights must sum to 1.0"
 
@@ -370,6 +354,7 @@ Config = namedtuple(
         "val_use_valid_mask",
         "optimizer",
         "normalize",
+        "mask_water",
         "use_land_mask",
         "use_dem",
         "use_latitude",
@@ -390,28 +375,15 @@ Config = namedtuple(
 )
 
 
-# Region codes
-AK = "ak"
-N45 = "n45"
-N45W = "n45w"
-NH = "nh"
-
-region_to_trans = {
-    AK: AK_VIEW_TRANS,
-    N45: N45_VIEW_TRANS,
-    N45W: N45W_VIEW_TRANS,
-    NH: NH_VIEW_TRANS,
-}
-
 config = Config(
     # Base channels:
     #  * tb: 5
-    in_chan=6,
-    n_classes=3,
+    in_chan=12,
+    n_classes=2,
     depth=4,
     base_filters=64,
     epochs=50,
-    batch_size=10,
+    batch_size=16,
     batch_shuffle=False,
     drop_last=False,
     learning_rate=5e-4,
@@ -420,18 +392,19 @@ config = Config(
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
     normalize=False,
+    mask_water=True,
     # 1 channel
-    use_land_mask=True,
+    use_land_mask=False,
     # 1 channel
-    use_dem=False,
+    use_dem=True,
     # 1 channel
     use_latitude=False,
     # 1 channel
     use_day_of_year=False,
     # 1 channel
-    use_solar=False,
+    use_solar=True,
     # 5 channels
-    use_prior_day=False,
+    use_prior_day=True,
     region=N45W,
     l2_reg_weight=1e-2,
     era_weight=1e0,
@@ -448,8 +421,16 @@ if config.use_relative_weights:
     _validate_relative_weights(
         config.era_rel_weight, config.aws_rel_weight, config.land_rel_weight
     )
+if config.mask_water:
+    assert (
+        config.n_classes == 2
+    ), "Can only have 2 output channels if masking water"
+else:
+    assert (
+        config.n_classes == 3
+    ), "Must have 3 output channels if not masking water"
 
-transform = region_to_trans[config.region]
+transform = REGION_TO_TRANS[config.region]
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 water_mask = torch.tensor(transform(base_water_mask))
 land_mask = ~water_mask
@@ -555,7 +536,10 @@ for epoch in range(config.epochs):
         #
         # ERA
         #
-        era_loss = criterion(log_class_prob, label)
+        era_loss = criterion(
+            log_class_prob[..., land_mask], label[..., land_mask]
+        )
+        era_loss *= config.era_weight
         writer.add_scalar("CE Loss", era_loss.item(), step)
         #
         # AWS loss
@@ -570,23 +554,31 @@ for epoch in range(config.epochs):
             config,
             device,
         )
+        aws_loss *= config.aws_loss_weight
         writer.add_scalar("AWS Loss", aws_loss.item(), step)
-        #
-        # Land/Water
-        #
-        # Minimize the probabilities of FT classes in water regions
-        land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
-        land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
-        # Minimize the probability of OTHER class in land regions
-        land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
-        writer.add_scalar("Land Loss", land_loss.item(), step)
+        if not config.mask_water:
+            #
+            # Land/Water
+            #
+            # Minimize the probabilities of FT classes in water regions
+            land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
+            land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
+            # Minimize the probability of OTHER class in land regions
+            land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
+            land_loss *= config.land_reg_weight
+            writer.add_scalar("Land Loss", land_loss.item(), step)
         #
         # Local variation
         #
         # Minimize high frequency variation
         lv_loss = local_variation_loss(class_prob)
+        lv_loss *= config.lv_reg_weight
         writer.add_scalar("LV Loss", lv_loss.item(), step)
-        loss = combine_loss(era_loss, aws_loss, land_loss, lv_loss, config)
+        loss = era_loss
+        loss += aws_loss
+        if not config.mask_water:
+            loss += land_loss
+        loss += lv_loss
 
         loss.backward()
         opt.step()

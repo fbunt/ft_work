@@ -192,7 +192,7 @@ era = dataset_to_array(
         ],
         "t2m",
         "AM",
-        other_mask=base_water_mask,
+        other_mask=None,
         transform=transform,
     )
 )
@@ -214,7 +214,7 @@ era = dataset_to_array(
         ["../data/era5/t2m/bidaily/era5-t2m-bidaily-2015.nc"],
         "t2m",
         "AM",
-        other_mask=base_water_mask,
+        other_mask=None,
         transform=transform,
     )
 )
