@@ -436,6 +436,18 @@ class NpyDataset(Dataset):
         return len(self.data)
 
 
+class ChannelSubsetDataset(Dataset):
+    def __init__(self, dataset, channels):
+        self.ds = dataset
+        self.channels = channels
+
+    def __getitem__(self, idx):
+        return self.dataset[idx, self.channels]
+
+    def __len__(self):
+        return len(self.dataset)
+
+
 class IndexEchoDataset(Dataset):
     def __init__(self, n):
         self.n = n
