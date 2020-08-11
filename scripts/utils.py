@@ -7,7 +7,7 @@ import os
 FT_CMAP = ListedColormap(
     [
         # Light blue: frozen
-        (0.5294117647058824, 0.807843137254902, 0.9803921568627451, 0.5),
+        "lightskyblue",
         # Olive: thawed
         "olive",
         # Blue: other/water
