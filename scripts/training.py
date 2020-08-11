@@ -369,10 +369,21 @@ Config = namedtuple(
 
 
 tb_channels = [0, 1, 2, 3, 4]
+_use_land_mask = False
+_use_dem = True
+_use_lat = False
+_use_day_of_year = False
+_use_solar = False
+_use_prior_day = False
 config = Config(
     # Base channels:
     #  * tb: 5
-    in_chan=len(tb_channels),
+    in_chan=len(tb_channels)
+    + _use_dem
+    + _use_lat
+    + _use_day_of_year
+    + _use_solar
+    + (len(tb_channels) * _use_prior_day),
     n_classes=2,
     depth=4,
     base_filters=64,
@@ -388,17 +399,17 @@ config = Config(
     normalize=False,
     mask_water=True,
     # 1 channel
-    use_land_mask=False,
+    use_land_mask=_use_land_mask,
     # 1 channel
-    use_dem=True,
+    use_dem=_use_dem,
     # 1 channel
-    use_latitude=False,
+    use_latitude=_use_lat,
     # 1 channel
-    use_day_of_year=False,
+    use_day_of_year=_use_day_of_year,
     # 1 channel
-    use_solar=True,
+    use_solar=_use_solar,
     # 5 channels
-    use_prior_day=True,
+    use_prior_day=_use_prior_day,
     region=N45W,
     l2_reg_weight=1e-2,
     era_weight=1e0,
