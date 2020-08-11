@@ -421,13 +421,15 @@ class NCTbDataset(Dataset):
 class NpyDataset(Dataset):
     """Wraps a .npy data file."""
 
-    def __init__(self, data_file_or_array, transform=None):
+    def __init__(self, data_file_or_array, transform=None, channels=None):
         transform = transform or (lambda x: x)
         if isinstance(data_file_or_array, np.ndarray):
             data = data_file_or_array
         else:
             data = np.load(data_file_or_array)
         self.data = transform(data)
+        if channels is not None:
+            self.data = self.data[:, channels].copy()
 
     def __getitem__(self, idx):
         return self.data[idx]
