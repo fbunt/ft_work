@@ -442,10 +442,10 @@ class ChannelSubsetDataset(Dataset):
         self.channels = channels
 
     def __getitem__(self, idx):
-        return self.dataset[idx, self.channels]
+        return self.ds[idx, self.channels]
 
     def __len__(self):
-        return len(self.dataset)
+        return len(self.ds)
 
 
 class IndexEchoDataset(Dataset):
