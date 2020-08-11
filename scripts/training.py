@@ -277,12 +277,13 @@ def build_input_dataset(
     date_map_path,
     date_ds_shape,
     solar_path,
+    tb_channels=None,
 ):
     datasets = []
     tb_ds = np.load(tb_path)
     if config.normalize:
         tb_ds = normalize(tb_ds)
-    tb_ds = NpyDataset(tb_ds)
+    tb_ds = NpyDataset(tb_ds, channels=tb_channels)
     reduced_indices = list(range(1, len(tb_ds)))
     # Land channel
     if config.use_land_mask:
@@ -367,10 +368,11 @@ Config = namedtuple(
 )
 
 
+tb_channels = [0, 1, 2, 3, 4]
 config = Config(
     # Base channels:
     #  * tb: 5
-    in_chan=12,
+    in_chan=len(tb_channels),
     n_classes=2,
     depth=4,
     base_filters=64,
@@ -445,6 +447,7 @@ input_ds = build_input_dataset(
     f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
     data_grid_shape,
     f"../data/cleaned/solar_rad-AM-2007-2010-{config.region}.npy",
+    tb_channels=tb_channels,
 )
 # Validation dataset
 era_ds = NpyDataset(
@@ -588,6 +591,7 @@ input_ds = build_input_dataset(
     f"../data/cleaned/date_map-2015-{config.region}.csv",
     data_grid_shape,
     f"../data/cleaned/solar_rad-AM-2015-{config.region}.npy",
+    tb_channels=tb_channels,
 )
 reduced_indices = list(range(1, len(input_ds) + 1))
 era_ds = NpyDataset(f"../data/cleaned/era5-t2m-am-2015-{config.region}.npy")
