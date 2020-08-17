@@ -27,10 +27,10 @@ def build_tb_ds(path_groups, transform):
     return torch.utils.data.ConcatDataset(dss)
 
 
-def dataset_to_array(ds):
+def dataset_to_array(ds, dtype=float):
     n = len(ds)
     shape = (n, *ds[0].shape)
-    ar = np.zeros(shape)
+    ar = np.zeros(shape, dtype=dtype)
     for i, x in enumerate(tqdm.tqdm(ds, ncols=80, desc="DS to array")):
         ar[i] = x
     return ar
