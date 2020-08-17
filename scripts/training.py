@@ -351,6 +351,7 @@ Config = namedtuple(
         "val_use_valid_mask",
         "optimizer",
         "normalize",
+        "randomize_offset",
         "mask_water",
         "use_land_mask",
         "use_dem",
@@ -397,6 +398,7 @@ config = Config(
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
     normalize=False,
+    randomize_offset=False,
     mask_water=True,
     # 1 channel
     use_land_mask=_use_land_mask,
@@ -468,12 +470,6 @@ if config.use_prior_day:
     era_ds = Subset(era_ds, list(range(1, len(input_ds) + 1)))
 idx_ds = IndexEchoDataset(len(input_ds))
 ds = ComposedDataset([idx_ds, input_ds, era_ds])
-dataloader = torch.utils.data.DataLoader(
-    ds,
-    batch_size=config.batch_size,
-    shuffle=config.batch_shuffle,
-    drop_last=config.drop_last,
-)
 
 model = UNet(
     config.in_chan,
@@ -509,10 +505,28 @@ os.chmod(show_log_sh, st.st_mode | stat.S_IXUSR)
 
 criterion = nn.CrossEntropyLoss()
 iters = 0
+if config.randomize_offset:
+    rng = np.random.default_rng()
+    day_indices = list(range(len(ds)))
+else:
+    dataloader = torch.utils.data.DataLoader(
+        ds,
+        batch_size=config.batch_size,
+        shuffle=config.batch_shuffle,
+        drop_last=config.drop_last,
+    )
 for epoch in range(config.epochs):
     writer.add_scalar(
         "learning_rate", next(iter(opt.param_groups))["lr"], epoch
     )
+    if config.randomize_offset:
+        offset = rng.choice(7, 1)[0]
+        dataloader = torch.utils.data.DataLoader(
+            Subset(ds, day_indices[offset:]),
+            batch_size=config.batch_size,
+            shuffle=config.batch_shuffle,
+            drop_last=config.drop_last,
+        )
     it = tqdm.tqdm(
         enumerate(dataloader),
         ncols=80,
