@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
+import seaborn as sns
 from collections import namedtuple
 
 from utils import validate_dir_path
@@ -31,12 +32,12 @@ NAMES = [
 ]
 NAME_2_FREQS = {
     "19": [19],
-    "19-22": [19, 22],
-    "19-22-37": [19, 22, 37],
-    "19-37": [19, 37],
     "22": [22],
-    "22-37": [22, 37],
     "37": [37],
+    "19-22": [19, 22],
+    "19-37": [19, 37],
+    "22-37": [22, 37],
+    "19-22-37": [19, 22, 37],
 }
 
 
@@ -80,6 +81,7 @@ def bar_chart(datasets):
     width = 0.35
     margin = 0.5
     label_locs = np.arange(len(labels))
+    sns.set_style("whitegrid")
     fig, ax = plt.subplots()
     era_bars = ax.bar(label_locs - (width / 2), era, width, label="ERA")
     aws_bars = ax.bar(label_locs + (width / 2), aws, width, label="AWS")
@@ -93,6 +95,8 @@ def bar_chart(datasets):
     ax.set_xlabel("Band Frequencies (GHz)")
     ax.set_xticks(label_locs)
     ax.set_xticklabels(labels)
+    sns.despine(left=True, top=True, right=True)
+    ax.grid(b=False, axis="x")
     ax.legend()
     fig.tight_layout()
     plt.show()
