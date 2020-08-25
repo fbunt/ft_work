@@ -80,10 +80,10 @@ def get_successor(x, i, missing):
     return sx[idx], count[idx]
 
 
-def fill_gaps(x):
+def fill_gaps(x, missing_func=np.nan):
     gap_filled = x.copy()
     for i in tqdm.tqdm(range(len(x)), ncols=80, desc="Gap fill"):
-        gaps = np.isnan(x[i])
+        gaps = missing_func(x[i])
         if not gaps.any():
             continue
         # count is how far the alg had to go to find a value
