@@ -52,6 +52,7 @@ def run_async_jobs(
     async_type=MULTI_THREAD,
     max_workers=None,
     chunk_size=1,
+    progress: bool = False,
 ) -> List[Any]:
     """Run a set of `AsyncJob`s asynchronously and return the results.
 
@@ -87,6 +88,7 @@ def run_async_jobs(
         async_type=async_type,
         max_workers=max_workers,
         error_on_fail=True,
+        progress=progress,
     )
     out = {}
     for k in results:
@@ -102,6 +104,7 @@ def run_async(
     async_type: str = MULTI_THREAD,
     max_workers: Optional[int] = None,
     error_on_fail: bool = True,
+    progress: bool = False,
 ) -> Union[
     Dict[Hashable, Any], Tuple[Dict[Hashable, Any], Dict[Hashable, Exception]]
 ]:
@@ -143,11 +146,10 @@ def run_async(
         }
         remaining_futures = set(futures_to_ids)
         try:
-            for w in tqdm.tqdm(
-                cfutures.as_completed(futures_to_ids),
-                ncols=80,
-                total=len(futures_to_ids),
-            ):
+            it = cfutures.as_completed(futures_to_ids)
+            if progress:
+                it = tqdm.tqdm(it, ncols=80, total=len(futures_to_ids))
+            for w in it:
                 remaining_futures.remove(w)
                 id_ = futures_to_ids[w]
                 try:
