@@ -252,7 +252,7 @@ print("Loading snow cover")
 snow = dataset_to_array(dl.NpyDataset("../data/snow/snow_cover_2015.npy"))
 print("Loading solar")
 solar = dataset_to_array(
-    dl.NpyDataset(f"../data/solar/solar_rad-daily-2015.npy", transform)
+    dl.NpyDataset("../data/solar/solar_rad-daily-2015.npy", transform)
 )
 print("Loading tb")
 tb = dataset_to_array(
