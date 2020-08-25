@@ -101,24 +101,55 @@ def fill_gaps(x, missing_func=np.nan):
     return gap_filled
 
 
-def prep(start_date, solar, tb, era, out_dir, region, missing_cutoff=0.6):
+def save_data(data_dict, out_dir, year_str, region):
+    for fname, data in data_dict.items():
+        name = fname.format(out_dir=out_dir, year_str=year_str, region=region)
+        print(f"Saving to: '{name}'")
+        np.save(name, data)
+
+
+FMT_FILENAME_SNOW = "{out_dir}/snow_cover-{year_str}-{region}.npy"
+FMT_FILENAME_SOLAR = "{out_dir}/solar_rad-AM-{year_str}-{region}.npy"
+FMT_FILENAME_TB = "{out_dir}/tb-D-{year_str}-{region}.npy"
+FMT_FILENAME_ERA = "{out_dir}/solar_rad-AM-{year_str}-{region}.npy"
+FMT_FILENAME_TB_VALID = "{out_dir}/solar_rad-AM-{year_str}-{region}.npy"
+
+
+def prep(
+    start_date,
+    snow,
+    solar,
+    tb,
+    era,
+    out_dir,
+    region,
+    drop_bad_days,
+    missing_cutoff=0.6,
+):
     out_dir = os.path.abspath(out_dir)
     n = len(solar)
     dates = np.array(get_n_dates(start_date, n))
-    # Filter out indices where all Tb data is missing
-    good_idxs = [
-        i for i in range(n) if get_missing_ratio(tb[i]) < missing_cutoff
-    ]
-    bad_idxs = [
-        i for i in range(n) if get_missing_ratio(tb[i]) >= missing_cutoff
-    ]
+
+    if drop_bad_days:
+        # Filter out indices where specified ratio of Tb data is missing
+        good_idxs = [
+            i for i in range(n) if get_missing_ratio(tb[i]) < missing_cutoff
+        ]
+        bad_idxs = [
+            i for i in range(n) if get_missing_ratio(tb[i]) >= missing_cutoff
+        ]
+    else:
+        good_idxs = list(range(n))
+        bad_idxs = []
     n = len(good_idxs)
     dropped_dates = dates[bad_idxs]
     dates = dates[good_idxs]
+    snow = snow[good_idxs]
     solar = solar[good_idxs]
     tb = tb[good_idxs]
     era = era[good_idxs]
     tb = fill_gaps(tb)
+    snow = np.round(fill_gaps(snow, missing_func=lambda x: x == -1))
     nanmask = np.isnan(tb)
     # Only need one of the identical masks
     nanmask = nanmask[:, 0]
@@ -131,10 +162,14 @@ def prep(start_date, solar, tb, era, out_dir, region, missing_cutoff=0.6):
         year_str = str(start_year)
     else:
         year_str = f"{start_year}-{end_year}"
-    np.save(f"{out_dir}/solar_rad-AM-{year_str}-{region}.npy", solar)
-    np.save(f"{out_dir}/tb-D-{year_str}-{region}.npy", tb)
-    np.save(f"{out_dir}/era5-t2m-am-{year_str}-{region}.npy", era)
-    np.save(f"{out_dir}/tb_valid_mask-D-{year_str}-{region}.npy", vmask)
+    data_dict = {
+        FMT_FILENAME_SNOW: snow,
+        FMT_FILENAME_SOLAR: solar,
+        FMT_FILENAME_TB: tb,
+        FMT_FILENAME_ERA: era,
+        FMT_FILENAME_TB_VALID: vmask,
+    }
+    save_data(data_dict, out_dir, year_str, region)
     with open(f"{out_dir}/date_map-{year_str}-{region}.csv", "w") as fd:
         for i, d in zip(good_idxs, dates):
             fd.write(f"{i},{d}\n")
@@ -158,10 +193,23 @@ reg2trans = {
 region = N45W
 transform = reg2trans[region]
 
+drop_bad_days = False
+
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 out_dir = "../data/cleaned"
 
 # Training data
+print("Loading snow cover")
+snow = dataset_to_array(
+    torch.utils.data.ConcatDataset(
+        [
+            dl.NpyDataset("../data/snow/snow_cover_2007.npy", transform),
+            dl.NpyDataset("../data/snow/snow_cover_2008.npy", transform),
+            dl.NpyDataset("../data/snow/snow_cover_2009.npy", transform),
+            dl.NpyDataset("../data/snow/snow_cover_2010.npy", transform),
+        ]
+    )
+)
 print("Loading solar")
 solar = dataset_to_array(
     torch.utils.data.ConcatDataset(
@@ -196,10 +244,12 @@ era = dataset_to_array(
         transform=transform,
     )
 )
-prep(dt.date(2007, 1, 1), solar, tb, era, out_dir, region)
+prep(dt.date(2007, 1, 1), snow, solar, tb, era, out_dir, region, drop_bad_days)
 
 
 # Validation data
+print("Loading snow cover")
+snow = dataset_to_array(dl.NpyDataset("../data/snow/snow_cover_2015.npy"))
 print("Loading solar")
 solar = dataset_to_array(
     dl.NpyDataset(f"../data/solar/solar_rad-daily-2015.npy", transform)
