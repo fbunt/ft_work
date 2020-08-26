@@ -80,7 +80,7 @@ def get_successor(x, i, missing):
     return sx[idx], count[idx]
 
 
-def fill_gaps(x, missing_func=np.nan):
+def fill_gaps(x, missing_func=np.isnan):
     gap_filled = x.copy()
     for i in tqdm.tqdm(range(len(x)), ncols=80, desc="Gap fill"):
         gaps = missing_func(x[i])
