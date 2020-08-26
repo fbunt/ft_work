@@ -400,17 +400,11 @@ config = Config(
     normalize=False,
     randomize_offset=False,
     mask_water=True,
-    # 1 channel
     use_land_mask=_use_land_mask,
-    # 1 channel
     use_dem=_use_dem,
-    # 1 channel
     use_latitude=_use_lat,
-    # 1 channel
     use_day_of_year=_use_day_of_year,
-    # 1 channel
     use_solar=_use_solar,
-    # 5 channels
     use_prior_day=_use_prior_day,
     region=N45W,
     l2_reg_weight=1e-2,
