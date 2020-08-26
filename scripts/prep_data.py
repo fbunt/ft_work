@@ -111,8 +111,8 @@ def save_data(data_dict, out_dir, year_str, region):
 FMT_FILENAME_SNOW = "{out_dir}/snow_cover-{year_str}-{region}.npy"
 FMT_FILENAME_SOLAR = "{out_dir}/solar_rad-AM-{year_str}-{region}.npy"
 FMT_FILENAME_TB = "{out_dir}/tb-D-{year_str}-{region}.npy"
-FMT_FILENAME_ERA = "{out_dir}/solar_rad-AM-{year_str}-{region}.npy"
-FMT_FILENAME_TB_VALID = "{out_dir}/solar_rad-AM-{year_str}-{region}.npy"
+FMT_FILENAME_ERA = "{out_dir}/era5-t2m-am-{year_str}-{region}.npy"
+FMT_FILENAME_TB_VALID = "{out_dir}/tb_valid_mask-D-{year_str}-{region}.npy"
 
 
 def prep(
