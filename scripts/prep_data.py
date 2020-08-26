@@ -268,4 +268,4 @@ era = dataset_to_array(
         transform=transform,
     )
 )
-prep(dt.date(2015, 1, 1), solar, tb, era, out_dir, region)
+prep(dt.date(2015, 1, 1), snow, solar, tb, era, out_dir, region, drop_bad_days)
