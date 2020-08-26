@@ -277,6 +277,7 @@ def build_input_dataset(
     date_map_path,
     date_ds_shape,
     solar_path,
+    snow_path,
     tb_channels=None,
 ):
     datasets = []
@@ -323,6 +324,14 @@ def build_input_dataset(
         if config.use_prior_day:
             ds = Subset(ds, reduced_indices)
         datasets.append(ds)
+    if config.use_snow:
+        ds = np.load(snow_path)
+        if config.normalize:
+            ds = normalize(ds)
+        ds = NpyDataset(ds)
+        if config.use_prior_day:
+            ds = Subset(ds, reduced_indices)
+        datasets.append(ds)
     # Prior day Tb channels
     if config.use_prior_day:
         ds = Subset(tb_ds, list(range(0, len(tb_ds) - 1)))
@@ -358,6 +367,7 @@ Config = namedtuple(
         "use_latitude",
         "use_day_of_year",
         "use_solar",
+        "use_snow",
         "use_prior_day",
         "region",
         "l2_reg_weight",
@@ -375,15 +385,15 @@ _use_dem = True
 _use_lat = False
 _use_day_of_year = False
 _use_solar = False
+_use_snow = False
 _use_prior_day = False
 config = Config(
-    # Base channels:
-    #  * tb: 5
     in_chan=len(tb_channels)
     + _use_dem
     + _use_lat
     + _use_day_of_year
     + _use_solar
+    + _use_snow
     + (len(tb_channels) * _use_prior_day),
     n_classes=2,
     depth=4,
@@ -405,6 +415,7 @@ config = Config(
     use_latitude=_use_lat,
     use_day_of_year=_use_day_of_year,
     use_solar=_use_solar,
+    use_snow=_use_snow,
     use_prior_day=_use_prior_day,
     region=N45W,
     l2_reg_weight=1e-2,
@@ -454,6 +465,7 @@ input_ds = build_input_dataset(
     f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
     data_grid_shape,
     f"../data/cleaned/solar_rad-AM-2007-2010-{config.region}.npy",
+    f"../data/cleaned/snow_cover-2007-2010-{config.region}.npy",
     tb_channels=tb_channels,
 )
 # Validation dataset
@@ -610,6 +622,7 @@ input_ds = build_input_dataset(
     f"../data/cleaned/date_map-2015-{config.region}.csv",
     data_grid_shape,
     f"../data/cleaned/solar_rad-AM-2015-{config.region}.npy",
+    f"../data/cleaned/snow_cover-2015-{config.region}.npy",
     tb_channels=tb_channels,
 )
 reduced_indices = list(range(1, len(input_ds) + 1))
