@@ -249,7 +249,9 @@ prep(dt.date(2007, 1, 1), snow, solar, tb, era, out_dir, region, drop_bad_days)
 
 # Validation data
 print("Loading snow cover")
-snow = dataset_to_array(dl.NpyDataset("../data/snow/snow_cover_2015.npy"))
+snow = dataset_to_array(
+    dl.NpyDataset("../data/snow/snow_cover_2015.npy", transform)
+)
 print("Loading solar")
 solar = dataset_to_array(
     dl.NpyDataset("../data/solar/solar_rad-daily-2015.npy", transform)
