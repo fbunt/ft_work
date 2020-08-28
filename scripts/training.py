@@ -54,38 +54,15 @@ def load_dates(path):
     return dates
 
 
-def write_results(
-    root,
-    model,
-    input_val_ds,
-    era_val_ds,
-    val_mask_ds,
-    val_dates,
-    config,
-    device,
-    land_mask,
-    db,
-    view_trans,
-):
-    os.makedirs(root, exist_ok=True)
-    pred_plots = os.path.join(root, "pred_plots")
-    if os.path.isdir(pred_plots):
-        shutil.rmtree(pred_plots)
-    os.makedirs(pred_plots)
-
-    land_mask = land_mask.numpy()
-    mpath = os.path.join(root, "model.pt")
-    print(f"Saving model: '{mpath}'")
-    torch.save(model.state_dict(), mpath)
-    print("Generating predictions")
+def get_predictions(input_ds, model, water_mask, water_label, device, config):
     pred = []
-    for i, v in enumerate(tqdm.tqdm(input_val_ds, ncols=80)):
+    for i, v in enumerate(tqdm.tqdm(input_ds, ncols=80)):
         if config.mask_water:
             p = torch.softmax(
                 model(v.unsqueeze(0).to(device, dtype=torch.float)).detach(), 1
             )
             p = p.cpu().squeeze().numpy().argmax(0)
-            p[..., ~land_mask] = LABEL_OTHER
+            p[..., water_mask] = water_label
         else:
             p = (
                 torch.softmax(
@@ -101,49 +78,50 @@ def write_results(
             )
         pred.append(p)
     pred = np.array(pred)
-    ppath = os.path.join(root, "pred.npy")
-    print(f"Saving predictions: '{ppath}'")
-    np.save(ppath, pred)
+    return pred
 
-    # Validate against ERA5
-    print("Validating against ERA5")
+
+def validate_against_era5(pred, era_ds, valid_mask_ds, land_mask, config):
     if config.val_use_valid_mask:
         masked_pred = [
             p[land_mask & vmask] for p, vmask in zip(pred, val_mask_ds)
         ]
         era = [
             v.argmax(0)[land_mask & vmask]
-            for v, vmask in zip(era_val_ds, val_mask_ds)
+            for v, vmask in zip(era_ds, val_mask_ds)
         ]
     else:
         masked_pred = [p[land_mask] for p in pred]
-        era = [v.argmax(0)[land_mask] for v in era_val_ds]
+        era = [v.argmax(0)[land_mask] for v in era_ds]
     era_acc = np.array(
         [(p == e).sum() / p.size for p, e in zip(masked_pred, era)]
     )
-    era_acc *= 100
-    # Validate against AWS DB
+    return era_acc * 100
+
+
+def validate_against_aws_db(
+    pred, db, dates, view_transform, valid_mask_ds, land_mask, config
+):
     pf = WMOValidationPointFetcher(db, RETRIEVAL_MIN)
-    elon, elat = [view_trans(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
+    elon, elat = [view_transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
     aws_val = WMOValidator(pf)
     if config.val_use_valid_mask:
-        mask = (land_mask & vmask for vmask in val_mask_ds)
+        mask = (land_mask & vmask for vmask in valid_mask_ds)
     else:
         mask = land_mask
     aws_acc = aws_val.validate_bounded(
         pred,
-        val_dates,
+        dates,
         elon,
         elat,
         mask,
         show_progress=True,
         variable_mask=config.val_use_valid_mask,
     )
-    aws_acc *= 100
-    acc_file = os.path.join(root, "acc.csv")
-    with open(acc_file, "w") as fd:
-        for d, ae, aa in zip(val_dates, era_acc, aws_acc):
-            fd.write(f"{d},{ae},{aa}\n")
+    return aws_acc * 100
+
+
+def plot_results(predictions, era_acc, aws_acc, root_dir, pred_plot_dir):
     # ERA
     plt.figure()
     plt.plot(val_dates, era_acc, lw=1, label="ERA5")
@@ -153,7 +131,7 @@ def write_results(
     plt.ylabel("Accuracy (%)")
     plt.gca().yaxis.set_minor_locator(tkr.MultipleLocator(5))
     plt.grid(True, which="both", alpha=0.7, lw=0.5, ls=":")
-    plt.savefig(os.path.join(root, "acc_era_plot.png"), dpi=300)
+    plt.savefig(os.path.join(root_dir, "acc_era_plot.png"), dpi=300)
     # AWS
     plt.figure()
     plt.plot(val_dates, aws_acc, lw=1, label="AWS")
@@ -163,7 +141,7 @@ def write_results(
     plt.ylabel("Accuracy (%)")
     plt.gca().yaxis.set_minor_locator(tkr.MultipleLocator(5))
     plt.grid(True, which="both", alpha=0.7, lw=0.5, ls=":")
-    plt.savefig(os.path.join(root, "acc_aws_plot.png"), dpi=300)
+    plt.savefig(os.path.join(root_dir, "acc_aws_plot.png"), dpi=300)
     # Both
     plt.figure()
     plt.plot(val_dates, era_acc, lw=1, label="ERA5")
@@ -177,12 +155,12 @@ def write_results(
     plt.ylabel("Accuracy (%)")
     plt.gca().yaxis.set_minor_locator(tkr.MultipleLocator(5))
     plt.grid(True, which="both", alpha=0.7, lw=0.5, ls=":")
-    plt.savefig(os.path.join(root, "acc_plot.png"), dpi=300)
+    plt.savefig(os.path.join(root_dir, "acc_plot.png"), dpi=300)
     plt.close()
     # Save prediction plots
-    print(f"Creating prediction plots: '{pred_plots}'")
-    pfmt = os.path.join(pred_plots, "{:03}.png")
-    for i, p in enumerate(tqdm.tqdm(pred, ncols=80)):
+    print(f"Creating prediction plots: '{pred_plot_dir}'")
+    pfmt = os.path.join(pred_plot_dir, "{:03}.png")
+    for i, p in enumerate(tqdm.tqdm(predictions, ncols=80)):
         plt.figure()
         plt.imshow(p, cmap=FT_CMAP, vmin=LABEL_FROZEN, vmax=LABEL_OTHER)
         plt.title(f"Day: {i + 1}")
@@ -493,14 +471,14 @@ sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
 
 # Create run dir and fill with info
 stamp = str(dt.datetime.now()).replace(" ", "-")
-run_dir = f"../runs/{stamp}"
-os.makedirs(run_dir, exist_ok=True)
+root_dir = f"../runs/{stamp}"
+os.makedirs(root_dir, exist_ok=True)
 # Dump configuration info
-with open(os.path.join(run_dir, "config"), "w") as fd:
+with open(os.path.join(root_dir, "config"), "w") as fd:
     fd.write(f"{config}\n")
-log_dir = os.path.join(run_dir, "logs")
+log_dir = os.path.join(root_dir, "logs")
 writer = SummaryWriter(log_dir)
-show_log_sh = os.path.join(run_dir, "show_log.sh")
+show_log_sh = os.path.join(root_dir, "show_log.sh")
 # Create script to view logs
 with open(show_log_sh, "w") as fd:
     fd.write("#!/usr/bin/env bash\n")
@@ -635,16 +613,40 @@ if config.use_prior_day:
     era_ds = Subset(era_ds, reduced_indices)
     val_mask_ds = Subset(val_mask_ds, reduced_indices)
     val_dates = Subset(val_dates, reduced_indices)
-write_results(
-    run_dir,
-    model,
-    input_ds,
-    era_ds,
-    val_mask_ds,
-    val_dates,
-    config,
-    device,
-    land_mask,
-    get_db_session("../data/dbs/wmo_gsod.db"),
-    transform,
+
+# Log results
+os.makedirs(root_dir, exist_ok=True)
+pred_plot_dir = os.path.join(root_dir, "pred_plots")
+if os.path.isdir(pred_plot_dir):
+    shutil.rmtree(pred_plot_dir)
+os.makedirs(pred_plot_dir)
+# Save model
+mpath = os.path.join(root_dir, "model.pt")
+print(f"Saving model: '{mpath}'")
+torch.save(model.state_dict(), mpath)
+# Create and save predictions for test data
+print("Generating predictions")
+pred = get_predictions(
+    input_ds, model, ~land_mask, LABEL_OTHER, device, config
 )
+ppath = os.path.join(root_dir, "pred.npy")
+print(f"Saving predictions: '{ppath}'")
+np.save(ppath, pred)
+# Validate against ERA5
+print("Validating against ERA5")
+era_acc = validate_against_era5(
+    pred, era_ds, val_mask_ds, land_mask, config
+)
+# Validate against AWS DB
+db = get_db_session("../data/dbs/wmo_gsod.db")
+aws_acc = validate_against_aws_db(
+    pred, db, val_dates, transform, val_mask_ds, land_mask, config
+)
+db.close()
+# Write accuracies
+acc_file = os.path.join(root_dir, "acc.csv")
+with open(acc_file, "w") as fd:
+    for d, ae, aa in zip(val_dates, era_acc, aws_acc):
+        fd.write(f"{d},{ae},{aa}\n")
+
+plot_results(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
