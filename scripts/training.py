@@ -45,6 +45,24 @@ from validation_db_orm import get_db_session
 import ease_grid as eg
 
 
+def init_run_dir(root_dir):
+    os.makedirs(root_dir, exist_ok=True)
+    # Dump configuration info
+    with open(os.path.join(root_dir, "config"), "w") as fd:
+        fd.write(f"{config}\n")
+    log_dir = os.path.join(root_dir, "logs")
+    summary = SummaryWriter(log_dir)
+    show_log_sh = os.path.join(root_dir, "show_log.sh")
+    # Create script to view logs
+    with open(show_log_sh, "w") as fd:
+        fd.write("#!/usr/bin/env bash\n")
+        fd.write(f"tensorboard --logdir {os.path.abspath(log_dir)}\n")
+        fd.flush()
+    st = os.stat(show_log_sh)
+    os.chmod(show_log_sh, st.st_mode | stat.S_IXUSR)
+    return summary
+
+
 def load_dates(path):
     dates = []
     with open(path) as fd:
@@ -519,22 +537,8 @@ opt = config.optimizer(
 sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
 
 # Create run dir and fill with info
-stamp = str(dt.datetime.now()).replace(" ", "-")
-root_dir = f"../runs/{stamp}"
-os.makedirs(root_dir, exist_ok=True)
-# Dump configuration info
-with open(os.path.join(root_dir, "config"), "w") as fd:
-    fd.write(f"{config}\n")
-log_dir = os.path.join(root_dir, "logs")
-writer = SummaryWriter(log_dir)
-show_log_sh = os.path.join(root_dir, "show_log.sh")
-# Create script to view logs
-with open(show_log_sh, "w") as fd:
-    fd.write("#!/usr/bin/env bash\n")
-    fd.write(f"tensorboard --logdir {os.path.abspath(log_dir)}\n")
-    fd.flush()
-st = os.stat(show_log_sh)
-os.chmod(show_log_sh, st.st_mode | stat.S_IXUSR)
+root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
+summary = init_run_dir(root_dir)
 
 criterion = nn.CrossEntropyLoss()
 iters = 0
@@ -549,7 +553,7 @@ else:
         drop_last=config.drop_last,
     )
 for epoch in range(config.epochs):
-    writer.add_scalar(
+    summary.add_scalar(
         "learning_rate", next(iter(opt.param_groups))["lr"], epoch
     )
     if config.randomize_offset:
@@ -585,7 +589,7 @@ for epoch in range(config.epochs):
             log_class_prob[..., land_mask], batch_era[..., land_mask]
         )
         era_loss *= config.era_weight
-        writer.add_scalar("CE Loss", era_loss.item(), step)
+        summary.add_scalar("CE Loss", era_loss.item(), step)
         #
         # AWS loss
         #
@@ -600,7 +604,7 @@ for epoch in range(config.epochs):
             device,
         )
         aws_loss *= config.aws_loss_weight
-        writer.add_scalar("AWS Loss", aws_loss.item(), step)
+        summary.add_scalar("AWS Loss", aws_loss.item(), step)
         if not config.mask_water:
             #
             # Land/Water
@@ -611,27 +615,27 @@ for epoch in range(config.epochs):
             # Minimize the probability of OTHER class in land regions
             land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
             land_loss *= config.land_reg_weight
-            writer.add_scalar("Land Loss", land_loss.item(), step)
+            summary.add_scalar("Land Loss", land_loss.item(), step)
         #
         # Local variation
         #
         # Minimize high frequency variation
         lv_loss = local_variation_loss(class_prob)
         lv_loss *= config.lv_reg_weight
-        writer.add_scalar("LV Loss", lv_loss.item(), step)
+        summary.add_scalar("LV Loss", lv_loss.item(), step)
         loss = era_loss
         loss += aws_loss
         if not config.mask_water:
             loss += land_loss
         loss += lv_loss
-        writer.add_scalar("training_loss", loss.item(), step)
+        summary.add_scalar("training_loss", loss.item(), step)
 
         loss.backward()
         opt.step()
 
         iters += 1
     sched.step()
-writer.close()
+summary.close()
 # Free up data for GC
 train_input_ds = None
 train_era_ds = None
