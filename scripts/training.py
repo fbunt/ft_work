@@ -112,6 +112,8 @@ def validate_against_aws_db(
             mask = (land_mask & vmask.numpy() for vmask in valid_mask_ds)
     else:
         mask = land_mask
+        if not isinstance(mask, np.ndarray):
+            mask = mask.numpy()
     aws_acc = aws_val.validate_bounded(
         pred,
         dates,
