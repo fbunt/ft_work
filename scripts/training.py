@@ -428,18 +428,11 @@ elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
 lat_channel = torch.tensor(transform(elat)).float()
 data_grid_shape = land_mask_np.shape
 
-# AWS
-aws_data = get_aws_data(
-    f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
-    f"../data/cleaned/tb_valid_mask-D-2007-2010-{config.region}.npy",
-    "../data/dbs/wmo_gsod.db",
-    land_mask_np,
-    transform,
-    RETRIEVAL_MIN,
-    config,
-)
-# Input dataset creation
-input_ds = build_input_dataset(
+
+#
+# Training data
+#
+train_input_ds = build_input_dataset(
     config,
     f"../data/cleaned/tb-D-2007-2010-{config.region}.npy",
     transform(np.load("../data/z/dem.npy")),
@@ -451,14 +444,65 @@ input_ds = build_input_dataset(
     f"../data/cleaned/snow_cover-2007-2010-{config.region}.npy",
     tb_channels=tb_channels,
 )
-# Validation dataset
-era_ds = NpyDataset(
+# AWS
+train_aws_data = get_aws_data(
+    f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
+    f"../data/cleaned/tb_valid_mask-D-2007-2010-{config.region}.npy",
+    "../data/dbs/wmo_gsod.db",
+    land_mask_np,
+    transform,
+    RETRIEVAL_MIN,
+    config,
+)
+# ERA
+train_era_ds = NpyDataset(
     f"../data/cleaned/era5-t2m-am-2007-2010-{config.region}.npy"
 )
 if config.use_prior_day:
-    era_ds = Subset(era_ds, list(range(1, len(input_ds) + 1)))
-idx_ds = IndexEchoDataset(len(input_ds))
-ds = ComposedDataset([idx_ds, input_ds, era_ds])
+    train_era_ds = Subset(
+        train_era_ds, list(range(1, len(train_input_ds) + 1))
+    )
+    train_idx_ds = IndexEchoDataset(len(train_input_ds), offset=1)
+else:
+    train_idx_ds = IndexEchoDataset(len(train_input_ds))
+train_ds = ComposedDataset([train_input_ds, train_era_ds, train_idx_ds])
+
+#
+# Test Data
+#
+test_input_ds = build_input_dataset(
+    config,
+    f"../data/cleaned/tb-D-2015-{config.region}.npy",
+    transform(np.load("../data/z/dem.npy")),
+    land_channel,
+    lat_channel,
+    f"../data/cleaned/date_map-2015-{config.region}.csv",
+    data_grid_shape,
+    f"../data/cleaned/solar_rad-AM-2015-{config.region}.npy",
+    f"../data/cleaned/snow_cover-2015-{config.region}.npy",
+    tb_channels=tb_channels,
+)
+test_reduced_indices = list(range(1, len(test_input_ds) + 1))
+# AWS
+test_aws_data = get_aws_data(
+    f"../data/cleaned/date_map-2015-{config.region}.csv",
+    f"../data/cleaned/tb_valid_mask-D-2015-{config.region}.npy",
+    "../data/dbs/wmo_gsod.db",
+    land_mask_np,
+    transform,
+    RETRIEVAL_MIN,
+    config,
+)
+# ERA
+test_era_ds = NpyDataset(
+    f"../data/cleaned/era5-t2m-am-2015-{config.region}.npy"
+)
+if config.use_prior_day:
+    test_era_ds = Subset(test_era_ds, test_reduced_indices)
+    test_idx_ds = IndexEchoDataset(len(test_input_ds), offset=1)
+else:
+    test_idx_ds = IndexEchoDataset(len(test_input_ds))
+test_ds = ComposedDataset([test_input_ds, test_era_ds, test_idx_ds])
 
 model = UNet(
     config.in_chan,
@@ -496,10 +540,10 @@ criterion = nn.CrossEntropyLoss()
 iters = 0
 if config.randomize_offset:
     rng = np.random.default_rng()
-    day_indices = list(range(len(ds)))
+    day_indices = list(range(len(train_ds)))
 else:
     dataloader = torch.utils.data.DataLoader(
-        ds,
+        train_ds,
         batch_size=config.batch_size,
         shuffle=config.batch_shuffle,
         drop_last=config.drop_last,
@@ -511,7 +555,7 @@ for epoch in range(config.epochs):
     if config.randomize_offset:
         offset = rng.choice(7, 1)[0]
         dataloader = torch.utils.data.DataLoader(
-            Subset(ds, day_indices[offset:]),
+            Subset(train_ds, day_indices[offset:]),
             batch_size=config.batch_size,
             shuffle=config.batch_shuffle,
             drop_last=config.drop_last,
@@ -522,11 +566,11 @@ for epoch in range(config.epochs):
         total=len(dataloader),
         desc=f"Epoch: {epoch + 1}/{config.epochs}",
     )
-    for i, (ds_idxs, input_data, label) in it:
+    for i, (input_data, batch_era, batch_idxs) in it:
         step = (epoch * len(dataloader)) + i
         input_data = input_data.to(device, dtype=torch.float)
         # Compress 1-hot encoding to single channel
-        label = label.argmax(dim=1).to(device)
+        batch_era = batch_era.argmax(dim=1).to(device)
         # valid_mask = valid_mask.to(device)
 
         model.train()
@@ -538,16 +582,16 @@ for epoch in range(config.epochs):
         # ERA
         #
         era_loss = criterion(
-            log_class_prob[..., land_mask], label[..., land_mask]
+            log_class_prob[..., land_mask], batch_era[..., land_mask]
         )
         era_loss *= config.era_weight
         writer.add_scalar("CE Loss", era_loss.item(), step)
         #
         # AWS loss
         #
-        batch_aws_data = [aws_data[j] for j in ds_idxs]
-        batch_aws_flat_idxs = [v[0] for v in batch_aws_data]
-        batch_aws_labels = [v[1] for v in batch_aws_data]
+        batch_aws = [train_aws_data[idx] for idx in batch_idxs]
+        batch_aws_flat_idxs = [v[0] for v in batch_aws]
+        batch_aws_labels = [v[1] for v in batch_aws]
         aws_loss = aws_loss_func(
             log_class_prob,
             batch_aws_flat_idxs,
@@ -589,36 +633,20 @@ for epoch in range(config.epochs):
     sched.step()
 writer.close()
 # Free up data for GC
-input_ds = None
-era_ds = None
-idx_ds = None
-ds = None
+train_input_ds = None
+train_era_ds = None
+train_idx_ds = None
+train_ds = None
 dataloader = None
 
 # Validation
-input_ds = build_input_dataset(
-    config,
-    f"../data/cleaned/tb-D-2015-{config.region}.npy",
-    transform(np.load("../data/z/dem.npy")),
-    land_channel,
-    lat_channel,
-    f"../data/cleaned/date_map-2015-{config.region}.csv",
-    data_grid_shape,
-    f"../data/cleaned/solar_rad-AM-2015-{config.region}.npy",
-    f"../data/cleaned/snow_cover-2015-{config.region}.npy",
-    tb_channels=tb_channels,
-)
-reduced_indices = list(range(1, len(input_ds) + 1))
-era_ds = NpyDataset(f"../data/cleaned/era5-t2m-am-2015-{config.region}.npy")
+val_dates = load_dates(f"../data/cleaned/date_map-2015-{config.region}.csv")
 val_mask_ds = NpyDataset(
     f"../data/cleaned/tb_valid_mask-D-2015-{config.region}.npy"
 )
-val_dates = load_dates(f"../data/cleaned/date_map-2015-{config.region}.csv")
 if config.use_prior_day:
-    era_ds = Subset(era_ds, reduced_indices)
-    val_mask_ds = Subset(val_mask_ds, reduced_indices)
-    val_dates = Subset(val_dates, reduced_indices)
-
+    val_dates = Subset(val_dates, test_reduced_indices)
+    val_mask_ds = Subset(val_mask_ds, test_reduced_indices)
 # Log results
 os.makedirs(root_dir, exist_ok=True)
 pred_plot_dir = os.path.join(root_dir, "pred_plots")
@@ -632,7 +660,7 @@ torch.save(model.state_dict(), mpath)
 # Create and save predictions for test data
 print("Generating predictions")
 pred = get_predictions(
-    input_ds, model, ~land_mask, LABEL_OTHER, device, config
+    test_input_ds, model, ~land_mask, LABEL_OTHER, device, config
 )
 ppath = os.path.join(root_dir, "pred.npy")
 print(f"Saving predictions: '{ppath}'")
@@ -640,7 +668,7 @@ np.save(ppath, pred)
 # Validate against ERA5
 print("Validating against ERA5")
 era_acc = validate_against_era5(
-    pred, era_ds, val_mask_ds, land_mask, config
+    pred, test_era_ds, val_mask_ds, land_mask, config
 )
 # Validate against AWS DB
 db = get_db_session("../data/dbs/wmo_gsod.db")
