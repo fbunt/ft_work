@@ -451,14 +451,26 @@ class ChannelSubsetDataset(Dataset):
 
 
 class IndexEchoDataset(Dataset):
-    def __init__(self, n):
+    def __init__(self, n, offset=0):
         self.n = n
+        self.offset = offset
 
     def __getitem__(self, idx):
-        return idx
+        return idx + self.offset
 
     def __len__(self):
         return self.n
+
+
+class ListDataset(Dataset):
+    def __init__(self, list_obj):
+        self.data = list_obj
+
+    def __getitem__(self, idx):
+        return self.data[idx]
+
+    def __len__(self):
+        return len(self.data)
 
 
 class RepeatDataset(Dataset):
