@@ -106,7 +106,10 @@ def validate_against_aws_db(
     elon, elat = [view_transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
     aws_val = WMOValidator(pf)
     if config.val_use_valid_mask:
-        mask = (land_mask & vmask for vmask in valid_mask_ds)
+        if isinstance(valid_mask_ds[0], np.ndarray):
+            mask = (land_mask & vmask for vmask in valid_mask_ds)
+        else:
+            mask = (land_mask & vmask.numpy() for vmask in valid_mask_ds)
     else:
         mask = land_mask
     aws_acc = aws_val.validate_bounded(
