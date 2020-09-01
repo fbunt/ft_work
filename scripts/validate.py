@@ -720,6 +720,10 @@ class InputFileParsingError(Exception):
     pass
 
 
+class InputDataError(Exception):
+    pass
+
+
 def _parse_input_file(fname):
     paths = []
     dates = []
