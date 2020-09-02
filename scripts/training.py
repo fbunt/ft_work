@@ -344,6 +344,155 @@ def build_input_dataset(
     return GridsStackDataset(datasets)
 
 
+def run_model(
+    model,
+    device,
+    iterator,
+    optimizer,
+    era_criterion,
+    land_mask,
+    water_mask,
+    summary,
+    epoch,
+    config,
+    is_train,
+):
+    base_step = epoch * len(iterator)
+    for i, (input_data, batch_era, batch_idxs) in iterator:
+        step = base_step + i
+        input_data = input_data.to(device, dtype=torch.float)
+        # Compress 1-hot encoding to single channel
+        batch_era = batch_era.argmax(dim=1).to(device)
+
+        if is_train:
+            model.zero_grad()
+        log_class_prob = model(input_data)
+        class_prob = torch.softmax(log_class_prob, 1)
+        #
+        # ERA
+        #
+        era_loss = criterion(
+            log_class_prob[..., land_mask], batch_era[..., land_mask]
+        )
+        era_loss *= config.era_weight
+        #
+        # AWS loss
+        #
+        batch_aws = [train_aws_data[idx] for idx in batch_idxs]
+        batch_aws_flat_idxs = [v[0] for v in batch_aws]
+        batch_aws_labels = [v[1] for v in batch_aws]
+        aws_loss = aws_loss_func(
+            log_class_prob,
+            batch_aws_flat_idxs,
+            batch_aws_labels,
+            config,
+            device,
+        )
+        aws_loss *= config.aws_loss_weight
+        if not config.mask_water:
+            #
+            # Land/Water
+            #
+            # Minimize the probabilities of FT classes in water regions
+            land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
+            land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
+            # Minimize the probability of OTHER class in land regions
+            land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
+            land_loss *= config.land_reg_weight
+        #
+        # Local variation
+        #
+        # Minimize high frequency variation
+        lv_loss = local_variation_loss(class_prob)
+        lv_loss *= config.lv_reg_weight
+        loss = era_loss
+        loss += aws_loss
+        if not config.mask_water:
+            loss += land_loss
+        loss += lv_loss
+        if is_train:
+            summary.add_scalar("ERA Loss", era_loss.item(), step)
+            summary.add_scalar("AWS Loss", aws_loss.item(), step)
+            if not config.mask_water:
+                summary.add_scalar("Land Loss", land_loss.item(), step)
+            summary.add_scalar("LV Loss", lv_loss.item(), step)
+            summary.add_scalar("training_loss", loss.item(), step)
+        else:
+            summary.add_scalar("test_loss", loss.item(), step)
+        if is_train:
+            loss.backward()
+            optimizer.step()
+
+
+def test(
+    model,
+    device,
+    dataloader,
+    optimizer,
+    era_criterion,
+    land_mask,
+    water_mask,
+    summary,
+    epoch,
+    config,
+):
+    model.eval()
+    it = tqdm.tqdm(
+        enumerate(dataloader),
+        ncols=80,
+        total=len(dataloader),
+        desc=f"Test: {epoch + 1}/{config.epochs}",
+    )
+    with torch.no_grad():
+        run_model(
+            model,
+            device,
+            it,
+            optimizer,
+            era_criterion,
+            land_mask,
+            water_mask,
+            summary,
+            epoch,
+            config,
+            False,
+        )
+
+
+def train(
+    model,
+    device,
+    dataloader,
+    optimizer,
+    era_criterion,
+    land_mask,
+    water_mask,
+    summary,
+    epoch,
+    config,
+):
+    model.train()
+    it = tqdm.tqdm(
+        enumerate(dataloader),
+        ncols=80,
+        total=len(dataloader),
+        desc=f"Train: {epoch + 1}/{config.epochs}",
+    )
+    run_model(
+        model,
+        device,
+        it,
+        optimizer,
+        era_criterion,
+        land_mask,
+        water_mask,
+        summary,
+        epoch,
+        config,
+        True,
+    )
+
+
 Config = namedtuple(
     "Config",
     (
@@ -541,99 +690,55 @@ root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
 summary = init_run_dir(root_dir)
 
 criterion = nn.CrossEntropyLoss()
-iters = 0
 if config.randomize_offset:
     rng = np.random.default_rng()
     day_indices = list(range(len(train_ds)))
 else:
-    dataloader = torch.utils.data.DataLoader(
+    train_dataloader = torch.utils.data.DataLoader(
         train_ds,
         batch_size=config.batch_size,
         shuffle=config.batch_shuffle,
         drop_last=config.drop_last,
     )
+test_dataloader = torch.utils.data.DataLoader(
+    test_ds, batch_size=config.batch_size, shuffle=False, drop_last=False,
+)
 for epoch in range(config.epochs):
     summary.add_scalar(
         "learning_rate", next(iter(opt.param_groups))["lr"], epoch
     )
     if config.randomize_offset:
         offset = rng.choice(7, 1)[0]
-        dataloader = torch.utils.data.DataLoader(
+        train_dataloader = torch.utils.data.DataLoader(
             Subset(train_ds, day_indices[offset:]),
             batch_size=config.batch_size,
             shuffle=config.batch_shuffle,
             drop_last=config.drop_last,
         )
-    it = tqdm.tqdm(
-        enumerate(dataloader),
-        ncols=80,
-        total=len(dataloader),
-        desc=f"Epoch: {epoch + 1}/{config.epochs}",
+    train(
+        model,
+        device,
+        train_dataloader,
+        opt,
+        criterion,
+        land_mask,
+        water_mask,
+        summary,
+        epoch,
+        config,
     )
-    for i, (input_data, batch_era, batch_idxs) in it:
-        step = (epoch * len(dataloader)) + i
-        input_data = input_data.to(device, dtype=torch.float)
-        # Compress 1-hot encoding to single channel
-        batch_era = batch_era.argmax(dim=1).to(device)
-        # valid_mask = valid_mask.to(device)
-
-        model.train()
-        model.zero_grad()
-        log_class_prob = model(input_data)
-        class_prob = torch.softmax(log_class_prob, 1)
-
-        #
-        # ERA
-        #
-        era_loss = criterion(
-            log_class_prob[..., land_mask], batch_era[..., land_mask]
-        )
-        era_loss *= config.era_weight
-        summary.add_scalar("CE Loss", era_loss.item(), step)
-        #
-        # AWS loss
-        #
-        batch_aws = [train_aws_data[idx] for idx in batch_idxs]
-        batch_aws_flat_idxs = [v[0] for v in batch_aws]
-        batch_aws_labels = [v[1] for v in batch_aws]
-        aws_loss = aws_loss_func(
-            log_class_prob,
-            batch_aws_flat_idxs,
-            batch_aws_labels,
-            config,
-            device,
-        )
-        aws_loss *= config.aws_loss_weight
-        summary.add_scalar("AWS Loss", aws_loss.item(), step)
-        if not config.mask_water:
-            #
-            # Land/Water
-            #
-            # Minimize the probabilities of FT classes in water regions
-            land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
-            land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
-            # Minimize the probability of OTHER class in land regions
-            land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
-            land_loss *= config.land_reg_weight
-            summary.add_scalar("Land Loss", land_loss.item(), step)
-        #
-        # Local variation
-        #
-        # Minimize high frequency variation
-        lv_loss = local_variation_loss(class_prob)
-        lv_loss *= config.lv_reg_weight
-        summary.add_scalar("LV Loss", lv_loss.item(), step)
-        loss = era_loss
-        loss += aws_loss
-        if not config.mask_water:
-            loss += land_loss
-        loss += lv_loss
-        summary.add_scalar("training_loss", loss.item(), step)
-
-        loss.backward()
-        opt.step()
-
-        iters += 1
+    test(
+        model,
+        device,
+        test_dataloader,
+        opt,
+        criterion,
+        land_mask,
+        water_mask,
+        summary,
+        epoch,
+        config,
+    )
     sched.step()
 summary.close()
 # Free up data for GC
@@ -641,7 +746,7 @@ train_input_ds = None
 train_era_ds = None
 train_idx_ds = None
 train_ds = None
-dataloader = None
+train_dataloader = None
 
 # Validation
 val_dates = load_dates(f"../data/cleaned/date_map-2015-{config.region}.csv")
