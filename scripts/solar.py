@@ -70,13 +70,17 @@ def get_cumulative_radiation_for_date(date, lon_grid, lat_grid):
     return get_cumulative_radiation_for_times(times, alts, lon_grid.shape)
 
 
-def get_daily_radiation_parallel(dates, lon_grid, lat_grid):
+def get_daily_radiation_parallel(dates, lon_grid, lat_grid, num_workers=None):
     jobs = [
         au.AsyncJob(get_cumulative_radiation_for_date, d, lon_grid, lat_grid)
         for d in dates
     ]
     results = au.run_async_jobs(
-        jobs, async_type=au.MULTI_PROCESS, chunk_size=1
+        jobs,
+        async_type=au.MULTI_PROCESS,
+        max_workers=num_workers,
+        chunk_size=1,
+        progress=True,
     )
     rad = np.zeros((len(dates), *lon_grid.shape))
     for i, r in enumerate(results):
@@ -109,12 +113,14 @@ def get_cli_parser():
     p.add_argument(
         "year", type=int, action="store", help="The year to create data for"
     )
-    # p.add_argument(
-    #     "hour",
-    #     type=int,
-    #     action="store",
-    #     help="The hour (UTC) to create data for",
-    # )
+    p.add_argument(
+        "-w",
+        "--workers",
+        type=int,
+        action="store",
+        default=None,
+        help="The number of worker processes to spawn",
+    )
     p.add_argument("out_file", action="store", help="The output file path")
     return p
 
@@ -122,7 +128,7 @@ def get_cli_parser():
 def main(args):
     lon, lat = eg.v1_get_full_grid_lonlat(eg.ML)
     dates = get_dates_for_year(args.year)
-    rads = get_daily_radiation_parallel(dates, lon, lat)
+    rads = get_daily_radiation_parallel(dates, lon, lat, args.workers)
     print(f"Saving to: {args.out_file}")
     np.save(args.out_file, rads)
 
