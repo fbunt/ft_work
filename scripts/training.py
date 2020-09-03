@@ -191,8 +191,7 @@ def aws_loss_func(batch_pred_logits, batch_idxs, batch_labels, config, device):
         # Index in with indices corresponding to AWS stations
         pred = pred[..., flat_idxs]
         labels = labels.unsqueeze(0).to(device)
-        # TODO: change to BCE once labels changed to 1-hot
-        loss += torch.nn.functional.cross_entropy(pred, labels)
+        loss += binary_cross_entropy_with_logits(pred, labels)
     return loss
 
 
@@ -231,9 +230,11 @@ def get_aws_data(
         idxs, vft = get_nearest_flat_idxs_and_values(
             tree, vpoints, vft, valid_idxs
         )
-        # TODO: Convert vft to 1-hot
         valid_flat_idxs.append(torch.tensor(idxs).long())
-        aws_labels.append(torch.tensor(vft))
+        label = torch.zeros((2, len(vft)))
+        for i, v in enumerate(vft):
+            label[v, i] = 1
+        aws_labels.append(label)
     db.close()
     return list(zip(valid_flat_idxs, aws_labels))
 
