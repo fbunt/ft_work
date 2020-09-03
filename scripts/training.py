@@ -509,6 +509,7 @@ Config = namedtuple(
         "aws_use_valid_mask",
         "val_use_valid_mask",
         "optimizer",
+        "do_test",
         "normalize",
         "randomize_offset",
         "mask_water",
@@ -557,6 +558,7 @@ config = Config(
     aws_use_valid_mask=False,
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
+    do_test=True,
     normalize=False,
     randomize_offset=False,
     mask_water=True,
@@ -727,18 +729,19 @@ for epoch in range(config.epochs):
         epoch,
         config,
     )
-    test(
-        model,
-        device,
-        test_dataloader,
-        opt,
-        criterion,
-        land_mask,
-        water_mask,
-        summary,
-        epoch,
-        config,
-    )
+    if config.do_test:
+        test(
+            model,
+            device,
+            test_dataloader,
+            opt,
+            criterion,
+            land_mask,
+            water_mask,
+            summary,
+            epoch,
+            config,
+        )
     sched.step()
 summary.close()
 # Free up data for GC
