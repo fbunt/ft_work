@@ -1,5 +1,6 @@
 from collections import namedtuple
 from scipy.spatial import cKDTree as KDTree
+from torch.nn.functional import binary_cross_entropy_with_logits
 from torch.utils.data import Subset
 from torch.utils.tensorboard import SummaryWriter
 import datetime as dt
@@ -190,6 +191,7 @@ def aws_loss_func(batch_pred_logits, batch_idxs, batch_labels, config, device):
         # Index in with indices corresponding to AWS stations
         pred = pred[..., flat_idxs]
         labels = labels.unsqueeze(0).to(device)
+        # TODO: change to BCE once labels changed to 1-hot
         loss += torch.nn.functional.cross_entropy(pred, labels)
     return loss
 
@@ -229,6 +231,7 @@ def get_aws_data(
         idxs, vft = get_nearest_flat_idxs_and_values(
             tree, vpoints, vft, valid_idxs
         )
+        # TODO: Convert vft to 1-hot
         valid_flat_idxs.append(torch.tensor(idxs).long())
         aws_labels.append(torch.tensor(vft))
     db.close()
@@ -335,7 +338,6 @@ def run_model(
     device,
     iterator,
     optimizer,
-    era_criterion,
     land_mask,
     water_mask,
     summary,
@@ -347,8 +349,7 @@ def run_model(
     for i, (input_data, batch_era, batch_idxs) in iterator:
         step = base_step + i
         input_data = input_data.to(device, dtype=torch.float)
-        # Compress 1-hot encoding to single channel
-        batch_era = batch_era.argmax(dim=1).to(device)
+        batch_era = batch_era.to(device)
 
         if is_train:
             model.zero_grad()
@@ -357,7 +358,7 @@ def run_model(
         #
         # ERA
         #
-        era_loss = criterion(
+        era_loss = binary_cross_entropy_with_logits(
             log_class_prob[..., land_mask], batch_era[..., land_mask]
         )
         era_loss *= config.era_weight
@@ -401,7 +402,6 @@ def test(
     device,
     dataloader,
     optimizer,
-    era_criterion,
     land_mask,
     water_mask,
     summary,
@@ -421,7 +421,6 @@ def test(
             device,
             it,
             optimizer,
-            era_criterion,
             land_mask,
             water_mask,
             summary,
@@ -436,7 +435,6 @@ def train(
     device,
     dataloader,
     optimizer,
-    era_criterion,
     land_mask,
     water_mask,
     summary,
@@ -455,7 +453,6 @@ def train(
         device,
         it,
         optimizer,
-        era_criterion,
         land_mask,
         water_mask,
         summary,
@@ -651,7 +648,6 @@ sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
 root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
 summary = init_run_dir(root_dir)
 
-criterion = nn.CrossEntropyLoss()
 if config.randomize_offset:
     rng = np.random.default_rng()
     day_indices = list(range(len(train_ds)))
@@ -682,7 +678,6 @@ for epoch in range(config.epochs):
         device,
         train_dataloader,
         opt,
-        criterion,
         land_mask,
         water_mask,
         summary,
@@ -695,7 +690,6 @@ for epoch in range(config.epochs):
             device,
             test_dataloader,
             opt,
-            criterion,
             land_mask,
             water_mask,
             summary,
