@@ -14,6 +14,14 @@ from transforms import (
 import dataloading as dl
 
 
+def get_year_str(ya, yb):
+    if ya == yb:
+        return str(ya)
+    else:
+        ya, yb = sorted([ya, yb])
+        return f"{ya}-{yb}"
+
+
 def build_tb_ds(path_groups, transform):
     dss = [
         dl.GridsStackDataset(
@@ -157,11 +165,7 @@ def prep(
 
     start_year = dates[0].year
     end_year = dates[-1].year
-    year_str = ""
-    if start_year == end_year:
-        year_str = str(start_year)
-    else:
-        year_str = f"{start_year}-{end_year}"
+    year_str = get_year_str(start_year, end_year)
     data_dict = {
         FMT_FILENAME_SNOW: snow,
         FMT_FILENAME_SOLAR: solar,
@@ -194,6 +198,10 @@ region = N45W
 transform = reg2trans[region]
 
 drop_bad_days = False
+train_start_year = 2004
+train_final_year = 2010
+test_start_year = 2015
+test_final_year = 2015
 
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 out_dir = "../data/cleaned"
@@ -203,10 +211,8 @@ print("Loading snow cover")
 snow = dataset_to_array(
     torch.utils.data.ConcatDataset(
         [
-            dl.NpyDataset("../data/snow/snow_cover_2007.npy", transform),
-            dl.NpyDataset("../data/snow/snow_cover_2008.npy", transform),
-            dl.NpyDataset("../data/snow/snow_cover_2009.npy", transform),
-            dl.NpyDataset("../data/snow/snow_cover_2010.npy", transform),
+            dl.NpyDataset(f"../data/snow/snow_cover_{y}.npy")
+            for y in range(train_start_year, train_final_year + 1)
         ]
     )
 )
@@ -214,18 +220,14 @@ print("Loading solar")
 solar = dataset_to_array(
     torch.utils.data.ConcatDataset(
         [
-            dl.NpyDataset("../data/solar/solar_rad-daily-2007.npy", transform),
-            dl.NpyDataset("../data/solar/solar_rad-daily-2008.npy", transform),
-            dl.NpyDataset("../data/solar/solar_rad-daily-2009.npy", transform),
-            dl.NpyDataset("../data/solar/solar_rad-daily-2010.npy", transform),
+            dl.NpyDataset(f"../data/solar/solar_rad-daily-{y}.npy")
+            for y in range(train_start_year, train_final_year + 1)
         ]
     )
 )
 path_groups = [
-    glob.glob("../data/tb/2007/tb_2007_F17_ML_D*.nc"),
-    glob.glob("../data/tb/2008/tb_2008_F17_ML_D*.nc"),
-    glob.glob("../data/tb/2009/tb_2009_F17_ML_D*.nc"),
-    glob.glob("../data/tb/2010/tb_2010_F17_ML_D*.nc"),
+    glob.glob(f"../data/tb/{y}/tb_{y}_F17_ML_D*.nc")
+    for y in range(train_start_year, train_final_year + 1)
 ]
 print("Loading tb")
 tb = dataset_to_array(build_tb_ds(path_groups, transform))
@@ -233,10 +235,8 @@ print("Loading ERA")
 era = dataset_to_array(
     dl.ERA5BidailyDataset(
         [
-            "../data/era5/t2m/bidaily/era5-t2m-bidaily-2007.nc",
-            "../data/era5/t2m/bidaily/era5-t2m-bidaily-2008.nc",
-            "../data/era5/t2m/bidaily/era5-t2m-bidaily-2009.nc",
-            "../data/era5/t2m/bidaily/era5-t2m-bidaily-2010.nc",
+            f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+            for y in range(train_start_year, train_final_year + 1)
         ],
         "t2m",
         "AM",
@@ -244,7 +244,16 @@ era = dataset_to_array(
         transform=transform,
     )
 )
-prep(dt.date(2007, 1, 1), snow, solar, tb, era, out_dir, region, drop_bad_days)
+prep(
+    dt.date(train_start_year, 1, 1),
+    snow,
+    solar,
+    tb,
+    era,
+    out_dir,
+    region,
+    drop_bad_days,
+)
 
 
 # Validation data
