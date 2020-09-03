@@ -75,25 +75,11 @@ def load_dates(path):
 def get_predictions(input_ds, model, water_mask, water_label, device, config):
     pred = []
     for i, v in enumerate(tqdm.tqdm(input_ds, ncols=80)):
-        if config.mask_water:
-            p = torch.softmax(
-                model(v.unsqueeze(0).to(device, dtype=torch.float)).detach(), 1
-            )
-            p = p.cpu().squeeze().numpy().argmax(0)
-            p[..., water_mask] = water_label
-        else:
-            p = (
-                torch.softmax(
-                    model(
-                        v.unsqueeze(0).to(device, dtype=torch.float)
-                    ).detach(),
-                    1,
-                )
-                .cpu()
-                .squeeze()
-                .numpy()
-                .argmax(0)
-            )
+        p = torch.softmax(
+            model(v.unsqueeze(0).to(device, dtype=torch.float)).detach(), 1
+        )
+        p = p.cpu().squeeze().numpy().argmax(0)
+        p[..., water_mask] = water_label
         pred.append(p)
     pred = np.array(pred)
     return pred
@@ -389,16 +375,6 @@ def run_model(
             device,
         )
         aws_loss *= config.aws_loss_weight
-        if not config.mask_water:
-            #
-            # Land/Water
-            #
-            # Minimize the probabilities of FT classes in water regions
-            land_loss = class_prob[:, LABEL_FROZEN, water_mask].sum()
-            land_loss += class_prob[:, LABEL_THAWED, water_mask].sum()
-            # Minimize the probability of OTHER class in land regions
-            land_loss += class_prob[:, LABEL_OTHER, land_mask].sum()
-            land_loss *= config.land_reg_weight
         #
         # Local variation
         #
@@ -407,14 +383,10 @@ def run_model(
         lv_loss *= config.lv_reg_weight
         loss = era_loss
         loss += aws_loss
-        if not config.mask_water:
-            loss += land_loss
         loss += lv_loss
         if is_train:
             summary.add_scalar("ERA Loss", era_loss.item(), step)
             summary.add_scalar("AWS Loss", aws_loss.item(), step)
-            if not config.mask_water:
-                summary.add_scalar("Land Loss", land_loss.item(), step)
             summary.add_scalar("LV Loss", lv_loss.item(), step)
             summary.add_scalar("training_loss", loss.item(), step)
         else:
@@ -512,7 +484,6 @@ Config = namedtuple(
         "do_test",
         "normalize",
         "randomize_offset",
-        "mask_water",
         "use_land_mask",
         "use_dem",
         "use_latitude",
@@ -524,7 +495,6 @@ Config = namedtuple(
         "l2_reg_weight",
         "era_weight",
         "aws_loss_weight",
-        "land_reg_weight",
         "lv_reg_weight",
     ),
 )
@@ -561,7 +531,6 @@ config = Config(
     do_test=True,
     normalize=False,
     randomize_offset=False,
-    mask_water=True,
     use_land_mask=_use_land_mask,
     use_dem=_use_dem,
     use_latitude=_use_lat,
@@ -573,18 +542,9 @@ config = Config(
     l2_reg_weight=1e-2,
     era_weight=1e0,
     aws_loss_weight=5e-2,
-    land_reg_weight=1e-4,
     lv_reg_weight=5e-2,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if config.mask_water:
-    assert (
-        config.n_classes == 2
-    ), "Can only have 2 output channels if masking water"
-else:
-    assert (
-        config.n_classes == 3
-    ), "Must have 3 output channels if not masking water"
 
 transform = REGION_TO_TRANS[config.region]
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
