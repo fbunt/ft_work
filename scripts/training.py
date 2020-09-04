@@ -46,6 +46,14 @@ from validation_db_orm import get_db_session
 import ease_grid as eg
 
 
+def get_year_str(ya, yb):
+    if ya == yb:
+        return str(ya)
+    else:
+        ya, yb = sorted([ya, yb])
+        return f"{ya}-{yb}"
+
+
 def init_run_dir(root_dir):
     os.makedirs(root_dir, exist_ok=True)
     # Dump configuration info
@@ -497,6 +505,10 @@ Config = namedtuple(
         "use_snow",
         "use_prior_day",
         "region",
+        "train_start_year",
+        "train_end_year",
+        "test_start_year",
+        "test_end_year",
         "l2_reg_weight",
         "era_weight",
         "aws_loss_weight",
@@ -544,12 +556,19 @@ config = Config(
     use_snow=_use_snow,
     use_prior_day=_use_prior_day,
     region=N45W,
+    train_start_year=2007,
+    train_end_year=2010,
+    test_start_year=2015,
+    test_end_year=2015,
     l2_reg_weight=1e-2,
     era_weight=1e0,
     aws_loss_weight=5e-2,
     lv_reg_weight=5e-2,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+train_year_str = get_year_str(config.train_start_year, config.train_end_year)
+test_year_str = get_year_str(config.test_start_year, config.test_end_year)
 
 transform = REGION_TO_TRANS[config.region]
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
@@ -568,20 +587,20 @@ data_grid_shape = land_mask_np.shape
 #
 train_input_ds = build_input_dataset(
     config,
-    f"../data/cleaned/tb-D-2007-2010-{config.region}.npy",
+    f"../data/cleaned/tb-D-{train_year_str}-{config.region}.npy",
     transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
-    f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
+    f"../data/cleaned/date_map-{train_year_str}-{config.region}.csv",
     data_grid_shape,
-    f"../data/cleaned/solar_rad-AM-2007-2010-{config.region}.npy",
-    f"../data/cleaned/snow_cover-2007-2010-{config.region}.npy",
+    f"../data/cleaned/solar_rad-AM-{train_year_str}-{config.region}.npy",
+    f"../data/cleaned/snow_cover-{train_year_str}-{config.region}.npy",
     tb_channels=tb_channels,
 )
 # AWS
 train_aws_data = get_aws_data(
-    f"../data/cleaned/date_map-2007-2010-{config.region}.csv",
-    f"../data/cleaned/tb_valid_mask-D-2007-2010-{config.region}.npy",
+    f"../data/cleaned/date_map-{train_year_str}-{config.region}.csv",
+    f"../data/cleaned/tb_valid_mask-D-{train_year_str}-{config.region}.npy",
     "../data/dbs/wmo_gsod.db",
     land_mask_np,
     transform,
@@ -590,7 +609,7 @@ train_aws_data = get_aws_data(
 )
 # ERA
 train_era_ds = NpyDataset(
-    f"../data/cleaned/era5-t2m-am-2007-2010-{config.region}.npy"
+    f"../data/cleaned/era5-t2m-am-{train_year_str}-{config.region}.npy"
 )
 if config.use_prior_day:
     train_era_ds = Subset(
@@ -606,21 +625,21 @@ train_ds = ComposedDataset([train_input_ds, train_era_ds, train_idx_ds])
 #
 test_input_ds = build_input_dataset(
     config,
-    f"../data/cleaned/tb-D-2015-{config.region}.npy",
+    f"../data/cleaned/tb-D-{test_year_str}-{config.region}.npy",
     transform(np.load("../data/z/dem.npy")),
     land_channel,
     lat_channel,
-    f"../data/cleaned/date_map-2015-{config.region}.csv",
+    f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv",
     data_grid_shape,
-    f"../data/cleaned/solar_rad-AM-2015-{config.region}.npy",
-    f"../data/cleaned/snow_cover-2015-{config.region}.npy",
+    f"../data/cleaned/solar_rad-AM-{test_year_str}-{config.region}.npy",
+    f"../data/cleaned/snow_cover-{test_year_str}-{config.region}.npy",
     tb_channels=tb_channels,
 )
 test_reduced_indices = list(range(1, len(test_input_ds) + 1))
 # AWS
 test_aws_data = get_aws_data(
-    f"../data/cleaned/date_map-2015-{config.region}.csv",
-    f"../data/cleaned/tb_valid_mask-D-2015-{config.region}.npy",
+    f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv",
+    f"../data/cleaned/tb_valid_mask-D-{test_year_str}-{config.region}.npy",
     "../data/dbs/wmo_gsod.db",
     land_mask_np,
     transform,
@@ -629,7 +648,7 @@ test_aws_data = get_aws_data(
 )
 # ERA
 test_era_ds = NpyDataset(
-    f"../data/cleaned/era5-t2m-am-2015-{config.region}.npy"
+    f"../data/cleaned/era5-t2m-am-{test_year_str}-{config.region}.npy"
 )
 if config.use_prior_day:
     test_era_ds = Subset(test_era_ds, test_reduced_indices)
@@ -715,9 +734,11 @@ train_ds = None
 train_dataloader = None
 
 # Validation
-val_dates = load_dates(f"../data/cleaned/date_map-2015-{config.region}.csv")
+val_dates = load_dates(
+    f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv"
+)
 val_mask_ds = NpyDataset(
-    f"../data/cleaned/tb_valid_mask-D-2015-{config.region}.npy"
+    f"../data/cleaned/tb_valid_mask-D-{test_year_str}-{config.region}.npy"
 )
 if config.use_prior_day:
     val_dates = Subset(val_dates, test_reduced_indices)
