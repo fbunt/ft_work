@@ -52,7 +52,11 @@ def init_run_dir(root_dir):
     with open(os.path.join(root_dir, "config"), "w") as fd:
         fd.write(f"{config}\n")
     log_dir = os.path.join(root_dir, "logs")
-    summary = SummaryWriter(log_dir)
+    os.makedirs(log_dir, exist_ok=True)
+    train_log_dir = os.path.join(log_dir, "training")
+    test_log_dir = os.path.join(log_dir, "test")
+    train_summary = SummaryWriter(train_log_dir)
+    test_summary = SummaryWriter(test_log_dir)
     show_log_sh = os.path.join(root_dir, "show_log.sh")
     # Create script to view logs
     with open(show_log_sh, "w") as fd:
@@ -61,7 +65,7 @@ def init_run_dir(root_dir):
         fd.flush()
     st = os.stat(show_log_sh)
     os.chmod(show_log_sh, st.st_mode | stat.S_IXUSR)
-    return summary
+    return train_summary, test_summary
 
 
 def load_dates(path):
@@ -346,9 +350,10 @@ def run_model(
     config,
     is_train,
 ):
-    base_step = epoch * len(iterator)
+    era_loss_sum = 0.0
+    aws_loss_sum = 0.0
+    loss_sum = 0.0
     for i, (input_data, batch_era, batch_idxs) in iterator:
-        step = base_step + i
         input_data = input_data.to(device, dtype=torch.float)
         batch_era = batch_era.to(device)
 
@@ -387,15 +392,17 @@ def run_model(
         loss += aws_loss
         loss += lv_loss
         if is_train:
-            summary.add_scalar("ERA Loss", era_loss.item(), step)
-            summary.add_scalar("AWS Loss", aws_loss.item(), step)
-            summary.add_scalar("LV Loss", lv_loss.item(), step)
-            summary.add_scalar("training_loss", loss.item(), step)
-        else:
-            summary.add_scalar("test_loss", loss.item(), step)
-        if is_train:
             loss.backward()
             optimizer.step()
+        loss_sum += loss
+        era_loss_sum += era_loss
+        aws_loss_sum += aws_loss
+    era_loss_mean = era_loss_sum / len(iterator)
+    aws_loss_mean = aws_loss_sum / len(iterator)
+    loss_mean = loss_sum / len(iterator)
+    summary.add_scalar("ERA Loss", era_loss_mean.item(), epoch)
+    summary.add_scalar("AWS Loss", aws_loss_mean.item(), epoch)
+    summary.add_scalar("Loss", loss_mean.item(), epoch)
 
 
 def test(
@@ -647,7 +654,7 @@ sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
 
 # Create run dir and fill with info
 root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
-summary = init_run_dir(root_dir)
+train_summary, test_summary = init_run_dir(root_dir)
 
 if config.randomize_offset:
     rng = np.random.default_rng()
@@ -663,7 +670,7 @@ test_dataloader = torch.utils.data.DataLoader(
     test_ds, batch_size=config.batch_size, shuffle=False, drop_last=False,
 )
 for epoch in range(config.epochs):
-    summary.add_scalar(
+    train_summary.add_scalar(
         "learning_rate", next(iter(opt.param_groups))["lr"], epoch
     )
     if config.randomize_offset:
@@ -681,7 +688,7 @@ for epoch in range(config.epochs):
         opt,
         land_mask,
         water_mask,
-        summary,
+        train_summary,
         epoch,
         config,
     )
@@ -693,12 +700,13 @@ for epoch in range(config.epochs):
             opt,
             land_mask,
             water_mask,
-            summary,
+            test_summary,
             epoch,
             config,
         )
     sched.step()
-summary.close()
+train_summary.close()
+test_summary.close()
 # Free up data for GC
 train_input_ds = None
 train_era_ds = None
