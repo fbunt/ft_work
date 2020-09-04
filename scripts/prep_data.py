@@ -211,7 +211,7 @@ print("Loading snow cover")
 snow = dataset_to_array(
     torch.utils.data.ConcatDataset(
         [
-            dl.NpyDataset(f"../data/snow/snow_cover_{y}.npy")
+            dl.NpyDataset(f"../data/snow/snow_cover_{y}.npy", transform)
             for y in range(train_start_year, train_final_year + 1)
         ]
     )
@@ -220,7 +220,7 @@ print("Loading solar")
 solar = dataset_to_array(
     torch.utils.data.ConcatDataset(
         [
-            dl.NpyDataset(f"../data/solar/solar_rad-daily-{y}.npy")
+            dl.NpyDataset(f"../data/solar/solar_rad-daily-{y}.npy", transform)
             for y in range(train_start_year, train_final_year + 1)
         ]
     )
