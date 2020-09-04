@@ -49,7 +49,7 @@ def parse_snow_cover_file(path):
         try:
             data[i] = np.fromiter(line, dtype=np.int8)
         except ValueError as e:
-            print(f"\nFailed at: {path}")
+            print(f"\nFailed at line {i + 31}: {path}")
             raise e
     data = data[::-1]
     return data
