@@ -198,7 +198,7 @@ region = N45W
 transform = reg2trans[region]
 
 drop_bad_days = False
-train_start_year = 2004
+train_start_year = 2005
 train_final_year = 2010
 test_start_year = 2015
 test_final_year = 2015
