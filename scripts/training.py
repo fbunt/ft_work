@@ -429,7 +429,7 @@ def test(
         enumerate(dataloader),
         ncols=80,
         total=len(dataloader),
-        desc=f"Test: {epoch + 1}/{config.epochs}",
+        desc=f"-Test: {epoch + 1}/{config.epochs}",
     )
     with torch.no_grad():
         run_model(
