@@ -674,6 +674,7 @@ sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
 # Create run dir and fill with info
 root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
 train_summary, test_summary = init_run_dir(root_dir)
+mpath = os.path.join(root_dir, "model.pt")
 
 if config.randomize_offset:
     rng = np.random.default_rng()
@@ -688,94 +689,96 @@ else:
 test_dataloader = torch.utils.data.DataLoader(
     test_ds, batch_size=config.batch_size, shuffle=False, drop_last=False,
 )
-for epoch in range(config.epochs):
-    train_summary.add_scalar(
-        "learning_rate", next(iter(opt.param_groups))["lr"], epoch
-    )
-    if config.randomize_offset:
-        offset = rng.choice(7, 1)[0]
-        train_dataloader = torch.utils.data.DataLoader(
-            Subset(train_ds, day_indices[offset:]),
-            batch_size=config.batch_size,
-            shuffle=config.batch_shuffle,
-            drop_last=config.drop_last,
+try:
+    for epoch in range(config.epochs):
+        train_summary.add_scalar(
+            "learning_rate", next(iter(opt.param_groups))["lr"], epoch
         )
-    train(
-        model,
-        device,
-        train_dataloader,
-        opt,
-        land_mask,
-        water_mask,
-        train_summary,
-        epoch,
-        config,
-    )
-    if config.do_test:
-        test(
+        if config.randomize_offset:
+            offset = rng.choice(7, 1)[0]
+            train_dataloader = torch.utils.data.DataLoader(
+                Subset(train_ds, day_indices[offset:]),
+                batch_size=config.batch_size,
+                shuffle=config.batch_shuffle,
+                drop_last=config.drop_last,
+            )
+        train(
             model,
             device,
-            test_dataloader,
+            train_dataloader,
             opt,
             land_mask,
             water_mask,
-            test_summary,
+            train_summary,
             epoch,
             config,
         )
-    sched.step()
-train_summary.close()
-test_summary.close()
-# Free up data for GC
-train_input_ds = None
-train_era_ds = None
-train_idx_ds = None
-train_ds = None
-train_dataloader = None
+        if config.do_test:
+            test(
+                model,
+                device,
+                test_dataloader,
+                opt,
+                land_mask,
+                water_mask,
+                test_summary,
+                epoch,
+                config,
+            )
+        sched.step()
+        torch.save(model.state_dict(), mpath)
+except KeyboardInterrupt:
+    train_summary.close()
+    test_summary.close()
+    # Free up data for GC
+    train_input_ds = None
+    train_era_ds = None
+    train_idx_ds = None
+    train_ds = None
+    train_dataloader = None
 
-# Validation
-val_dates = load_dates(
-    f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv"
-)
-val_mask_ds = NpyDataset(
-    f"../data/cleaned/tb_valid_mask-D-{test_year_str}-{config.region}.npy"
-)
-if config.use_prior_day:
-    val_dates = Subset(val_dates, test_reduced_indices)
-    val_mask_ds = Subset(val_mask_ds, test_reduced_indices)
-# Log results
-os.makedirs(root_dir, exist_ok=True)
-pred_plot_dir = os.path.join(root_dir, "pred_plots")
-if os.path.isdir(pred_plot_dir):
-    shutil.rmtree(pred_plot_dir)
-os.makedirs(pred_plot_dir)
-# Save model
-mpath = os.path.join(root_dir, "model.pt")
-print(f"Saving model: '{mpath}'")
-torch.save(model.state_dict(), mpath)
-# Create and save predictions for test data
-print("Generating predictions")
-pred = get_predictions(
-    test_input_ds, model, ~land_mask, LABEL_OTHER, device, config
-)
-ppath = os.path.join(root_dir, "pred.npy")
-print(f"Saving predictions: '{ppath}'")
-np.save(ppath, pred)
-# Validate against ERA5
-print("Validating against ERA5")
-era_acc = validate_against_era5(
-    pred, test_era_ds, val_mask_ds, land_mask, config
-)
-# Validate against AWS DB
-db = get_db_session("../data/dbs/wmo_gsod.db")
-aws_acc = validate_against_aws_db(
-    pred, db, val_dates, transform, val_mask_ds, land_mask, config
-)
-db.close()
-# Write accuracies
-acc_file = os.path.join(root_dir, "acc.csv")
-with open(acc_file, "w") as fd:
-    for d, ae, aa in zip(val_dates, era_acc, aws_acc):
-        fd.write(f"{d},{ae},{aa}\n")
-
-plot_results(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
+    # Validation
+    val_dates = load_dates(
+        f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv"
+    )
+    val_mask_ds = NpyDataset(
+        f"../data/cleaned/tb_valid_mask-D-{test_year_str}-{config.region}.npy"
+    )
+    if config.use_prior_day:
+        val_dates = Subset(val_dates, test_reduced_indices)
+        val_mask_ds = Subset(val_mask_ds, test_reduced_indices)
+    # Log results
+    os.makedirs(root_dir, exist_ok=True)
+    pred_plot_dir = os.path.join(root_dir, "pred_plots")
+    if os.path.isdir(pred_plot_dir):
+        shutil.rmtree(pred_plot_dir)
+    os.makedirs(pred_plot_dir)
+    # Save model
+    mpath = os.path.join(root_dir, "model.pt")
+    print(f"Saving model: '{mpath}'")
+    torch.save(model.state_dict(), mpath)
+    # Create and save predictions for test data
+    print("Generating predictions")
+    pred = get_predictions(
+        test_input_ds, model, ~land_mask, LABEL_OTHER, device, config
+    )
+    ppath = os.path.join(root_dir, "pred.npy")
+    print(f"Saving predictions: '{ppath}'")
+    np.save(ppath, pred)
+    # Validate against ERA5
+    print("Validating against ERA5")
+    era_acc = validate_against_era5(
+        pred, test_era_ds, val_mask_ds, land_mask, config
+    )
+    # Validate against AWS DB
+    db = get_db_session("../data/dbs/wmo_gsod.db")
+    aws_acc = validate_against_aws_db(
+        pred, db, val_dates, transform, val_mask_ds, land_mask, config
+    )
+    db.close()
+    # Write accuracies
+    acc_file = os.path.join(root_dir, "acc.csv")
+    with open(acc_file, "w") as fd:
+        for d, ae, aa in zip(val_dates, era_acc, aws_acc):
+            fd.write(f"{d},{ae},{aa}\n")
+    plot_results(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
