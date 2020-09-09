@@ -253,12 +253,12 @@ def get_aws_data(
 
 def normalize(x):
     if len(x.shape) < 4:
-        return (x - x.mean()) / x.std()
+        return (x - x.min()) / (x.max() - x.min())
     else:
         x = x.copy()
         for i in range(x.shape[1]):
-            sub = x[:, i]
-            x[:, i] = (sub - sub.mean()) / sub.std()
+            chan = x[:, i]
+            x[:, i] = (chan - chan.max()) / (chan.max() - chan.min())
         return x
 
 
