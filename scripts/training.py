@@ -489,8 +489,11 @@ Config = namedtuple(
         "batch_size",
         "batch_shuffle",
         "drop_last",
+        "lr_shed_multi",
         "learning_rate",
+        "lr_milestones",
         "lr_gamma",
+        "lr_step_gamma",
         "aws_use_valid_mask",
         "val_use_valid_mask",
         "optimizer",
@@ -540,8 +543,11 @@ config = Config(
     batch_size=16,
     batch_shuffle=False,
     drop_last=False,
+    lr_shed_multi=True,
     learning_rate=5e-4,
+    lr_milestones=[20, 40, 100, 150, 200, 300],
     lr_gamma=0.89,
+    lr_step_gamma=0.5,
     aws_use_valid_mask=False,
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
@@ -669,7 +675,12 @@ opt = config.optimizer(
     lr=config.learning_rate,
     weight_decay=config.l2_reg_weight,
 )
-sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
+if not config.lr_shed_multi:
+    sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
+else:
+    sched = torch.optim.lr_scheduler.MultiStepLR(
+        opt, config.lr_milestones, config.lr_step_gamma
+    )
 
 # Create run dir and fill with info
 root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
