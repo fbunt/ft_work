@@ -506,8 +506,6 @@ Config = namedtuple(
         "test_end_year",
         "l2_reg_weight",
         "main_loss_weight",
-        "era_weight",
-        "aws_loss_weight",
         "lv_reg_weight",
     ),
 )
@@ -561,8 +559,6 @@ config = Config(
     test_end_year=2015,
     l2_reg_weight=1e-2,
     main_loss_weight=1e0,
-    era_weight=1e0,
-    aws_loss_weight=5e-2,
     lv_reg_weight=5e-2,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
