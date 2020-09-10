@@ -739,6 +739,8 @@ try:
         sched.step()
         torch.save(model.state_dict(), mpath)
 except KeyboardInterrupt:
+    print("Exiting training loop")
+finally:
     train_summary.close()
     test_summary.close()
     # Free up data for GC
