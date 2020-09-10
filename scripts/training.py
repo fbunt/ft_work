@@ -222,8 +222,8 @@ def get_aws_data(
         lat.min(),
         lat.max(),
     ]
-    valid_flat_idxs = []
-    aws_labels = []
+    fzn_idxs = []
+    thw_idxs = []
     use_valid_mask = config.aws_use_valid_mask
     for d, mask in tqdm.tqdm(
         zip(train_dates, mask_ds),
@@ -242,13 +242,18 @@ def get_aws_data(
         idxs, vft = get_nearest_flat_idxs_and_values(
             tree, vpoints, vft, valid_idxs
         )
-        valid_flat_idxs.append(torch.tensor(idxs).long())
-        label = torch.zeros((2, len(vft)))
-        for i, v in enumerate(vft):
-            label[v, i] = 1
-        aws_labels.append(label)
+        fzn = torch.tensor(
+            [i for i, v in zip(idxs, vft) if v == LABEL_FROZEN],
+            dtype=torch.long,
+        )
+        thw = torch.tensor(
+            [i for i, v in zip(idxs, vft) if v == LABEL_THAWED],
+            dtype=torch.long,
+        )
+        fzn_idxs.append(fzn)
+        thw_idxs.append(thw)
     db.close()
-    return list(zip(valid_flat_idxs, aws_labels))
+    return list(zip(fzn_idxs, thw_idxs))
 
 
 def normalize(x):
@@ -358,58 +363,45 @@ def run_model(
     config,
     is_train,
 ):
-    era_loss_sum = 0.0
-    aws_loss_sum = 0.0
     loss_sum = 0.0
     for i, (input_data, batch_era, batch_idxs) in iterator:
         input_data = input_data.to(device, dtype=torch.float)
-        batch_era = batch_era.to(device)
 
         if is_train:
             model.zero_grad()
         log_class_prob = model(input_data)
         class_prob = torch.softmax(log_class_prob, 1)
         #
-        # ERA
+        # ERA/AWS
         #
-        era_loss = binary_cross_entropy_with_logits(
+        flat_era = batch_era.view(batch_era.size(0), batch_era.size(1), -1)
+        batch_aws = [train_aws_data[idx] for idx in batch_idxs]
+        batch_aws_fzn_idxs = [v[0] for v in batch_aws]
+        batch_aws_thw_idxs = [v[1] for v in batch_aws]
+        for i in range(len(flat_era)):
+            i_fzn = batch_aws_fzn_idxs[i]
+            i_thw = batch_aws_thw_idxs[i]
+            flat_era[i, LABEL_FROZEN, i_fzn] = 1
+            flat_era[i, LABEL_THAWED, i_thw] = 1
+        batch_era = batch_era.to(device)
+        comb_loss = binary_cross_entropy_with_logits(
             log_class_prob[..., land_mask], batch_era[..., land_mask]
         )
-        era_loss *= config.era_weight
-        #
-        # AWS loss
-        #
-        batch_aws = [train_aws_data[idx] for idx in batch_idxs]
-        batch_aws_flat_idxs = [v[0] for v in batch_aws]
-        batch_aws_labels = [v[1] for v in batch_aws]
-        aws_loss = aws_loss_func(
-            log_class_prob,
-            batch_aws_flat_idxs,
-            batch_aws_labels,
-            config,
-            device,
-        )
-        aws_loss *= config.aws_loss_weight
+        comb_loss *= config.main_loss_weight
+
         #
         # Local variation
         #
         # Minimize high frequency variation
         lv_loss = local_variation_loss(class_prob)
         lv_loss *= config.lv_reg_weight
-        loss = era_loss
-        loss += aws_loss
+        loss = comb_loss
         loss += lv_loss
         if is_train:
             loss.backward()
             optimizer.step()
         loss_sum += loss
-        era_loss_sum += era_loss
-        aws_loss_sum += aws_loss
-    era_loss_mean = era_loss_sum / len(iterator)
-    aws_loss_mean = aws_loss_sum / len(iterator)
     loss_mean = loss_sum / len(iterator)
-    summary.add_scalar("ERA Loss", era_loss_mean.item(), epoch)
-    summary.add_scalar("AWS Loss", aws_loss_mean.item(), epoch)
     summary.add_scalar("Loss", loss_mean.item(), epoch)
 
 
@@ -513,6 +505,7 @@ Config = namedtuple(
         "test_start_year",
         "test_end_year",
         "l2_reg_weight",
+        "main_loss_weight",
         "era_weight",
         "aws_loss_weight",
         "lv_reg_weight",
@@ -527,7 +520,7 @@ _use_lat = False
 _use_day_of_year = False
 _use_solar = False
 _use_snow = False
-_use_prior_day = False
+_use_prior_day = True
 config = Config(
     in_chan=len(tb_channels)
     + _use_dem
@@ -567,6 +560,7 @@ config = Config(
     test_start_year=2015,
     test_end_year=2015,
     l2_reg_weight=1e-2,
+    main_loss_weight=1e0,
     era_weight=1e0,
     aws_loss_weight=5e-2,
     lv_reg_weight=5e-2,
