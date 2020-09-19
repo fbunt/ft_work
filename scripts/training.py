@@ -745,6 +745,9 @@ try:
         torch.save(model.state_dict(), mpath)
 except KeyboardInterrupt:
     print("Exiting training loop")
+except Exception as e:
+    print(f"\n{e}")
+    raise e
 finally:
     train_summary.close()
     test_summary.close()
