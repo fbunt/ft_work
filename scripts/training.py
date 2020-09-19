@@ -363,7 +363,7 @@ def run_model(
     is_train,
 ):
     loss_sum = 0.0
-    for i, (input_data, batch_era, batch_idxs) in iterator:
+    for i, (input_data, batch_era, batch_idxs, batch_bce_weights) in iterator:
         input_data = input_data.to(device, dtype=torch.float)
 
         if is_train:
@@ -374,6 +374,9 @@ def run_model(
         # ERA/AWS
         #
         flat_era = batch_era.view(batch_era.size(0), batch_era.size(1), -1)
+        flat_bce_weights = batch_bce_weights.view(
+            batch_bce_weights.size(0), batch_bce_weights.size(1), -1
+        )
         batch_aws = [train_aws_data[idx] for idx in batch_idxs]
         batch_aws_fzn_idxs = [v[0] for v in batch_aws]
         batch_aws_thw_idxs = [v[1] for v in batch_aws]
@@ -382,9 +385,12 @@ def run_model(
             i_thw = batch_aws_thw_idxs[i]
             flat_era[i, LABEL_FROZEN, i_fzn] = 1
             flat_era[i, LABEL_THAWED, i_thw] = 1
+            flat_bce_weights[i, :, i_fzn] = config.aws_bce_weight
+            flat_bce_weights[i, :, i_thw] = config.aws_bce_weight
         batch_era = batch_era.to(device)
+        batch_bce_weights = batch_bce_weights.to(device)
         comb_loss = binary_cross_entropy_with_logits(
-            log_class_prob[..., land_mask], batch_era[..., land_mask]
+            log_class_prob, batch_era, batch_bce_weights
         )
         comb_loss *= config.main_loss_weight
 
@@ -505,6 +511,7 @@ Config = namedtuple(
         "test_end_year",
         "l2_reg_weight",
         "main_loss_weight",
+        "aws_bce_weight",
         "lv_reg_weight",
     ),
 )
@@ -558,6 +565,7 @@ config = Config(
     test_end_year=2015,
     l2_reg_weight=1e-2,
     main_loss_weight=1e0,
+    aws_bce_weight=5e0,
     lv_reg_weight=5e-2,
 )
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -613,7 +621,12 @@ if config.use_prior_day:
     train_idx_ds = IndexEchoDataset(len(train_input_ds), offset=1)
 else:
     train_idx_ds = IndexEchoDataset(len(train_input_ds))
-train_ds = ComposedDataset([train_input_ds, train_era_ds, train_idx_ds])
+ws = torch.zeros((1, *land_mask.shape), dtype=torch.float)
+ws[..., land_mask] = 1.0
+train_weights_ds = RepeatDataset(ws, len(train_input_ds))
+train_ds = ComposedDataset(
+    [train_input_ds, train_era_ds, train_idx_ds, train_weights_ds]
+)
 
 #
 # Test Data
@@ -650,7 +663,10 @@ if config.use_prior_day:
     test_idx_ds = IndexEchoDataset(len(test_input_ds), offset=1)
 else:
     test_idx_ds = IndexEchoDataset(len(test_input_ds))
-test_ds = ComposedDataset([test_input_ds, test_era_ds, test_idx_ds])
+test_weights_ds = RepeatDataset(ws, len(test_input_ds))
+test_ds = ComposedDataset(
+    [test_input_ds, test_era_ds, test_idx_ds, test_weights_ds]
+)
 
 model = UNet(
     config.in_chan,
