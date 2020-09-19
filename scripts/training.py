@@ -11,7 +11,6 @@ import os
 import shutil
 import stat
 import torch
-import torch.nn as nn
 import tqdm
 
 from dataloading import (
