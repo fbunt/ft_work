@@ -495,6 +495,7 @@ Config = namedtuple(
         "val_use_valid_mask",
         "optimizer",
         "do_test",
+        "do_pred_plots",
         "normalize",
         "randomize_offset",
         "use_land_mask",
@@ -549,6 +550,7 @@ config = Config(
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
     do_test=True,
+    do_pred_plots=False,
     normalize=False,
     randomize_offset=False,
     use_land_mask=_use_land_mask,
@@ -802,4 +804,5 @@ finally:
     with open(acc_file, "w") as fd:
         for d, ae, aa in zip(val_dates, era_acc, aws_acc):
             fd.write(f"{d},{ae},{aa}\n")
-    plot_results(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
+    if config.do_pred_plots:
+        plot_results(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
