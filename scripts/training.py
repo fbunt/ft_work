@@ -45,6 +45,36 @@ from validation_db_orm import get_db_session
 import ease_grid as eg
 
 
+class MinMetricTracker:
+    """Keeps track of the minimum value seen"""
+
+    def __init__(self, initial_value):
+        self.value = initial_value
+
+    def update(self, new_value):
+        ret = False
+        if new_value <= self.value:
+            # Err on the side of caution and return true for == case
+            self.value = new_value
+            ret = True
+        return ret
+
+
+class MaxMetricTracker:
+    """Keeps track of the maximum value seen"""
+
+    def __init__(self, initial_value):
+        self.value = initial_value
+
+    def update(self, new_value):
+        ret = False
+        if new_value >= self.value:
+            # Err on the side of caution and return true for == case
+            self.value = new_value
+            ret = True
+        return ret
+
+
 def _confusion(flat_labels, flat_predictions):
     """Compute the confusion matrix for the given data
 
