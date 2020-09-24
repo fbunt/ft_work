@@ -152,6 +152,45 @@ class ConfusionMatrix:
         self.update_compute(flat_labels, flat_predictions)
 
 
+class MetricImprovementIndicator:
+    def __init__(self, tracker, metric):
+        self.tracker = tracker
+        self.met = metric
+        self.improved = False
+
+    def check(self, cm):
+        cm.compute()
+        m = cm.metrics[self.met]
+        return self.tracker.update(m)
+
+
+FNAME_MODEL = "model.pt"
+
+
+class SnapshotHandler:
+    def __init__(self, root_dir, model, config):
+        # TODO
+        self.root_path = os.path.abspath(root_dir)
+        self.model_path = os.path.join(self.root_path, FNAME_MODEL)
+        self.counter = 0
+
+    def save_model(self):
+        torch.save(self.model.state_dict(), self.model_path)
+
+    def take_model_snapshot(self):
+        saved = False
+        if self.counter >= config.snapshot_initial_wait_period:
+            print("\nTaking snapshot")
+            self.save_model()
+            saved = True
+        self.counter += 1
+        return saved
+
+    def load_best_model(self):
+        model.load_state_dict(torch.load(self.model_path))
+        return model
+
+
 def get_year_str(ya, yb):
     if ya == yb:
         return str(ya)
