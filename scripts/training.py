@@ -182,7 +182,7 @@ class SnapshotHandler:
 
     def take_model_snapshot(self):
         saved = False
-        if self.counter >= config.snapshot_initial_wait_period:
+        if self.counter >= config.snapshot_warmup_period:
             print("\nTaking snapshot")
             self.save_model()
             saved = True
@@ -635,6 +635,7 @@ Config = namedtuple(
         "batch_size",
         "batch_shuffle",
         "drop_last",
+        "snapshot_warmup_period",
         "lr_shed_multi",
         "learning_rate",
         "lr_milestones",
@@ -689,6 +690,7 @@ config = Config(
     batch_size=16,
     batch_shuffle=True,
     drop_last=False,
+    snapshot_warmup_period=40,
     lr_shed_multi=True,
     learning_rate=1e-4,
     lr_milestones=[50, 80, 130, 180, 230, 300],
