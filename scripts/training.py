@@ -98,6 +98,7 @@ def _confusion(flat_labels, flat_predictions):
     return cm
 
 
+MET_ACCURACY = "accuracy"
 MET_PRECISION = "met_prec"
 MET_RECALL = "met_recall"
 MET_F1 = "met_f1"
@@ -127,6 +128,7 @@ class ConfusionMatrix:
             tp = self.cm[1, 1]
             fn = self.cm[0, 1]
             fp = self.cm[1, 0]
+            accuracy = (tp + tn) / (tp + tn + fp + fn)
             precision = tp / (tp + fp)
             recall = tp / (tp + fn)
             specificity = tn / (tn + fp)
@@ -135,6 +137,7 @@ class ConfusionMatrix:
             mcc = (tp * tn) - (fp * fn) / np.sqrt(
                 (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
             )
+            self.metrics[MET_ACCURACY] = accuracy
             self.metrics[MET_PRECISION] = precision
             self.metrics[MET_RECALL] = recall
             self.metrics[MET_F1] = f1
