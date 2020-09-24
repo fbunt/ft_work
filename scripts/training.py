@@ -571,7 +571,6 @@ Config = namedtuple(
         "aws_use_valid_mask",
         "val_use_valid_mask",
         "optimizer",
-        "do_test",
         "do_pred_plots",
         "normalize",
         "randomize_offset",
@@ -626,7 +625,6 @@ config = Config(
     aws_use_valid_mask=False,
     val_use_valid_mask=False,
     optimizer=torch.optim.Adam,
-    do_test=True,
     do_pred_plots=False,
     normalize=False,
     randomize_offset=False,
@@ -808,18 +806,17 @@ try:
             epoch,
             config,
         )
-        if config.do_test:
-            test(
-                model,
-                device,
-                test_dataloader,
-                opt,
-                land_mask,
-                water_mask,
-                test_summary,
-                epoch,
-                config,
-            )
+        test(
+            model,
+            device,
+            test_dataloader,
+            opt,
+            land_mask,
+            water_mask,
+            test_summary,
+            epoch,
+            config,
+        )
         sched.step()
         torch.save(model.state_dict(), mpath)
 except KeyboardInterrupt:
