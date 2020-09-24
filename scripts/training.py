@@ -87,8 +87,8 @@ def load_dates(path):
 def get_predictions(input_ds, model, water_mask, water_label, device, config):
     pred = []
     for i, v in enumerate(tqdm.tqdm(input_ds, ncols=80)):
-        p = torch.softmax(
-            model(v.unsqueeze(0).to(device, dtype=torch.float)).detach(), 1
+        p = torch.sigmoid(
+            model(v.unsqueeze(0).to(device, dtype=torch.float)).detach()
         )
         p = p.cpu().squeeze().numpy().argmax(0)
         p[..., water_mask] = water_label
@@ -369,7 +369,7 @@ def run_model(
         if is_train:
             model.zero_grad()
         log_class_prob = model(input_data)
-        class_prob = torch.softmax(log_class_prob, 1)
+        class_prob = torch.sigmoid(log_class_prob)
         #
         # ERA/AWS
         #
