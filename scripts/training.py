@@ -510,6 +510,7 @@ def run_model(
     epoch,
     config,
     is_train,
+    confusion_matrix=None,
 ):
     loss_sum = 0.0
     for i, (input_data, batch_era, batch_idxs, batch_bce_weights) in iterator:
@@ -555,8 +556,14 @@ def run_model(
             loss.backward()
             optimizer.step()
         loss_sum += loss
+
+        if confusion_matrix is not None:
+            flat_labels = batch_era.argmax(1).view(-1)
+            flat_predictions = class_prob.argmax(1).view(-1)
+            confusion_matrix.update(flat_labels, flat_predictions)
     loss_mean = loss_sum / len(iterator)
     summary.add_scalar("Loss", loss_mean.item(), epoch)
+    return loss_mean
 
 
 def test(
@@ -577,8 +584,9 @@ def test(
         total=len(dataloader),
         desc=f"-Test: {epoch + 1}/{config.epochs}",
     )
+    cm = ConfusionMatrix()
     with torch.no_grad():
-        run_model(
+        loss = run_model(
             model,
             device,
             it,
@@ -589,7 +597,9 @@ def test(
             epoch,
             config,
             False,
+            cm,
         )
+    return loss.item(), cm
 
 
 def train(
@@ -880,7 +890,7 @@ try:
             epoch,
             config,
         )
-        test(
+        loss, cm = test(
             model,
             device,
             test_dataloader,
