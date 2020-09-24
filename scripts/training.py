@@ -172,7 +172,6 @@ FNAME_MODEL = "model.pt"
 
 class SnapshotHandler:
     def __init__(self, root_dir, model, config):
-        # TODO
         self.root_path = os.path.abspath(root_dir)
         self.model_path = os.path.join(self.root_path, FNAME_MODEL)
         self.counter = 0
