@@ -45,6 +45,83 @@ from validation_db_orm import get_db_session
 import ease_grid as eg
 
 
+def _confusion(flat_labels, flat_predictions):
+    """Compute the confusion matrix for the given data
+
+    The confusion matrix will be of the form:
+                       Actual
+                       N     P
+                     +----+----+
+        Predicted  N | TN | FN |
+                     +----+----+
+                   P | FP | TP |
+                     +----+----+
+    This is slightly different but equivalent to the format used in the
+    Wikipedia article. Note that a class size of 2 is assumed.
+
+    ref: https://en.wikipedia.org/wiki/Confusion_matrix
+    """
+    cm = np.zeros((2, 2), dtype=np.int64)
+    for i in range(2):
+        for j in range(2):
+            cm[j, i] = np.sum(flat_predictions[flat_labels == i] == j)
+    return cm
+
+
+MET_PRECISION = "met_prec"
+MET_RECALL = "met_recall"
+MET_F1 = "met_f1"
+MET_INFORMEDNESS = "met_informd"
+MET_MCC = "met_mcc"
+
+
+class ConfusionMatrix:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.cm = np.zeros((2, 2), dtype=np.int64)
+        self.metrics = {
+            MET_PRECISION: 0,
+            MET_RECALL: 0,
+            MET_F1: 0,
+            MET_MCC: 0,
+        }
+
+    def update(self, flat_labels, flat_predictions):
+        self.cm += _confusion(flat_labels, flat_predictions)
+
+    def compute(self):
+        try:
+            tn = self.cm[0, 0]
+            tp = self.cm[1, 1]
+            fn = self.cm[0, 1]
+            fp = self.cm[1, 0]
+            precision = tp / (tp + fp)
+            recall = tp / (tp + fn)
+            specificity = tn / (tn + fp)
+            f1 = 2 * precision * recall / (precision + recall)
+            informd = precision + specificity - 1
+            mcc = (tp * tn) - (fp * fn) / np.sqrt(
+                (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
+            )
+            self.metrics[MET_PRECISION] = precision
+            self.metrics[MET_RECALL] = recall
+            self.metrics[MET_F1] = f1
+            self.metrics[MET_INFORMEDNESS] = informd
+            self.metrics[MET_MCC] = mcc
+        except ZeroDivisionError:
+            pass
+
+    def update_compute(self, flat_labels, flat_predictions):
+        self.update(flat_labels, flat_predictions)
+        self.compute()
+
+    def set(self, flat_labels, flat_predictions):
+        self.reset()
+        self.update_compute(flat_labels, flat_predictions)
+
+
 def get_year_str(ya, yb):
     if ya == yb:
         return str(ya)
