@@ -176,19 +176,17 @@ class SnapshotHandler:
         self.model = model
         self.config = config
         self.model_path = os.path.join(self.root_path, FNAME_MODEL)
+        self.pred_path = os.path.join(self.root_path, FNAME_PREDICTIONS)
         self.counter = 0
 
     def save_model(self):
         torch.save(self.model.state_dict(), self.model_path)
 
     def take_model_snapshot(self):
-        saved = False
-        if self.counter >= config.snapshot_warmup_period:
-            print("\nTaking snapshot")
-            self.save_model()
-            saved = True
+        print("\nTaking snapshot")
+        self.save_model()
         self.counter += 1
-        return saved
+        return True
 
     def load_best_model(self):
         model.load_state_dict(torch.load(self.model_path))
@@ -646,7 +644,6 @@ Config = namedtuple(
         "batch_size",
         "batch_shuffle",
         "drop_last",
-        "snapshot_warmup_period",
         "lr_shed_multi",
         "learning_rate",
         "lr_milestones",
@@ -701,7 +698,6 @@ config = Config(
     batch_size=16,
     batch_shuffle=True,
     drop_last=False,
-    snapshot_warmup_period=40,
     lr_shed_multi=True,
     learning_rate=1e-4,
     lr_milestones=[50, 80, 130, 180, 230, 300],
