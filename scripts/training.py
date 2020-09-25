@@ -560,8 +560,8 @@ def run_model(
         loss_sum += loss
 
         if confusion_matrix is not None:
-            flat_labels = batch_era.argmax(1).view(-1)
-            flat_predictions = class_prob.argmax(1).view(-1)
+            flat_labels = batch_era.argmax(1)[..., land_mask].view(-1)
+            flat_predictions = class_prob.argmax(1)[..., land_mask].view(-1)
             confusion_matrix.update(flat_labels, flat_predictions)
     loss_mean = loss_sum / len(iterator)
     summary.add_scalar("Loss", loss_mean.item(), epoch)
