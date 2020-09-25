@@ -863,6 +863,8 @@ else:
 test_dataloader = torch.utils.data.DataLoader(
     test_ds, batch_size=config.batch_size, shuffle=False, drop_last=False,
 )
+snap_handler = SnapshotHandler(root_dir, model, config)
+metric_checker = MetricImprovementIndicator(MaxMetricTracker(-np.inf), MET_MCC)
 try:
     for epoch in range(config.epochs):
         train_summary.add_scalar(
@@ -898,8 +900,9 @@ try:
             epoch,
             config,
         )
+        if metric_checker.check(cm):
+            snap_handler.take_model_snapshot()
         sched.step()
-        torch.save(model.state_dict(), mpath)
 except KeyboardInterrupt:
     print("Exiting training loop")
 except Exception as e:
@@ -925,16 +928,11 @@ finally:
     if config.use_prior_day:
         val_dates = Subset(val_dates, test_reduced_indices)
         val_mask_ds = Subset(val_mask_ds, test_reduced_indices)
+
+    model = snap_handler.load_best_model()
     # Log results
-    os.makedirs(root_dir, exist_ok=True)
     pred_plot_dir = os.path.join(root_dir, "pred_plots")
-    if os.path.isdir(pred_plot_dir):
-        shutil.rmtree(pred_plot_dir)
     os.makedirs(pred_plot_dir)
-    # Save model
-    mpath = os.path.join(root_dir, "model.pt")
-    print(f"Saving model: '{mpath}'")
-    torch.save(model.state_dict(), mpath)
     # Create and save predictions for test data
     print("Generating predictions")
     pred = get_predictions(
