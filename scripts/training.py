@@ -298,7 +298,7 @@ def validate_against_aws_db(
     return aws_acc * 100
 
 
-def plot_results(predictions, era_acc, aws_acc, root_dir, pred_plot_dir):
+def plot_accuracies(val_dates, era_acc, aws_acc, root_dir):
     # ERA
     plt.figure()
     plt.plot(val_dates, era_acc, lw=1, label="ERA5")
@@ -334,6 +334,9 @@ def plot_results(predictions, era_acc, aws_acc, root_dir, pred_plot_dir):
     plt.grid(True, which="both", alpha=0.7, lw=0.5, ls=":")
     plt.savefig(os.path.join(root_dir, "acc_plot.png"), dpi=300)
     plt.close()
+
+
+def plot_predictions(predictions, era_acc, aws_acc, root_dir, pred_plot_dir):
     # Save prediction plots
     print(f"Creating prediction plots: '{pred_plot_dir}'")
     pfmt = os.path.join(pred_plot_dir, "{:03}.png")
@@ -966,4 +969,4 @@ finally:
     write_accuracies_file(val_dates, era_acc, aws_acc, acc_file)
     plot_accuracies(val_dates, era_acc, aws_acc, root_dir)
     if config.do_pred_plots:
-        plot_results(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
+        plot_predictions(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
