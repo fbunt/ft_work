@@ -33,7 +33,7 @@ from transforms import (
     N45W,
     REGION_TO_TRANS,
 )
-from utils import FT_CMAP
+from utils import FT_CMAP, write_accuracies_file
 from validate import (
     RETRIEVAL_MIN,
     WMOValidationPointFetcher,
@@ -963,8 +963,7 @@ finally:
     db.close()
     # Write accuracies
     acc_file = os.path.join(root_dir, "acc.csv")
-    with open(acc_file, "w") as fd:
-        for d, ae, aa in zip(val_dates, era_acc, aws_acc):
-            fd.write(f"{d},{ae},{aa}\n")
+    write_accuracies_file(val_dates, era_acc, aws_acc, acc_file)
+    plot_accuracies(val_dates, era_acc, aws_acc, root_dir)
     if config.do_pred_plots:
         plot_results(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
