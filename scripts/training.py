@@ -136,9 +136,10 @@ class ConfusionMatrix:
             specificity = tn / (tn + fp)
             f1 = 2 * precision * recall / (precision + recall)
             informd = precision + specificity - 1
-            mcc = (tp * tn) - (fp * fn) / np.sqrt(
-                (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
-            )
+            n = tn + tp + fn + fp
+            s = (tp + fn) / n
+            p = (tp + fp) / n
+            mcc = ((tp / n) - (s * p)) / np.sqrt(p * s * (1 - s) * (1 - p))
             self.metrics[MET_ACCURACY] = accuracy
             self.metrics[MET_PRECISION] = precision
             self.metrics[MET_RECALL] = recall
