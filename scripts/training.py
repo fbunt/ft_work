@@ -91,10 +91,12 @@ def _confusion(flat_labels, flat_predictions):
 
     ref: https://en.wikipedia.org/wiki/Confusion_matrix
     """
-    cm = np.zeros((2, 2), dtype=np.int64)
+    cm = np.zeros((2, 2), dtype=float)
     for i in range(2):
         for j in range(2):
-            cm[j, i] = np.sum(flat_predictions[flat_labels == i] == j)
+            cm[j, i] = torch.sum(
+                flat_predictions[flat_labels == i] == j
+            ).item()
     return cm
 
 
@@ -111,7 +113,7 @@ class ConfusionMatrix:
         self.reset()
 
     def reset(self):
-        self.cm = np.zeros((2, 2), dtype=np.int64)
+        self.cm = np.zeros((2, 2), dtype=float)
         self.metrics = {
             MET_PRECISION: 0,
             MET_RECALL: 0,
