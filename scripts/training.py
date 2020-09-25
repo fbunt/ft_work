@@ -196,6 +196,11 @@ class SnapshotHandler:
         return model
 
 
+def log_metrics(writer, cm, step):
+    for label, val in cm.metrics.items():
+        writer.add_scalar(label, val, step)
+
+
 def get_year_str(ya, yb):
     if ya == yb:
         return str(ya)
@@ -905,6 +910,7 @@ try:
         )
         if metric_checker.check(cm):
             snap_handler.take_model_snapshot()
+        log_metrics(test_summary, cm, epoch)
         sched.step()
 except KeyboardInterrupt:
     print("Exiting training loop")
