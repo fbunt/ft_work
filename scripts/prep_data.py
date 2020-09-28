@@ -116,6 +116,10 @@ def save_data(data_dict, out_dir, year_str, region):
         np.save(name, data)
 
 
+def is_neg_one(x):
+    return x == -1
+
+
 FMT_FILENAME_SNOW = "{out_dir}/snow_cover-{year_str}-{region}.npy"
 FMT_FILENAME_SOLAR = "{out_dir}/solar_rad-AM-{year_str}-{region}.npy"
 FMT_FILENAME_TB = "{out_dir}/tb-D-{year_str}-{region}.npy"
@@ -157,7 +161,7 @@ def prep(
     tb = tb[good_idxs]
     era = era[good_idxs]
     tb = fill_gaps(tb)
-    snow = np.round(fill_gaps(snow, missing_func=lambda x: x == -1))
+    snow = np.round(fill_gaps(snow, missing_func=is_neg_one))
     nanmask = np.isnan(tb)
     # Only need one of the identical masks
     nanmask = nanmask[:, 0]
