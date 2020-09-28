@@ -219,7 +219,7 @@ class AWSDateRangeWrapperDataset(Dataset):
         return len(self.idx_to_date)
 
 
-class ERA5BidailyDataset(Dataset):
+class ERA5BidailyFTDataset(Dataset):
     def __init__(
         self, paths, var_name, scheme, other_mask=None, transform=None
     ):
@@ -285,6 +285,56 @@ def _input_filter(fi):
         and fi.sat_pass == "D"
         and fi.freq_pol <= KEY_37V
     )
+
+
+class ERA5BidailyDataset(Dataset):
+    def __init__(
+        self, paths, var_name, scheme, other_mask=None, transform=None
+    ):
+        self.ds = xr.open_mfdataset(paths, combine="by_coords")
+        if var_name not in self.ds:
+            raise KeyError(
+                f"Variable name '{var_name}' is not present in specified data"
+            )
+        self.var_name = var_name
+        self.data_slice = None
+        if scheme == "AM":
+            self.data_slice = np.s_[::2]
+        elif scheme == "PM":
+            self.data_slice = np.s_[1::2]
+        else:
+            raise ValueError(f"Unknown scheme option: '{scheme}'")
+        self.length = len(self.data())
+        self.lon = self.ds.lon.values
+        self.lat = self.ds.lat.values
+        elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
+        self.elon = elon[0] + 180
+        self.elat = elat[:, 0]
+        self.transform = transform or (lambda x: x)
+        self.n_classes = 2 + int(other_mask is not None)
+        other_mask = (
+            other_mask
+            if other_mask is not None
+            else np.zeros(eg.GRID_NAME_TO_V1_SHAPE[eg.ML], dtype=bool)
+        )
+        self.other_mask = self.transform(other_mask)
+        self.grid_shape = self.other_mask.shape
+
+    def data(self):
+        return self.ds[self.var_name][self.data_slice]
+
+    def __getitem__(self, idx):
+        grid = self.data()[idx].values
+        # Need to make lat increasing for interpolation
+        ip = RBS(self.lat[::-1], self.lon, grid[::-1])
+        igrid = ip(self.elat[::-1], self.elon)[::-1]
+        # Roll along the lon dimension to center at lon=0
+        igrid = np.roll(igrid, (self.elon.size // 2) + 1, axis=1)
+        igrid = self.transform(igrid)
+        return igrid
+
+    def __len__(self):
+        return self.length
 
 
 def _create_input_table(paths, filter_func=_input_filter):
