@@ -129,6 +129,50 @@ class UNet(nn.Module):
         return self.out(x)
 
 
+class Unet2Headed(nn.Module):
+    """A modified UNet with two output heads. The first outputs FT logits, the
+    second outputs t2m.
+    """
+
+    def __init__(self, in_chan, n_classes, base_filter_bank_size=16):
+        super().__init__()
+
+        nb = base_filter_bank_size
+        if nb <= 0:
+            raise ValueError(f"Filter bank size must be greater than 0: {nb}")
+
+        self.input = _MultiConv(in_chan, nb)
+        self.downs = nn.ModuleList()
+        self.downs.append(_Down(1 * nb, 2 * nb))
+        self.downs.append(_Down(2 * nb, 4 * nb))
+        self.downs.append(_Down(4 * nb, 8 * nb))
+        self.downs.append(_Down(8 * nb, 16 * nb))
+        self.ups = nn.ModuleList()
+        self.ups.append(_Up(16 * nb, 8 * nb))
+        self.ups.append(_Up(8 * nb, 4 * nb))
+        self.ups.append(_Up(4 * nb, 2 * nb))
+        self.ups.append(_Up(2 * nb, 1 * nb))
+        self.t2m_up = _Up(2 * nb, 1 * nb)
+        # Outputs FT classification predition
+        self.seg_head = nn.Conv2d(nb, n_classes, kernel_size=1)
+        # Outputs t2m prediction
+        self.t2m_head = nn.Conv2d(nb, 1, kernel_size=1)
+
+    def forward(self, x):
+        xdowns = [self.input(x)]
+        xdowns.append(self.downs[0](xdowns[-1]))
+        xdowns.append(self.downs[1](xdowns[-1]))
+        xdowns.append(self.downs[2](xdowns[-1]))
+        xdowns.append(self.downs[3](xdowns[-1]))
+        x = xdowns[4]
+        x = self.ups[0](xdowns[3], x)
+        x = self.ups[1](xdowns[2], x)
+        x = self.ups[2](xdowns[1], x)
+        x1 = self.ups[3](xdowns[0], x)
+        x2 = self.t2m_up(xdowns[0], x)
+        return self.seg_head(x1), self.t2m_head(x2)
+
+
 def local_variation_loss(data, loss_func=nn.L1Loss()):
     """Compute the local variation around each pixel.
 
