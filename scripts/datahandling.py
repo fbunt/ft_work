@@ -620,15 +620,22 @@ class ComposedDictDataset(Dataset):
         return self.size
 
 
-DEFAULT_BATCH_SIZE = 8
-DEFAULT_NUM_WORKERS = 6
+def write_accuracies_file(dates, era_acc, aws_acc, path):
+    with open(path, "w") as fd:
+        for d, ae, aa in zip(dates, era_acc, aws_acc):
+            fd.write(f"{d},{ae},{aa}\n")
 
 
-def get_default_data_loader(dataset):
-    return DataLoader(
-        dataset,
-        batch_size=DEFAULT_BATCH_SIZE,
-        shuffle=True,
-        drop_last=True,
-        num_workers=DEFAULT_NUM_WORKERS,
-    )
+def read_accuracies_file(path):
+    with open(path) as fd:
+        dates = []
+        era = []
+        aws = []
+        for line in fd:
+            values = line.split(",")
+            dates.append(dt.date.fromisoformat(values[0]))
+            era.append(float(values[1]))
+            aws.append(float(values[2]))
+        era = np.array(era)
+        aws = np.array(aws)
+        return dates, era, aws

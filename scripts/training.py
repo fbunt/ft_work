@@ -13,13 +13,14 @@ import stat
 import torch
 import tqdm
 
-from dataloading import (
+from datahandling import (
     ComposedDataset,
     GridsStackDataset,
     IndexEchoDataset,
     NpyDataset,
     RepeatDataset,
     SingleValueGridDataset,
+    write_accuracies_file,
 )
 from model import (
     LABEL_FROZEN,
@@ -33,7 +34,7 @@ from transforms import (
     N45W,
     REGION_TO_TRANS,
 )
-from utils import FT_CMAP, write_accuracies_file
+from utils import FT_CMAP
 from validate import (
     RETRIEVAL_MIN,
     WMOValidationPointFetcher,
