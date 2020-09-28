@@ -11,7 +11,7 @@ from transforms import (
     N45_VIEW_TRANS,
     N45W_VIEW_TRANS,
 )
-import dataloading as dl
+import datahandling as dh
 
 
 def get_year_str(ya, yb):
@@ -24,9 +24,9 @@ def get_year_str(ya, yb):
 
 def build_tb_ds(path_groups, transform):
     dss = [
-        dl.GridsStackDataset(
+        dh.GridsStackDataset(
             [
-                dl.NCDataset([f], "tb", transform=transform)
+                dh.NCDataset([f], "tb", transform=transform)
                 for f in sorted(group)
             ]
         )
@@ -211,7 +211,7 @@ print("Loading snow cover")
 snow = dataset_to_array(
     torch.utils.data.ConcatDataset(
         [
-            dl.NpyDataset(f"../data/snow/snow_cover_{y}.npy", transform)
+            dh.NpyDataset(f"../data/snow/snow_cover_{y}.npy", transform)
             for y in range(train_start_year, train_final_year + 1)
         ]
     )
@@ -220,7 +220,7 @@ print("Loading solar")
 solar = dataset_to_array(
     torch.utils.data.ConcatDataset(
         [
-            dl.NpyDataset(f"../data/solar/solar_rad-daily-{y}.npy", transform)
+            dh.NpyDataset(f"../data/solar/solar_rad-daily-{y}.npy", transform)
             for y in range(train_start_year, train_final_year + 1)
         ]
     )
@@ -233,7 +233,7 @@ print("Loading tb")
 tb = dataset_to_array(build_tb_ds(path_groups, transform))
 print("Loading ERA")
 era = dataset_to_array(
-    dl.ERA5BidailyDataset(
+    dh.ERA5BidailyDataset(
         [
             f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
             for y in range(train_start_year, train_final_year + 1)
@@ -259,11 +259,11 @@ prep(
 # Validation data
 print("Loading snow cover")
 snow = dataset_to_array(
-    dl.NpyDataset("../data/snow/snow_cover_2015.npy", transform)
+    dh.NpyDataset("../data/snow/snow_cover_2015.npy", transform)
 )
 print("Loading solar")
 solar = dataset_to_array(
-    dl.NpyDataset("../data/solar/solar_rad-daily-2015.npy", transform)
+    dh.NpyDataset("../data/solar/solar_rad-daily-2015.npy", transform)
 )
 print("Loading tb")
 tb = dataset_to_array(
@@ -271,7 +271,7 @@ tb = dataset_to_array(
 )
 print("Loading ERA")
 era = dataset_to_array(
-    dl.ERA5BidailyDataset(
+    dh.ERA5BidailyDataset(
         ["../data/era5/t2m/bidaily/era5-t2m-bidaily-2015.nc"],
         "t2m",
         "AM",

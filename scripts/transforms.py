@@ -1,4 +1,4 @@
-from dataloading import ViewCopyTransform
+from datahandling import ViewCopyTransform
 
 
 # Copies a small window around Alaska
