@@ -783,7 +783,7 @@ train_aws_data = get_aws_data(
 )
 # ERA
 train_era_ds = NpyDataset(
-    f"../data/cleaned/era5-t2m-am-{train_year_str}-{config.region}.npy"
+    f"../data/cleaned/era5-ft-am-{train_year_str}-{config.region}.npy"
 )
 if config.use_prior_day:
     train_era_ds = Subset(
@@ -827,7 +827,7 @@ test_aws_data = get_aws_data(
 )
 # ERA
 test_era_ds = NpyDataset(
-    f"../data/cleaned/era5-t2m-am-{test_year_str}-{config.region}.npy"
+    f"../data/cleaned/era5-ft-am-{test_year_str}-{config.region}.npy"
 )
 if config.use_prior_day:
     test_era_ds = Subset(test_era_ds, test_reduced_indices)
