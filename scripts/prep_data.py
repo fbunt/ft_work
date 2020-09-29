@@ -123,7 +123,8 @@ def is_neg_one(x):
 FMT_FILENAME_SNOW = "{out_dir}/snow_cover-{year_str}-{region}.npy"
 FMT_FILENAME_SOLAR = "{out_dir}/solar_rad-AM-{year_str}-{region}.npy"
 FMT_FILENAME_TB = "{out_dir}/tb-D-{year_str}-{region}.npy"
-FMT_FILENAME_ERA = "{out_dir}/era5-t2m-am-{year_str}-{region}.npy"
+FMT_FILENAME_ERA_FT = "{out_dir}/era5-ft-am-{year_str}-{region}.npy"
+FMT_FILENAME_ERA_T2M = "{out_dir}/era5-t2m-am-{year_str}-{region}.npy"
 FMT_FILENAME_TB_VALID = "{out_dir}/tb_valid_mask-D-{year_str}-{region}.npy"
 
 
@@ -132,7 +133,8 @@ def prep(
     snow,
     solar,
     tb,
-    era,
+    era_ft,
+    era_t2m,
     out_dir,
     region,
     drop_bad_days,
@@ -159,7 +161,8 @@ def prep(
     snow = snow[good_idxs]
     solar = solar[good_idxs]
     tb = tb[good_idxs]
-    era = era[good_idxs]
+    era_ft = era_ft[good_idxs]
+    era_t2m = era_t2m[good_idxs]
     tb = fill_gaps(tb)
     snow = np.round(fill_gaps(snow, missing_func=is_neg_one))
     nanmask = np.isnan(tb)
@@ -174,7 +177,8 @@ def prep(
         FMT_FILENAME_SNOW: snow,
         FMT_FILENAME_SOLAR: solar,
         FMT_FILENAME_TB: tb,
-        FMT_FILENAME_ERA: era,
+        FMT_FILENAME_ERA_FT: era_ft,
+        FMT_FILENAME_ERA_T2M: era_t2m,
         FMT_FILENAME_TB_VALID: vmask,
     }
     save_data(data_dict, out_dir, year_str, region)
@@ -236,7 +240,19 @@ path_groups = [
 print("Loading tb")
 tb = dataset_to_array(build_tb_ds(path_groups, transform))
 print("Loading ERA")
-era = dataset_to_array(
+era_ft = dataset_to_array(
+    dh.ERA5BidailyFTDataset(
+        [
+            f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+            for y in range(train_start_year, train_final_year + 1)
+        ],
+        "t2m",
+        "AM",
+        other_mask=None,
+        transform=transform,
+    )
+)
+era_t2m = dataset_to_array(
     dh.ERA5BidailyDataset(
         [
             f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
@@ -253,7 +269,8 @@ prep(
     snow,
     solar,
     tb,
-    era,
+    era_ft,
+    era_t2m,
     out_dir,
     region,
     drop_bad_days,
@@ -274,7 +291,16 @@ tb = dataset_to_array(
     build_tb_ds([glob.glob("../data/tb/2015/tb_2015_F17_ML_D*.nc")], transform)
 )
 print("Loading ERA")
-era = dataset_to_array(
+era_ft = dataset_to_array(
+    dh.ERA5BidailyFTDataset(
+        ["../data/era5/t2m/bidaily/era5-t2m-bidaily-2015.nc"],
+        "t2m",
+        "AM",
+        other_mask=None,
+        transform=transform,
+    )
+)
+era_t2m = dataset_to_array(
     dh.ERA5BidailyDataset(
         ["../data/era5/t2m/bidaily/era5-t2m-bidaily-2015.nc"],
         "t2m",
@@ -283,4 +309,14 @@ era = dataset_to_array(
         transform=transform,
     )
 )
-prep(dt.date(2015, 1, 1), snow, solar, tb, era, out_dir, region, drop_bad_days)
+prep(
+    dt.date(2015, 1, 1),
+    snow,
+    solar,
+    tb,
+    era_ft,
+    era_t2m,
+    out_dir,
+    region,
+    drop_bad_days,
+)
