@@ -172,6 +172,7 @@ class MetricImprovementIndicator:
 
 
 FNAME_MODEL = "model.pt"
+FNAME_PREDICTIONS = "pred.npy"
 
 
 class SnapshotHandler:
@@ -515,6 +516,7 @@ def run_model(
     device,
     iterator,
     optimizer,
+    aws_data,
     land_mask,
     water_mask,
     summary,
@@ -538,7 +540,7 @@ def run_model(
         flat_bce_weights = batch_bce_weights.view(
             batch_bce_weights.size(0), batch_bce_weights.size(1), -1
         )
-        batch_aws = [train_aws_data[idx] for idx in batch_idxs]
+        batch_aws = [aws_data[idx] for idx in batch_idxs]
         batch_aws_fzn_idxs = [v[0] for v in batch_aws]
         batch_aws_thw_idxs = [v[1] for v in batch_aws]
         for i in range(len(flat_era)):
@@ -582,6 +584,7 @@ def test(
     device,
     dataloader,
     optimizer,
+    aws_data,
     land_mask,
     water_mask,
     summary,
@@ -602,6 +605,7 @@ def test(
             device,
             it,
             optimizer,
+            aws_data,
             land_mask,
             water_mask,
             summary,
@@ -618,6 +622,7 @@ def train(
     device,
     dataloader,
     optimizer,
+    aws_data,
     land_mask,
     water_mask,
     summary,
@@ -636,6 +641,7 @@ def train(
         device,
         it,
         optimizer,
+        aws_data,
         land_mask,
         water_mask,
         summary,
@@ -782,7 +788,7 @@ train_aws_data = get_aws_data(
 )
 # ERA
 train_era_ds = NpyDataset(
-    f"../data/cleaned/era5-t2m-am-{train_year_str}-{config.region}.npy"
+    f"../data/cleaned/era5-ft-am-{train_year_str}-{config.region}.npy"
 )
 if config.use_prior_day:
     train_era_ds = Subset(
@@ -826,7 +832,7 @@ test_aws_data = get_aws_data(
 )
 # ERA
 test_era_ds = NpyDataset(
-    f"../data/cleaned/era5-t2m-am-{test_year_str}-{config.region}.npy"
+    f"../data/cleaned/era5-ft-am-{test_year_str}-{config.region}.npy"
 )
 if config.use_prior_day:
     test_era_ds = Subset(test_era_ds, test_reduced_indices)
@@ -895,6 +901,7 @@ try:
             device,
             train_dataloader,
             opt,
+            train_aws_data,
             land_mask,
             water_mask,
             train_summary,
@@ -906,6 +913,7 @@ try:
             device,
             test_dataloader,
             opt,
+            test_aws_data,
             land_mask,
             water_mask,
             test_summary,
