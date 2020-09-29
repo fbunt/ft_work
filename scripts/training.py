@@ -172,6 +172,7 @@ class MetricImprovementIndicator:
 
 
 FNAME_MODEL = "model.pt"
+FNAME_PREDICTIONS = "pred.npy"
 
 
 class SnapshotHandler:
