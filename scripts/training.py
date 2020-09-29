@@ -883,6 +883,7 @@ test_dataloader = torch.utils.data.DataLoader(
 )
 snap_handler = SnapshotHandler(root_dir, model, config)
 metric_checker = MetricImprovementIndicator(MaxMetricTracker(-np.inf), MET_MCC)
+snap_handler.take_model_snapshot()
 try:
     for epoch in range(config.epochs):
         train_summary.add_scalar(
