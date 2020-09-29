@@ -129,7 +129,7 @@ class UNet(nn.Module):
         return self.out(x)
 
 
-class Unet2Headed(nn.Module):
+class UNet2HeadedComplex(nn.Module):
     """A modified UNet with two output heads. The first outputs FT logits, the
     second outputs t2m.
     """
@@ -173,6 +173,48 @@ class Unet2Headed(nn.Module):
         return self.seg_head(x1), self.t2m_head(x2)
 
 
+class UNet2HeadedSimple(nn.Module):
+    """A modified UNet with two output heads. The first outputs FT logits, the
+    second outputs t2m.
+    """
+
+    def __init__(self, in_chan, n_classes, base_filter_bank_size=16):
+        super().__init__()
+
+        nb = base_filter_bank_size
+        if nb <= 0:
+            raise ValueError(f"Filter bank size must be greater than 0: {nb}")
+
+        self.input = _MultiConv(in_chan, nb)
+        self.downs = nn.ModuleList()
+        self.downs.append(_Down(1 * nb, 2 * nb))
+        self.downs.append(_Down(2 * nb, 4 * nb))
+        self.downs.append(_Down(4 * nb, 8 * nb))
+        self.downs.append(_Down(8 * nb, 16 * nb))
+        self.ups = nn.ModuleList()
+        self.ups.append(_Up(16 * nb, 8 * nb))
+        self.ups.append(_Up(8 * nb, 4 * nb))
+        self.ups.append(_Up(4 * nb, 2 * nb))
+        self.ups.append(_Up(2 * nb, 1 * nb))
+        # Outputs FT segmentation predition
+        self.ft_head = _MultiConv(nb, n_classes)
+        # Outputs t2m prediction
+        self.t2m_head = _MultiConv(nb, 1)
+
+    def forward(self, x):
+        xdowns = [self.input(x)]
+        xdowns.append(self.downs[0](xdowns[-1]))
+        xdowns.append(self.downs[1](xdowns[-1]))
+        xdowns.append(self.downs[2](xdowns[-1]))
+        xdowns.append(self.downs[3](xdowns[-1]))
+        x = xdowns[4]
+        x = self.ups[0](xdowns[3], x)
+        x = self.ups[1](xdowns[2], x)
+        x = self.ups[2](xdowns[1], x)
+        x = self.ups[3](xdowns[0], x)
+        return self.ft_head(x), self.t2m_head(x)
+
+
 def local_variation_loss(data, loss_func=nn.L1Loss()):
     """Compute the local variation around each pixel.
 
@@ -186,5 +228,5 @@ def local_variation_loss(data, loss_func=nn.L1Loss()):
 
 
 def ft_loss(prediction, label, distance):
-    loss = (prediction - label)**2 / (torch.log(distance) + 1)
+    loss = (prediction - label) ** 2 / (torch.log(distance) + 1)
     return torch.mean(loss)

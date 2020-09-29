@@ -1,6 +1,6 @@
 from collections import namedtuple
 from scipy.spatial import cKDTree as KDTree
-from torch.nn.functional import binary_cross_entropy_with_logits
+from torch.nn.functional import binary_cross_entropy_with_logits, mse_loss
 from torch.utils.data import Subset
 from torch.utils.tensorboard import SummaryWriter
 import datetime as dt
@@ -27,6 +27,8 @@ from model import (
     LABEL_OTHER,
     LABEL_THAWED,
     UNet,
+    UNet2HeadedComplex,
+    UNet2HeadedSimple,
     local_variation_loss,
 )
 from transforms import (
@@ -246,7 +248,7 @@ def get_predictions(input_ds, model, water_mask, water_label, device, config):
     pred = []
     for i, v in enumerate(tqdm.tqdm(input_ds, ncols=80)):
         p = torch.sigmoid(
-            model(v.unsqueeze(0).to(device, dtype=torch.float)).detach()
+            model(v.unsqueeze(0).to(device, dtype=torch.float))[0].detach()
         )
         p = p.cpu().squeeze().numpy().argmax(0)
         p[..., water_mask] = water_label
@@ -526,17 +528,28 @@ def run_model(
     confusion_matrix=None,
 ):
     loss_sum = 0.0
-    for i, (input_data, batch_era, batch_idxs, batch_bce_weights) in iterator:
+    for (
+        i,
+        (
+            input_data,
+            batch_era_ft,
+            batch_era_t2m,
+            batch_idxs,
+            batch_bce_weights,
+        ),
+    ) in iterator:
         input_data = input_data.to(device, dtype=torch.float)
 
         if is_train:
             model.zero_grad()
-        log_class_prob = model(input_data)
+        log_class_prob, t2m_pred = model(input_data)
         class_prob = torch.sigmoid(log_class_prob)
         #
         # ERA/AWS
         #
-        flat_era = batch_era.view(batch_era.size(0), batch_era.size(1), -1)
+        flat_era = batch_era_ft.view(
+            batch_era_ft.size(0), batch_era_ft.size(1), -1
+        )
         flat_bce_weights = batch_bce_weights.view(
             batch_bce_weights.size(0), batch_bce_weights.size(1), -1
         )
@@ -550,12 +563,21 @@ def run_model(
             flat_era[i, LABEL_THAWED, i_thw] = 1
             flat_bce_weights[i, :, i_fzn] = config.aws_bce_weight
             flat_bce_weights[i, :, i_thw] = config.aws_bce_weight
-        batch_era = batch_era.to(device)
+            # TODO: set temps from aws
+        batch_era_ft = batch_era_ft.to(device)
         batch_bce_weights = batch_bce_weights.to(device)
-        comb_loss = binary_cross_entropy_with_logits(
-            log_class_prob, batch_era, batch_bce_weights
+        ft_loss = binary_cross_entropy_with_logits(
+            log_class_prob, batch_era_ft, batch_bce_weights
         )
-        comb_loss *= config.main_loss_weight
+        ft_loss *= config.main_loss_weight
+
+        batch_era_t2m = batch_era_t2m.unsqueeze(1).to(
+            device, dtype=torch.float
+        )
+        t2m_loss = mse_loss(
+            t2m_pred[..., land_mask], batch_era_t2m[..., land_mask]
+        )
+        t2m_loss *= config.t2m_loss_weight
 
         #
         # Local variation
@@ -563,7 +585,8 @@ def run_model(
         # Minimize high frequency variation
         lv_loss = local_variation_loss(class_prob)
         lv_loss *= config.lv_reg_weight
-        loss = comb_loss
+        loss = ft_loss
+        loss += t2m_loss
         loss += lv_loss
         if is_train:
             loss.backward()
@@ -571,7 +594,7 @@ def run_model(
         loss_sum += loss
 
         if confusion_matrix is not None:
-            flat_labels = batch_era.argmax(1)[..., land_mask].view(-1)
+            flat_labels = batch_era_ft.argmax(1)[..., land_mask].view(-1)
             flat_predictions = class_prob.argmax(1)[..., land_mask].view(-1)
             confusion_matrix.update(flat_labels, flat_predictions)
     loss_mean = loss_sum / len(iterator)
@@ -687,6 +710,7 @@ Config = namedtuple(
         "test_end_year",
         "l2_reg_weight",
         "main_loss_weight",
+        "t2m_loss_weight",
         "aws_bce_weight",
         "lv_reg_weight",
     ),
@@ -713,7 +737,7 @@ config = Config(
     depth=4,
     base_filters=64,
     epochs=340,
-    batch_size=16,
+    batch_size=14,
     batch_shuffle=True,
     drop_last=False,
     lr_shed_multi=True,
@@ -741,6 +765,7 @@ config = Config(
     test_end_year=2015,
     l2_reg_weight=1e-2,
     main_loss_weight=1e0,
+    t2m_loss_weight=5e-1,
     aws_bce_weight=5e0,
     lv_reg_weight=5e-2,
 )
@@ -787,12 +812,18 @@ train_aws_data = get_aws_data(
     config,
 )
 # ERA
-train_era_ds = NpyDataset(
+train_era_ft_ds = NpyDataset(
     f"../data/cleaned/era5-ft-am-{train_year_str}-{config.region}.npy"
 )
+train_era_t2m_ds = NpyDataset(
+    f"../data/cleaned/era5-t2m-am-{train_year_str}-{config.region}.npy"
+)
 if config.use_prior_day:
-    train_era_ds = Subset(
-        train_era_ds, list(range(1, len(train_input_ds) + 1))
+    train_era_ft_ds = Subset(
+        train_era_ft_ds, list(range(1, len(train_input_ds) + 1))
+    )
+    train_era_t2m_ds = Subset(
+        train_era_t2m_ds, list(range(1, len(train_input_ds) + 1))
     )
     train_idx_ds = IndexEchoDataset(len(train_input_ds), offset=1)
 else:
@@ -801,7 +832,13 @@ ws = torch.zeros((1, *land_mask.shape), dtype=torch.float)
 ws[..., land_mask] = 1.0
 train_weights_ds = RepeatDataset(ws, len(train_input_ds))
 train_ds = ComposedDataset(
-    [train_input_ds, train_era_ds, train_idx_ds, train_weights_ds]
+    [
+        train_input_ds,
+        train_era_ft_ds,
+        train_era_t2m_ds,
+        train_idx_ds,
+        train_weights_ds,
+    ]
 )
 
 #
@@ -831,23 +868,32 @@ test_aws_data = get_aws_data(
     config,
 )
 # ERA
-test_era_ds = NpyDataset(
+test_era_ft_ds = NpyDataset(
     f"../data/cleaned/era5-ft-am-{test_year_str}-{config.region}.npy"
 )
+test_era_t2m_ds = NpyDataset(
+    f"../data/cleaned/era5-t2m-am-{test_year_str}-{config.region}.npy"
+)
 if config.use_prior_day:
-    test_era_ds = Subset(test_era_ds, test_reduced_indices)
+    test_era_ft_ds = Subset(test_era_ft_ds, test_reduced_indices)
+    test_era_t2m_ds = Subset(test_era_t2m_ds, test_reduced_indices)
     test_idx_ds = IndexEchoDataset(len(test_input_ds), offset=1)
 else:
     test_idx_ds = IndexEchoDataset(len(test_input_ds))
 test_weights_ds = RepeatDataset(ws, len(test_input_ds))
 test_ds = ComposedDataset(
-    [test_input_ds, test_era_ds, test_idx_ds, test_weights_ds]
+    [
+        test_input_ds,
+        test_era_ft_ds,
+        test_era_t2m_ds,
+        test_idx_ds,
+        test_weights_ds,
+    ]
 )
 
-model = UNet(
+model = UNet2HeadedSimple(
     config.in_chan,
     config.n_classes,
-    depth=config.depth,
     base_filter_bank_size=config.base_filters,
 )
 model.to(device)
@@ -934,7 +980,7 @@ finally:
     test_summary.close()
     # Free up data for GC
     train_input_ds = None
-    train_era_ds = None
+    train_era_ft_ds = None
     train_idx_ds = None
     train_ds = None
     train_dataloader = None
@@ -965,7 +1011,7 @@ finally:
     # Validate against ERA5
     print("Validating against ERA5")
     era_acc = validate_against_era5(
-        pred, test_era_ds, val_mask_ds, land_mask, config
+        pred, test_era_ft_ds, val_mask_ds, land_mask, config
     )
     # Validate against AWS DB
     db = get_db_session("../data/dbs/wmo_gsod.db")
