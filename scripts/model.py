@@ -197,9 +197,9 @@ class UNet2HeadedSimple(nn.Module):
         self.ups.append(_Up(4 * nb, 2 * nb))
         self.ups.append(_Up(2 * nb, 1 * nb))
         # Outputs FT segmentation predition
-        self.ft_head = _MultiConv(nb, n_classes)
+        self.ft_head = nn.Conv2d(nb, n_classes, kernel_size=1)
         # Outputs t2m prediction
-        self.t2m_head = _MultiConv(nb, 1)
+        self.t2m_head = _ConvLayer(nb, 1)
 
     def forward(self, x):
         xdowns = [self.input(x)]
