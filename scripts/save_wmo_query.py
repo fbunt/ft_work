@@ -1,9 +1,10 @@
 import argparse
 import numpy as np
+import os
 
 from datahandling import get_aws_data, persist_data_object
 from transforms import GL, REGION_CODES, REGION_TO_TRANS
-from utils import validate_file_path
+from utils import validate_file_path, validate_dir_path
 from validate import RETRIEVAL_MIN, RETRIEVAL_MAX
 
 
@@ -31,7 +32,7 @@ def get_cli_parser():
         action="store",
         default=GL,
         type=_validate_region,
-        help="Region to use when querying the database.",
+        help="Region to use when querying the database. Default is GL."
     )
     p.add_argument(
         "-v",
@@ -49,7 +50,7 @@ def get_cli_parser():
         type=int,
         help="End year for queryies, inclusive. Can be the same as end_year.",
     )
-    p.add_argument("out_path", help="Output location")
+    p.add_argument("out_dir", type=validate_dir_path, help="Output location")
     return p
 
 
@@ -76,8 +77,12 @@ def main(args):
         ret_type,
         args.valid_mask,
     )
-    print(f"Saving data to '{args.out_path}'")
-    persist_data_object(aws_data, args.out_path)
+    # TODO: add option for AM/PM
+    out_file = os.path.join(
+        args.out_dir, f"aws_data-AM-{year_str}-{args.region}.pkl"
+    )
+    print(f"Saving data to '{out_file}'")
+    persist_data_object(aws_data, out_file)
 
 
 if __name__ == "__main__":
