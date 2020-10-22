@@ -1,5 +1,4 @@
 from collections import namedtuple
-from scipy.spatial import cKDTree as KDTree
 from torch.nn.functional import binary_cross_entropy_with_logits
 from torch.utils.data import Subset
 from torch.utils.tensorboard import SummaryWriter
@@ -8,7 +7,6 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as tkr
 import numpy as np
 import os
-import shutil
 import stat
 import torch
 import tqdm
@@ -17,6 +15,7 @@ from datahandling import (
     ComposedDataset,
     GridsStackDataset,
     IndexEchoDataset,
+    load_persisted_data_object,
     NpyDataset,
     RepeatDataset,
     SingleValueGridDataset,
@@ -39,8 +38,6 @@ from validate import (
     RETRIEVAL_MIN,
     WMOValidationPointFetcher,
     WMOValidator,
-    ft_model_zero_threshold,
-    get_nearest_flat_idxs_and_values,
 )
 from validation_db_orm import get_db_session
 import ease_grid as eg
@@ -365,55 +362,6 @@ def aws_loss_func(batch_pred_logits, batch_idxs, batch_labels, config, device):
         labels = labels.unsqueeze(0).to(device)
         loss += binary_cross_entropy_with_logits(pred, labels)
     return loss
-
-
-def get_aws_data(
-    dates_path, masks_path, db_path, land_mask, transform, ret_type, config
-):
-    train_dates = load_dates(dates_path)
-    mask_ds = NpyDataset(masks_path)
-    db = get_db_session(db_path)
-    aws_pf = WMOValidationPointFetcher(db, retrieval_type=ret_type)
-    lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
-    tree = KDTree(np.array(list(zip(lon.ravel(), lat.ravel()))))
-    geo_bounds = [
-        lon.min(),
-        lon.max(),
-        lat.min(),
-        lat.max(),
-    ]
-    fzn_idxs = []
-    thw_idxs = []
-    use_valid_mask = config.aws_use_valid_mask
-    for d, mask in tqdm.tqdm(
-        zip(train_dates, mask_ds),
-        ncols=80,
-        total=len(train_dates),
-        desc="Loading AWS",
-    ):
-        vpoints, vtemps = aws_pf.fetch_bounded(d, geo_bounds)
-        vft = ft_model_zero_threshold(vtemps).astype(int)
-        if use_valid_mask:
-            mask = mask & land_mask
-        else:
-            mask = land_mask
-        # The set of valid indices
-        valid_idxs = set(np.nonzero(mask.ravel())[0])
-        idxs, vft = get_nearest_flat_idxs_and_values(
-            tree, vpoints, vft, valid_idxs
-        )
-        fzn = torch.tensor(
-            [i for i, v in zip(idxs, vft) if v == LABEL_FROZEN],
-            dtype=torch.long,
-        )
-        thw = torch.tensor(
-            [i for i, v in zip(idxs, vft) if v == LABEL_THAWED],
-            dtype=torch.long,
-        )
-        fzn_idxs.append(fzn)
-        thw_idxs.append(thw)
-    db.close()
-    return list(zip(fzn_idxs, thw_idxs))
 
 
 def normalize(x):
@@ -777,14 +725,8 @@ train_input_ds = build_input_dataset(
     tb_channels=tb_channels,
 )
 # AWS
-train_aws_data = get_aws_data(
-    f"../data/cleaned/date_map-{train_year_str}-{config.region}.csv",
-    f"../data/cleaned/tb_valid_mask-D-{train_year_str}-{config.region}.npy",
-    "../data/dbs/wmo_gsod.db",
-    land_mask_np,
-    transform,
-    RETRIEVAL_MIN,
-    config,
+train_aws_data = load_persisted_data_object(
+    f"../data/cleaned/aws_data-AM-{train_year_str}-{config.region}.pkl"
 )
 # ERA
 train_era_ds = NpyDataset(
@@ -821,14 +763,8 @@ test_input_ds = build_input_dataset(
 )
 test_reduced_indices = list(range(1, len(test_input_ds) + 1))
 # AWS
-test_aws_data = get_aws_data(
-    f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv",
-    f"../data/cleaned/tb_valid_mask-D-{test_year_str}-{config.region}.npy",
-    "../data/dbs/wmo_gsod.db",
-    land_mask_np,
-    transform,
-    RETRIEVAL_MIN,
-    config,
+test_aws_data = load_persisted_data_object(
+    f"../data/cleaned/aws_data-AM-{test_year_str}-{config.region}.pkl"
 )
 # ERA
 test_era_ds = NpyDataset(
