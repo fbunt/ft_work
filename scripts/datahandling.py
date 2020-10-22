@@ -4,12 +4,20 @@ from scipy.interpolate.interpnd import (
 from scipy.interpolate import RectBivariateSpline as RBS
 from scipy.spatial import cKDTree as KDTree
 from torch.utils.data import DataLoader, Dataset
+from validate import (
+    WMOValidationPointFetcher,
+    ft_model_zero_threshold,
+    get_nearest_flat_idxs_and_values,
+)
+from validation_db_orm import get_db_session
 import datetime as dt
 import glob
 import numpy as np
 import os
 import pandas as pd
+import pickle
 import torch
+import tqdm
 import xarray as xr
 
 from model import LABEL_FROZEN, LABEL_THAWED
@@ -589,3 +597,78 @@ def read_accuracies_file(path):
         era = np.array(era)
         aws = np.array(aws)
         return dates, era, aws
+
+
+def persist_data_object(data, path):
+    # TODO: check for overwrite
+    with open(path, "wb") as fd:
+        pickle.dump(data, fd, -1)
+
+
+def load_persisted_data_object(path):
+    utils.validate_file_path(path)
+    with open(path, "rb") as fd:
+        return pickle.load(fd)
+
+
+def load_dates(path):
+    dates = []
+    with open(path) as fd:
+        for line in fd:
+            i, ds = line.strip().split(",")
+            dates.append(dt.date.fromisoformat(ds))
+    return dates
+
+
+def get_aws_data(
+    dates_path,
+    masks_path,
+    db_path,
+    land_mask,
+    transform,
+    ret_type,
+    use_valid_mask,
+):
+    train_dates = load_dates(dates_path)
+    mask_ds = NpyDataset(masks_path)
+    db = get_db_session(db_path)
+    aws_pf = WMOValidationPointFetcher(db, retrieval_type=ret_type)
+    lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
+    tree = KDTree(np.array(list(zip(lon.ravel(), lat.ravel()))))
+    geo_bounds = [
+        lon.min(),
+        lon.max(),
+        lat.min(),
+        lat.max(),
+    ]
+    fzn_idxs = []
+    thw_idxs = []
+    for d, mask in tqdm.tqdm(
+        zip(train_dates, mask_ds),
+        ncols=80,
+        total=len(train_dates),
+        desc="Loading AWS",
+    ):
+        vpoints, vtemps = aws_pf.fetch_bounded(d, geo_bounds)
+        vft = ft_model_zero_threshold(vtemps).astype(int)
+        if use_valid_mask:
+            mask = mask & land_mask
+        else:
+            mask = land_mask
+        # The set of valid indices
+        valid_idxs = set(np.nonzero(mask.ravel())[0])
+        idxs, vft = get_nearest_flat_idxs_and_values(
+            tree, vpoints, vft, valid_idxs
+        )
+        fzn = torch.tensor(
+            [i for i, v in zip(idxs, vft) if v == LABEL_FROZEN],
+            dtype=torch.long,
+        )
+        thw = torch.tensor(
+            [i for i, v in zip(idxs, vft) if v == LABEL_THAWED],
+            dtype=torch.long,
+        )
+        fzn_idxs.append(fzn)
+        thw_idxs.append(thw)
+    db.close()
+    return list(zip(fzn_idxs, thw_idxs))
