@@ -142,5 +142,5 @@ def local_variation_loss(data, loss_func=nn.L1Loss()):
 
 
 def ft_loss(prediction, label, distance):
-    loss = (prediction - label)**2 / (torch.log(distance) + 1)
+    loss = (prediction - label) ** 2 / (torch.log(distance) + 1)
     return torch.mean(loss)

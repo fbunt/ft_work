@@ -32,7 +32,7 @@ def get_cli_parser():
         action="store",
         default=GL,
         type=_validate_region,
-        help="Region to use when querying the database. Default is GL."
+        help="Region to use when querying the database. Default is GL.",
     )
     p.add_argument(
         "-v",
