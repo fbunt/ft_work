@@ -916,3 +916,5 @@ finally:
     plot_accuracies(val_dates, era_acc, aws_acc, root_dir)
     if config.do_pred_plots:
         plot_predictions(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
+    print(f"Era Mean Acc: {era_acc.mean()}")
+    print(f"AWS Mean Acc: {aws_acc.mean()}")
