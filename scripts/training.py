@@ -158,7 +158,7 @@ class ConfusionMatrix:
         self.update_compute(flat_labels, flat_predictions)
 
 
-class MetricImprovementIndicator:
+class MetricImprovementChecker:
     def __init__(self, tracker, metric):
         self.tracker = tracker
         self.met = metric
@@ -843,7 +843,7 @@ if __name__ == "__main__":
         drop_last=False,
     )
     snap_handler = SnapshotHandler(root_dir, model, config)
-    metric_checker = MetricImprovementIndicator(
+    metric_checker = MetricImprovementChecker(
         MaxMetricTracker(-np.inf), MET_MCC
     )
     snap_handler.take_model_snapshot()
