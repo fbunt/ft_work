@@ -16,10 +16,11 @@ from datahandling import (
     ComposedDataset,
     GridsStackDataset,
     IndexEchoDataset,
-    load_persisted_data_object,
     NpyDataset,
     RepeatDataset,
     SingleValueGridDataset,
+    load_persisted_data_object,
+    read_accuracies_file,
     write_accuracies_file,
 )
 from model import (
@@ -347,6 +348,22 @@ def plot_predictions(dates, predictions, root_dir, pred_plot_dir):
         plt.tight_layout(pad=2)
         plt.savefig(pfmt.format(i + 1), dpi=400)
         plt.close()
+
+
+def add_acc_plots_to_dir(root_dir, do_val_plots, do_pred_plots):
+    if do_val_plots:
+        dates, era_acc, aws_acc = read_accuracies_file(
+            os.path.join(root_dir, "acc.csv")
+        )
+        plot_accuracies(dates, era_acc, aws_acc, root_dir)
+        if do_pred_plots:
+            dates, _, _ = read_accuracies_file(
+                os.path.join(root_dir, "acc.csv")
+            )
+            preds = np.load(os.path.join(root_dir, "pred.npy"))
+            plot_predictions(
+                dates, preds, root_dir, os.path.join(root_dir, "pred_plots")
+            )
 
 
 def aws_loss_func(batch_pred_logits, batch_idxs, batch_labels, config, device):
@@ -925,9 +942,8 @@ if __name__ == "__main__":
         # Write accuracies
         acc_file = os.path.join(root_dir, "acc.csv")
         write_accuracies_file(val_dates, era_acc, aws_acc, acc_file)
-        if config.do_val_plots:
-            plot_accuracies(val_dates, era_acc, aws_acc, root_dir)
-        if config.do_pred_plots:
-            plot_predictions(val_dates, pred, root_dir, pred_plot_dir)
         print(f"Era Mean Acc: {era_acc.mean()}")
         print(f"AWS Mean Acc: {aws_acc.mean()}")
+        add_acc_plots_to_dir(
+            root_dir, config.do_val_plots, config.do_pred_plots
+        )
