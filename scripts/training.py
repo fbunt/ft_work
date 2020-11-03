@@ -642,282 +642,289 @@ Config = namedtuple(
 )
 
 
-tb_channels = [0, 1, 2, 3, 4]
-_use_land_mask = False
-_use_dem = True
-_use_lat = False
-_use_day_of_year = False
-_use_solar = False
-_use_snow = False
-_use_prior_day = True
-config = Config(
-    in_chan=len(tb_channels)
-    + _use_dem
-    + _use_lat
-    + _use_day_of_year
-    + _use_solar
-    + _use_snow
-    + (len(tb_channels) * _use_prior_day),
-    n_classes=2,
-    depth=4,
-    base_filters=64,
-    epochs=500,
-    batch_size=16,
-    batch_shuffle=True,
-    drop_last=False,
-    lr_shed_multi=True,
-    learning_rate=1e-4,
-    lr_milestones=[100, 200, 300, 350, 400, 450],
-    lr_gamma=0.89,
-    lr_step_gamma=0.5,
-    aws_use_valid_mask=False,
-    val_use_valid_mask=False,
-    optimizer=torch.optim.Adam,
-    do_pred_plots=False,
-    normalize=False,
-    randomize_offset=False,
-    use_land_mask=_use_land_mask,
-    use_dem=_use_dem,
-    use_latitude=_use_lat,
-    use_day_of_year=_use_day_of_year,
-    use_solar=_use_solar,
-    use_snow=_use_snow,
-    use_prior_day=_use_prior_day,
-    region=N45W,
-    train_start_year=2005,
-    train_end_year=2014,
-    test_start_year=2015,
-    test_end_year=2015,
-    l2_reg_weight=1e-2,
-    main_loss_weight=1e0,
-    aws_bce_weight=5e0,
-    lv_reg_weight=5e-2,
-)
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-train_year_str = get_year_str(config.train_start_year, config.train_end_year)
-test_year_str = get_year_str(config.test_start_year, config.test_end_year)
-
-transform = REGION_TO_TRANS[config.region]
-base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
-water_mask = torch.tensor(transform(base_water_mask))
-land_mask = ~water_mask
-land_mask_np = land_mask.numpy()
-land_channel = torch.tensor(land_mask_np).float()
-dem_channel = torch.tensor(transform(np.load("../data/z/dem.npy"))).float()
-elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
-lat_channel = torch.tensor(transform(elat)).float()
-data_grid_shape = land_mask_np.shape
-
-
-#
-# Training data
-#
-train_input_ds = build_input_dataset(
-    config,
-    f"../data/cleaned/tb-D-{train_year_str}-{config.region}.npy",
-    transform(np.load("../data/z/dem.npy")),
-    land_channel,
-    lat_channel,
-    f"../data/cleaned/date_map-{train_year_str}-{config.region}.csv",
-    data_grid_shape,
-    f"../data/cleaned/solar_rad-AM-{train_year_str}-{config.region}.npy",
-    f"../data/cleaned/snow_cover-{train_year_str}-{config.region}.npy",
-    tb_channels=tb_channels,
-)
-# AWS
-train_aws_data = load_persisted_data_object(
-    f"../data/cleaned/aws_data-AM-{train_year_str}-{config.region}.pkl"
-)
-# ERA
-train_era_ds = NpyDataset(
-    f"../data/cleaned/era5-ft-am-{train_year_str}-{config.region}.npy"
-)
-if config.use_prior_day:
-    train_era_ds = Subset(
-        train_era_ds, list(range(1, len(train_input_ds) + 1))
+if __name__ == "__main__":
+    tb_channels = [0, 1, 2, 3, 4]
+    _use_land_mask = False
+    _use_dem = True
+    _use_lat = False
+    _use_day_of_year = False
+    _use_solar = False
+    _use_snow = False
+    _use_prior_day = True
+    config = Config(
+        in_chan=len(tb_channels)
+        + _use_dem
+        + _use_lat
+        + _use_day_of_year
+        + _use_solar
+        + _use_snow
+        + (len(tb_channels) * _use_prior_day),
+        n_classes=2,
+        depth=4,
+        base_filters=64,
+        epochs=500,
+        batch_size=16,
+        batch_shuffle=True,
+        drop_last=False,
+        lr_shed_multi=True,
+        learning_rate=1e-4,
+        lr_milestones=[100, 200, 300, 350, 400, 450],
+        lr_gamma=0.89,
+        lr_step_gamma=0.5,
+        aws_use_valid_mask=False,
+        val_use_valid_mask=False,
+        optimizer=torch.optim.Adam,
+        do_pred_plots=False,
+        normalize=False,
+        randomize_offset=False,
+        use_land_mask=_use_land_mask,
+        use_dem=_use_dem,
+        use_latitude=_use_lat,
+        use_day_of_year=_use_day_of_year,
+        use_solar=_use_solar,
+        use_snow=_use_snow,
+        use_prior_day=_use_prior_day,
+        region=N45W,
+        train_start_year=2005,
+        train_end_year=2014,
+        test_start_year=2015,
+        test_end_year=2015,
+        l2_reg_weight=1e-2,
+        main_loss_weight=1e0,
+        aws_bce_weight=5e0,
+        lv_reg_weight=5e-2,
     )
-    train_idx_ds = IndexEchoDataset(len(train_input_ds), offset=1)
-else:
-    train_idx_ds = IndexEchoDataset(len(train_input_ds))
-ws = torch.zeros((1, *land_mask.shape), dtype=torch.float)
-ws[..., land_mask] = 1.0
-train_weights_ds = RepeatDataset(ws, len(train_input_ds))
-train_ds = ComposedDataset(
-    [train_input_ds, train_era_ds, train_idx_ds, train_weights_ds]
-)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-#
-# Test Data
-#
-test_input_ds = build_input_dataset(
-    config,
-    f"../data/cleaned/tb-D-{test_year_str}-{config.region}.npy",
-    transform(np.load("../data/z/dem.npy")),
-    land_channel,
-    lat_channel,
-    f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv",
-    data_grid_shape,
-    f"../data/cleaned/solar_rad-AM-{test_year_str}-{config.region}.npy",
-    f"../data/cleaned/snow_cover-{test_year_str}-{config.region}.npy",
-    tb_channels=tb_channels,
-)
-test_reduced_indices = list(range(1, len(test_input_ds) + 1))
-# AWS
-test_aws_data = load_persisted_data_object(
-    f"../data/cleaned/aws_data-AM-{test_year_str}-{config.region}.pkl"
-)
-# ERA
-test_era_ds = NpyDataset(
-    f"../data/cleaned/era5-ft-am-{test_year_str}-{config.region}.npy"
-)
-if config.use_prior_day:
-    test_era_ds = Subset(test_era_ds, test_reduced_indices)
-    test_idx_ds = IndexEchoDataset(len(test_input_ds), offset=1)
-else:
-    test_idx_ds = IndexEchoDataset(len(test_input_ds))
-test_weights_ds = RepeatDataset(ws, len(test_input_ds))
-test_ds = ComposedDataset(
-    [test_input_ds, test_era_ds, test_idx_ds, test_weights_ds]
-)
-
-model = UNet(
-    config.in_chan,
-    config.n_classes,
-    depth=config.depth,
-    base_filter_bank_size=config.base_filters,
-)
-if torch.cuda.device_count() > 1:
-    model = DataParallel(model)
-model = model.to(device)
-opt = config.optimizer(
-    model.parameters(),
-    lr=config.learning_rate,
-    weight_decay=config.l2_reg_weight,
-)
-if not config.lr_shed_multi:
-    sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
-else:
-    sched = torch.optim.lr_scheduler.MultiStepLR(
-        opt, config.lr_milestones, config.lr_step_gamma
+    train_year_str = get_year_str(
+        config.train_start_year, config.train_end_year
     )
+    test_year_str = get_year_str(config.test_start_year, config.test_end_year)
 
-# Create run dir and fill with info
-root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
-train_summary, test_summary = init_run_dir(root_dir)
-mpath = os.path.join(root_dir, "model.pt")
+    transform = REGION_TO_TRANS[config.region]
+    base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
+    water_mask = torch.tensor(transform(base_water_mask))
+    land_mask = ~water_mask
+    land_mask_np = land_mask.numpy()
+    land_channel = torch.tensor(land_mask_np).float()
+    dem_channel = torch.tensor(transform(np.load("../data/z/dem.npy"))).float()
+    elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
+    lat_channel = torch.tensor(transform(elat)).float()
+    data_grid_shape = land_mask_np.shape
 
-if config.randomize_offset:
-    rng = np.random.default_rng()
-    day_indices = list(range(len(train_ds)))
-else:
-    train_dataloader = torch.utils.data.DataLoader(
-        train_ds,
-        batch_size=config.batch_size,
-        shuffle=config.batch_shuffle,
-        drop_last=config.drop_last,
+    #
+    # Training data
+    #
+    train_input_ds = build_input_dataset(
+        config,
+        f"../data/cleaned/tb-D-{train_year_str}-{config.region}.npy",
+        transform(np.load("../data/z/dem.npy")),
+        land_channel,
+        lat_channel,
+        f"../data/cleaned/date_map-{train_year_str}-{config.region}.csv",
+        data_grid_shape,
+        f"../data/cleaned/solar_rad-AM-{train_year_str}-{config.region}.npy",
+        f"../data/cleaned/snow_cover-{train_year_str}-{config.region}.npy",
+        tb_channels=tb_channels,
     )
-test_dataloader = torch.utils.data.DataLoader(
-    test_ds, batch_size=config.batch_size, shuffle=False, drop_last=False,
-)
-snap_handler = SnapshotHandler(root_dir, model, config)
-metric_checker = MetricImprovementIndicator(MaxMetricTracker(-np.inf), MET_MCC)
-snap_handler.take_model_snapshot()
-try:
-    for epoch in range(config.epochs):
-        train_summary.add_scalar(
-            "learning_rate", next(iter(opt.param_groups))["lr"], epoch
-        )
-        if config.randomize_offset:
-            offset = rng.choice(7, 1)[0]
-            train_dataloader = torch.utils.data.DataLoader(
-                Subset(train_ds, day_indices[offset:]),
-                batch_size=config.batch_size,
-                shuffle=config.batch_shuffle,
-                drop_last=config.drop_last,
-            )
-        train(
-            model,
-            device,
-            train_dataloader,
-            opt,
-            train_aws_data,
-            land_mask,
-            water_mask,
-            train_summary,
-            epoch,
-            config,
-        )
-        loss, cm = test(
-            model,
-            device,
-            test_dataloader,
-            opt,
-            test_aws_data,
-            land_mask,
-            water_mask,
-            test_summary,
-            epoch,
-            config,
-        )
-        if metric_checker.check(cm):
-            snap_handler.take_model_snapshot()
-        log_metrics(test_summary, cm, epoch)
-        sched.step()
-except KeyboardInterrupt:
-    print("Exiting training loop")
-except Exception as e:
-    print(f"\n{e}")
-    raise e
-finally:
-    train_summary.close()
-    test_summary.close()
-    # Free up data for GC
-    train_input_ds = None
-    train_era_ds = None
-    train_idx_ds = None
-    train_ds = None
-    train_dataloader = None
-
-    # Validation
-    val_dates = load_dates(
-        f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv"
+    # AWS
+    train_aws_data = load_persisted_data_object(
+        f"../data/cleaned/aws_data-AM-{train_year_str}-{config.region}.pkl"
     )
-    val_mask_ds = NpyDataset(
-        f"../data/cleaned/tb_valid_mask-D-{test_year_str}-{config.region}.npy"
+    # ERA
+    train_era_ds = NpyDataset(
+        f"../data/cleaned/era5-ft-am-{train_year_str}-{config.region}.npy"
     )
     if config.use_prior_day:
-        val_dates = Subset(val_dates, test_reduced_indices)
-        val_mask_ds = Subset(val_mask_ds, test_reduced_indices)
+        train_era_ds = Subset(
+            train_era_ds, list(range(1, len(train_input_ds) + 1))
+        )
+        train_idx_ds = IndexEchoDataset(len(train_input_ds), offset=1)
+    else:
+        train_idx_ds = IndexEchoDataset(len(train_input_ds))
+    ws = torch.zeros((1, *land_mask.shape), dtype=torch.float)
+    ws[..., land_mask] = 1.0
+    train_weights_ds = RepeatDataset(ws, len(train_input_ds))
+    train_ds = ComposedDataset(
+        [train_input_ds, train_era_ds, train_idx_ds, train_weights_ds]
+    )
 
-    model = snap_handler.load_best_model()
-    # Log results
-    pred_plot_dir = os.path.join(root_dir, "pred_plots")
-    os.makedirs(pred_plot_dir)
-    # Create and save predictions for test data
-    print("Generating predictions")
-    pred = get_predictions(
-        test_input_ds, model, ~land_mask, LABEL_OTHER, device, config
+    #
+    # Test Data
+    #
+    test_input_ds = build_input_dataset(
+        config,
+        f"../data/cleaned/tb-D-{test_year_str}-{config.region}.npy",
+        transform(np.load("../data/z/dem.npy")),
+        land_channel,
+        lat_channel,
+        f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv",
+        data_grid_shape,
+        f"../data/cleaned/solar_rad-AM-{test_year_str}-{config.region}.npy",
+        f"../data/cleaned/snow_cover-{test_year_str}-{config.region}.npy",
+        tb_channels=tb_channels,
     )
-    ppath = os.path.join(root_dir, "pred.npy")
-    print(f"Saving predictions: '{ppath}'")
-    np.save(ppath, pred)
-    # Validate against ERA5
-    print("Validating against ERA5")
-    era_acc = validate_against_era5(
-        pred, test_era_ds, val_mask_ds, land_mask, config
+    test_reduced_indices = list(range(1, len(test_input_ds) + 1))
+    # AWS
+    test_aws_data = load_persisted_data_object(
+        f"../data/cleaned/aws_data-AM-{test_year_str}-{config.region}.pkl"
     )
-    # Validate against AWS DB
-    db = get_db_session("../data/dbs/wmo_gsod.db")
-    aws_acc = validate_against_aws_db(
-        pred, db, val_dates, transform, val_mask_ds, land_mask, config
+    # ERA
+    test_era_ds = NpyDataset(
+        f"../data/cleaned/era5-ft-am-{test_year_str}-{config.region}.npy"
     )
-    db.close()
-    # Write accuracies
-    acc_file = os.path.join(root_dir, "acc.csv")
-    write_accuracies_file(val_dates, era_acc, aws_acc, acc_file)
-    plot_accuracies(val_dates, era_acc, aws_acc, root_dir)
-    if config.do_pred_plots:
-        plot_predictions(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
-    print(f"Era Mean Acc: {era_acc.mean()}")
-    print(f"AWS Mean Acc: {aws_acc.mean()}")
+    if config.use_prior_day:
+        test_era_ds = Subset(test_era_ds, test_reduced_indices)
+        test_idx_ds = IndexEchoDataset(len(test_input_ds), offset=1)
+    else:
+        test_idx_ds = IndexEchoDataset(len(test_input_ds))
+    test_weights_ds = RepeatDataset(ws, len(test_input_ds))
+    test_ds = ComposedDataset(
+        [test_input_ds, test_era_ds, test_idx_ds, test_weights_ds]
+    )
+
+    model = UNet(
+        config.in_chan,
+        config.n_classes,
+        depth=config.depth,
+        base_filter_bank_size=config.base_filters,
+    )
+    if torch.cuda.device_count() > 1:
+        model = DataParallel(model)
+    model = model.to(device)
+    opt = config.optimizer(
+        model.parameters(),
+        lr=config.learning_rate,
+        weight_decay=config.l2_reg_weight,
+    )
+    if not config.lr_shed_multi:
+        sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
+    else:
+        sched = torch.optim.lr_scheduler.MultiStepLR(
+            opt, config.lr_milestones, config.lr_step_gamma
+        )
+
+    # Create run dir and fill with info
+    root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
+    train_summary, test_summary = init_run_dir(root_dir)
+    mpath = os.path.join(root_dir, "model.pt")
+
+    if config.randomize_offset:
+        rng = np.random.default_rng()
+        day_indices = list(range(len(train_ds)))
+    else:
+        train_dataloader = torch.utils.data.DataLoader(
+            train_ds,
+            batch_size=config.batch_size,
+            shuffle=config.batch_shuffle,
+            drop_last=config.drop_last,
+        )
+    test_dataloader = torch.utils.data.DataLoader(
+        test_ds,
+        batch_size=config.batch_size,
+        shuffle=False,
+        drop_last=False,
+    )
+    snap_handler = SnapshotHandler(root_dir, model, config)
+    metric_checker = MetricImprovementIndicator(
+        MaxMetricTracker(-np.inf), MET_MCC
+    )
+    snap_handler.take_model_snapshot()
+    try:
+        for epoch in range(config.epochs):
+            train_summary.add_scalar(
+                "learning_rate", next(iter(opt.param_groups))["lr"], epoch
+            )
+            if config.randomize_offset:
+                offset = rng.choice(7, 1)[0]
+                train_dataloader = torch.utils.data.DataLoader(
+                    Subset(train_ds, day_indices[offset:]),
+                    batch_size=config.batch_size,
+                    shuffle=config.batch_shuffle,
+                    drop_last=config.drop_last,
+                )
+            train(
+                model,
+                device,
+                train_dataloader,
+                opt,
+                train_aws_data,
+                land_mask,
+                water_mask,
+                train_summary,
+                epoch,
+                config,
+            )
+            loss, cm = test(
+                model,
+                device,
+                test_dataloader,
+                opt,
+                test_aws_data,
+                land_mask,
+                water_mask,
+                test_summary,
+                epoch,
+                config,
+            )
+            if metric_checker.check(cm):
+                snap_handler.take_model_snapshot()
+            log_metrics(test_summary, cm, epoch)
+            sched.step()
+    except KeyboardInterrupt:
+        print("Exiting training loop")
+    except Exception as e:
+        print(f"\n{e}")
+        raise e
+    finally:
+        train_summary.close()
+        test_summary.close()
+        # Free up data for GC
+        train_input_ds = None
+        train_era_ds = None
+        train_idx_ds = None
+        train_ds = None
+        train_dataloader = None
+
+        # Validation
+        val_dates = load_dates(
+            f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv"
+        )
+        val_mask_ds = NpyDataset(
+            f"../data/cleaned/tb_valid_mask-D-{test_year_str}-{config.region}.npy"
+        )
+        if config.use_prior_day:
+            val_dates = Subset(val_dates, test_reduced_indices)
+            val_mask_ds = Subset(val_mask_ds, test_reduced_indices)
+
+        model = snap_handler.load_best_model()
+        # Log results
+        pred_plot_dir = os.path.join(root_dir, "pred_plots")
+        os.makedirs(pred_plot_dir)
+        # Create and save predictions for test data
+        print("Generating predictions")
+        pred = get_predictions(
+            test_input_ds, model, ~land_mask, LABEL_OTHER, device, config
+        )
+        ppath = os.path.join(root_dir, "pred.npy")
+        print(f"Saving predictions: '{ppath}'")
+        np.save(ppath, pred)
+        # Validate against ERA5
+        print("Validating against ERA5")
+        era_acc = validate_against_era5(
+            pred, test_era_ds, val_mask_ds, land_mask, config
+        )
+        # Validate against AWS DB
+        db = get_db_session("../data/dbs/wmo_gsod.db")
+        aws_acc = validate_against_aws_db(
+            pred, db, val_dates, transform, val_mask_ds, land_mask, config
+        )
+        db.close()
+        # Write accuracies
+        acc_file = os.path.join(root_dir, "acc.csv")
+        write_accuracies_file(val_dates, era_acc, aws_acc, acc_file)
+        plot_accuracies(val_dates, era_acc, aws_acc, root_dir)
+        if config.do_pred_plots:
+            plot_predictions(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
+        print(f"Era Mean Acc: {era_acc.mean()}")
+        print(f"AWS Mean Acc: {aws_acc.mean()}")
