@@ -1,4 +1,5 @@
 from collections import namedtuple
+from torch.nn import DataParallel
 from torch.nn.functional import binary_cross_entropy_with_logits
 from torch.utils.data import Subset
 from torch.utils.tensorboard import SummaryWriter
@@ -692,7 +693,7 @@ config = Config(
     aws_bce_weight=5e0,
     lv_reg_weight=5e-2,
 )
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 train_year_str = get_year_str(config.train_start_year, config.train_end_year)
 test_year_str = get_year_str(config.test_start_year, config.test_end_year)
@@ -786,7 +787,9 @@ model = UNet(
     depth=config.depth,
     base_filter_bank_size=config.base_filters,
 )
-model.to(device)
+if torch.cuda.device_count() > 1:
+    model = DataParallel(model)
+model = model.to(device)
 opt = config.optimizer(
     model.parameters(),
     lr=config.learning_rate,
