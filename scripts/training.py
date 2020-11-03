@@ -619,6 +619,7 @@ Config = namedtuple(
         "aws_use_valid_mask",
         "val_use_valid_mask",
         "optimizer",
+        "do_val_plots",
         "do_pred_plots",
         "normalize",
         "randomize_offset",
@@ -674,6 +675,7 @@ if __name__ == "__main__":
         aws_use_valid_mask=False,
         val_use_valid_mask=False,
         optimizer=torch.optim.Adam,
+        do_val_plots=True,
         do_pred_plots=False,
         normalize=False,
         randomize_offset=False,
@@ -923,7 +925,8 @@ if __name__ == "__main__":
         # Write accuracies
         acc_file = os.path.join(root_dir, "acc.csv")
         write_accuracies_file(val_dates, era_acc, aws_acc, acc_file)
-        plot_accuracies(val_dates, era_acc, aws_acc, root_dir)
+        if config.do_val_plots:
+            plot_accuracies(val_dates, era_acc, aws_acc, root_dir)
         if config.do_pred_plots:
             plot_predictions(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
         print(f"Era Mean Acc: {era_acc.mean()}")
