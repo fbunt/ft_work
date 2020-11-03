@@ -633,7 +633,6 @@ Config = namedtuple(
         "lr_step_gamma",
         "aws_use_valid_mask",
         "val_use_valid_mask",
-        "optimizer",
         "do_val_plots",
         "do_pred_plots",
         "normalize",
@@ -689,7 +688,6 @@ if __name__ == "__main__":
         lr_step_gamma=0.5,
         aws_use_valid_mask=False,
         val_use_valid_mask=False,
-        optimizer=torch.optim.Adam,
         do_val_plots=True,
         do_pred_plots=False,
         normalize=False,
@@ -809,7 +807,7 @@ if __name__ == "__main__":
     if torch.cuda.device_count() > 1:
         model = DataParallel(model)
     model = model.to(device)
-    opt = config.optimizer(
+    opt = torch.optim.Adam(
         model.parameters(),
         lr=config.learning_rate,
         weight_decay=config.l2_reg_weight,
