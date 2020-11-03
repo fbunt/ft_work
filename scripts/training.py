@@ -75,7 +75,7 @@ class MaxMetricTracker:
         return ret
 
 
-def _confusion(flat_labels, flat_predictions):
+def confusion(flat_labels, flat_predictions):
     """Compute the confusion matrix for the given data
 
     The confusion matrix will be of the form:
@@ -122,7 +122,7 @@ class ConfusionMatrix:
         }
 
     def update(self, flat_labels, flat_predictions):
-        self.cm += _confusion(flat_labels, flat_predictions)
+        self.cm += confusion(flat_labels, flat_predictions)
 
     def compute(self):
         try:
