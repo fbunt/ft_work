@@ -626,7 +626,7 @@ Config = namedtuple(
         "batch_size",
         "batch_shuffle",
         "drop_last",
-        "lr_shed_multi",
+        "lr_sched_multi",
         "learning_rate",
         "lr_milestones",
         "lr_gamma",
@@ -682,7 +682,7 @@ if __name__ == "__main__":
         batch_size=16,
         batch_shuffle=True,
         drop_last=False,
-        lr_shed_multi=True,
+        lr_sched_multi=True,
         learning_rate=1e-4,
         lr_milestones=[100, 200, 300, 350, 400, 450],
         lr_gamma=0.89,
@@ -814,7 +814,7 @@ if __name__ == "__main__":
         lr=config.learning_rate,
         weight_decay=config.l2_reg_weight,
     )
-    if not config.lr_shed_multi:
+    if not config.lr_sched_multi:
         sched = torch.optim.lr_scheduler.StepLR(opt, 1, config.lr_gamma)
     else:
         sched = torch.optim.lr_scheduler.MultiStepLR(
