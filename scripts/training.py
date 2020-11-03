@@ -910,7 +910,8 @@ if __name__ == "__main__":
             f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv"
         )
         val_mask_ds = NpyDataset(
-            f"../data/cleaned/tb_valid_mask-D-{test_year_str}-{config.region}.npy"
+            f"../data/cleaned/tb_valid_mask-D-{test_year_str}"
+            f"-{config.region}.npy"
         )
         if config.use_prior_day:
             val_dates = Subset(val_dates, test_reduced_indices)
