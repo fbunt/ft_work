@@ -336,14 +336,14 @@ def plot_accuracies(val_dates, era_acc, aws_acc, root_dir):
     plt.close()
 
 
-def plot_predictions(predictions, era_acc, aws_acc, root_dir, pred_plot_dir):
+def plot_predictions(dates, predictions, root_dir, pred_plot_dir):
     # Save prediction plots
     print(f"Creating prediction plots: '{pred_plot_dir}'")
     pfmt = os.path.join(pred_plot_dir, "{:03}.png")
     for i, p in enumerate(tqdm.tqdm(predictions, ncols=80)):
         plt.figure()
         plt.imshow(p, cmap=FT_CMAP, vmin=LABEL_FROZEN, vmax=LABEL_OTHER)
-        plt.title(f"Day: {i + 1}")
+        plt.title(f"Day: {i + 1}, {dates[i]}")
         plt.tight_layout(pad=2)
         plt.savefig(pfmt.format(i + 1), dpi=400)
         plt.close()
@@ -928,6 +928,6 @@ if __name__ == "__main__":
         if config.do_val_plots:
             plot_accuracies(val_dates, era_acc, aws_acc, root_dir)
         if config.do_pred_plots:
-            plot_predictions(pred, era_acc, aws_acc, root_dir, pred_plot_dir)
+            plot_predictions(val_dates, pred, root_dir, pred_plot_dir)
         print(f"Era Mean Acc: {era_acc.mean()}")
         print(f"AWS Mean Acc: {aws_acc.mean()}")
