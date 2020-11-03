@@ -823,6 +823,7 @@ if __name__ == "__main__":
 
     # Create run dir and fill with info
     root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
+    print(f"Initializing run dir: {root_dir}")
     train_summary, test_summary = init_run_dir(root_dir)
     mpath = os.path.join(root_dir, "model.pt")
 
