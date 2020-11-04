@@ -3,6 +3,7 @@ from torch.nn import DataParallel
 from torch.nn.functional import binary_cross_entropy_with_logits
 from torch.utils.data import Subset
 from torch.utils.tensorboard import SummaryWriter
+import argparse
 import datetime as dt
 import matplotlib.pyplot as plt
 import matplotlib.ticker as tkr
@@ -37,7 +38,7 @@ from transforms import (
     N45W,
     REGION_TO_TRANS,
 )
-from utils import FT_CMAP
+from utils import FT_CMAP, validate_file_path
 from validate import (
     RETRIEVAL_MIN,
     WMOValidationPointFetcher,
@@ -45,6 +46,18 @@ from validate import (
 )
 from validation_db_orm import get_db_session
 import ease_grid as eg
+
+
+def get_cli_parser():
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "-c",
+        "--config_path",
+        default="../config/config_default.yaml",
+        type=validate_file_path,
+        help="Path to config file. If not provided, the default file is used",
+    )
+    return p
 
 
 Config = namedtuple(
@@ -670,8 +683,8 @@ def train(
 
 
 if __name__ == "__main__":
-    config_path = "../config.yaml"
-    config = load_config(config_path)
+    args = get_cli_parser().parse_args()
+    config = load_config(args.config_path)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     train_year_str = get_year_str(
