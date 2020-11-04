@@ -624,7 +624,6 @@ Config = namedtuple(
         "base_filters",
         "epochs",
         "batch_size",
-        "batch_shuffle",
         "drop_last",
         "learning_rate",
         "lr_milestones",
@@ -634,7 +633,6 @@ Config = namedtuple(
         "do_val_plots",
         "do_pred_plots",
         "normalize",
-        "randomize_offset",
         "use_land_mask",
         "use_dem",
         "use_latitude",
@@ -677,7 +675,6 @@ if __name__ == "__main__":
         base_filters=64,
         epochs=500,
         batch_size=16,
-        batch_shuffle=True,
         drop_last=False,
         learning_rate=1e-4,
         lr_milestones=[100, 200, 300, 350, 400, 450],
@@ -687,7 +684,6 @@ if __name__ == "__main__":
         do_val_plots=True,
         do_pred_plots=False,
         normalize=False,
-        randomize_offset=False,
         use_land_mask=_use_land_mask,
         use_dem=_use_dem,
         use_latitude=_use_lat,
@@ -818,16 +814,12 @@ if __name__ == "__main__":
     train_summary, test_summary = init_run_dir(root_dir)
     mpath = os.path.join(root_dir, "model.pt")
 
-    if config.randomize_offset:
-        rng = np.random.default_rng()
-        day_indices = list(range(len(train_ds)))
-    else:
-        train_dataloader = torch.utils.data.DataLoader(
-            train_ds,
-            batch_size=config.batch_size,
-            shuffle=config.batch_shuffle,
-            drop_last=config.drop_last,
-        )
+    train_dataloader = torch.utils.data.DataLoader(
+        train_ds,
+        batch_size=config.batch_size,
+        shuffle=True,
+        drop_last=config.drop_last,
+    )
     test_dataloader = torch.utils.data.DataLoader(
         test_ds,
         batch_size=config.batch_size,
@@ -844,14 +836,6 @@ if __name__ == "__main__":
             train_summary.add_scalar(
                 "learning_rate", next(iter(opt.param_groups))["lr"], epoch
             )
-            if config.randomize_offset:
-                offset = rng.choice(7, 1)[0]
-                train_dataloader = torch.utils.data.DataLoader(
-                    Subset(train_ds, day_indices[offset:]),
-                    batch_size=config.batch_size,
-                    shuffle=config.batch_shuffle,
-                    drop_last=config.drop_last,
-                )
             train(
                 model,
                 device,
