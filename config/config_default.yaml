@@ -15,17 +15,17 @@ config:
 
     normalize: False
     # This must match one of the region codes in scripts/transforms.py
-    region: n45w
+    region: n45
     train_start_year: 2005
     train_end_year: 2014
     test_start_year: 2015
     test_end_year: 2015
 
-    epochs: 500
-    batch_size: 16
+    epochs: 950
+    batch_size: 28
     drop_last: False
     learning_rate: 1.0e-4
-    lr_milestones: [100, 200, 300, 350, 400, 450]
+    lr_milestones: [250, 350, 500, 650, 750, 850, 900]
     lr_step_gamma: 0.5
 
     l2_reg_weight: 1.0e-2
@@ -35,5 +35,5 @@ config:
     aws_use_valid_mask: False
     val_use_valid_mask: False
 
-    do_val_plots: True
+    do_val_plots: False
     do_pred_plots: False
