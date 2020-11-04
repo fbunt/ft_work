@@ -684,7 +684,8 @@ def train(
 
 if __name__ == "__main__":
     args = get_cli_parser().parse_args()
-    config = load_config(args.config_path)
+    config_path = args.config_path
+    config = load_config(config_path)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     train_year_str = get_year_str(
