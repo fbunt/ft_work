@@ -3,6 +3,7 @@ config:
     depth: 4
     base_filters: 64
 
+    # The number of in channels is calculated using the options below
     tb_channels: [0, 1, 2, 3, 4]
     use_land_mask: False
     use_dem: True
@@ -13,6 +14,7 @@ config:
     use_prior_day: True
 
     normalize: False
+    # This must match one of the region codes in scripts/transforms.py
     region: n45w
     train_start_year: 2005
     train_end_year: 2014
