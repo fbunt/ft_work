@@ -1,0 +1,37 @@
+config:
+    n_classes: 2
+    depth: 4
+    base_filters: 64
+
+    tb_channels: [0, 1, 2, 3, 4]
+    use_land_mask: False
+    use_dem: True
+    use_latitude: False
+    use_day_of_year: False
+    use_solar: False
+    use_snow: False
+    use_prior_day: True
+
+    normalize: False
+    region: n45w
+    train_start_year: 2005
+    train_end_year: 2014
+    test_start_year: 2015
+    test_end_year: 2015
+
+    epochs: 500
+    batch_size: 16
+    drop_last: False
+    learning_rate: 1.0e-4
+    lr_milestones: [100, 200, 300, 350, 400, 450]
+    lr_step_gamma: 0.5
+
+    l2_reg_weight: 1.0e-2
+    main_loss_weight: 1.0e0
+    aws_bce_weight: 5.0e0
+    lv_reg_weight: 5.0e-2
+    aws_use_valid_mask: False
+    val_use_valid_mask: False
+
+    do_val_plots: True
+    do_pred_plots: False

@@ -8,9 +8,11 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as tkr
 import numpy as np
 import os
+import shutil
 import stat
 import torch
 import tqdm
+import yaml
 
 from datahandling import (
     ComposedDataset,
@@ -43,6 +45,60 @@ from validate import (
 )
 from validation_db_orm import get_db_session
 import ease_grid as eg
+
+
+Config = namedtuple(
+    "Config",
+    (
+        "in_chan",
+        "n_classes",
+        "depth",
+        "base_filters",
+        "tb_channels",
+        "use_land_mask",
+        "use_dem",
+        "use_latitude",
+        "use_day_of_year",
+        "use_solar",
+        "use_snow",
+        "use_prior_day",
+        "normalize",
+        "region",
+        "train_start_year",
+        "train_end_year",
+        "test_start_year",
+        "test_end_year",
+        "epochs",
+        "batch_size",
+        "drop_last",
+        "learning_rate",
+        "lr_milestones",
+        "lr_step_gamma",
+        "l2_reg_weight",
+        "main_loss_weight",
+        "aws_bce_weight",
+        "lv_reg_weight",
+        "aws_use_valid_mask",
+        "val_use_valid_mask",
+        "do_val_plots",
+        "do_pred_plots",
+    ),
+)
+
+
+def load_config(config_path):
+    with open(config_path) as fd:
+        cfg = yaml.safe_load(fd)["config"]
+    cfg["in_chan"] = (
+        len(cfg["tb_channels"])
+        + cfg["use_dem"]
+        + cfg["use_latitude"]
+        + cfg["use_day_of_year"]
+        + cfg["use_solar"]
+        + cfg["use_snow"]
+        + (len(cfg["tb_channels"]) * cfg["use_prior_day"])
+    )
+    return Config(**cfg)
 
 
 class MinMetricTracker:
@@ -210,11 +266,10 @@ def get_year_str(ya, yb):
         return f"{ya}-{yb}"
 
 
-def init_run_dir(root_dir):
+def init_run_dir(root_dir, config_path):
     os.makedirs(root_dir, exist_ok=True)
     # Dump configuration info
-    with open(os.path.join(root_dir, "config"), "w") as fd:
-        fd.write(f"{config}\n")
+    shutil.copyfile(config_path, os.path.join(root_dir, "config.yaml"))
     log_dir = os.path.join(root_dir, "logs")
     os.makedirs(log_dir, exist_ok=True)
     train_log_dir = os.path.join(log_dir, "training")
@@ -410,13 +465,12 @@ def build_input_dataset(
     date_ds_shape,
     solar_path,
     snow_path,
-    tb_channels=None,
 ):
     datasets = []
     tb_ds = np.load(tb_path)
     if config.normalize:
         tb_ds = normalize(tb_ds)
-    tb_ds = NpyDataset(tb_ds, channels=tb_channels)
+    tb_ds = NpyDataset(tb_ds, channels=config.tb_channels)
     reduced_indices = list(range(1, len(tb_ds)))
     # Land channel
     if config.use_land_mask:
@@ -615,92 +669,9 @@ def train(
     )
 
 
-Config = namedtuple(
-    "Config",
-    (
-        "in_chan",
-        "n_classes",
-        "depth",
-        "base_filters",
-        "epochs",
-        "batch_size",
-        "drop_last",
-        "learning_rate",
-        "lr_milestones",
-        "lr_step_gamma",
-        "aws_use_valid_mask",
-        "val_use_valid_mask",
-        "do_val_plots",
-        "do_pred_plots",
-        "normalize",
-        "use_land_mask",
-        "use_dem",
-        "use_latitude",
-        "use_day_of_year",
-        "use_solar",
-        "use_snow",
-        "use_prior_day",
-        "region",
-        "train_start_year",
-        "train_end_year",
-        "test_start_year",
-        "test_end_year",
-        "l2_reg_weight",
-        "main_loss_weight",
-        "aws_bce_weight",
-        "lv_reg_weight",
-    ),
-)
-
-
 if __name__ == "__main__":
-    tb_channels = [0, 1, 2, 3, 4]
-    _use_land_mask = False
-    _use_dem = True
-    _use_lat = False
-    _use_day_of_year = False
-    _use_solar = False
-    _use_snow = False
-    _use_prior_day = True
-    config = Config(
-        in_chan=len(tb_channels)
-        + _use_dem
-        + _use_lat
-        + _use_day_of_year
-        + _use_solar
-        + _use_snow
-        + (len(tb_channels) * _use_prior_day),
-        n_classes=2,
-        depth=4,
-        base_filters=64,
-        epochs=500,
-        batch_size=16,
-        drop_last=False,
-        learning_rate=1e-4,
-        lr_milestones=[100, 200, 300, 350, 400, 450],
-        lr_step_gamma=0.5,
-        aws_use_valid_mask=False,
-        val_use_valid_mask=False,
-        do_val_plots=True,
-        do_pred_plots=False,
-        normalize=False,
-        use_land_mask=_use_land_mask,
-        use_dem=_use_dem,
-        use_latitude=_use_lat,
-        use_day_of_year=_use_day_of_year,
-        use_solar=_use_solar,
-        use_snow=_use_snow,
-        use_prior_day=_use_prior_day,
-        region=N45W,
-        train_start_year=2005,
-        train_end_year=2014,
-        test_start_year=2015,
-        test_end_year=2015,
-        l2_reg_weight=1e-2,
-        main_loss_weight=1e0,
-        aws_bce_weight=5e0,
-        lv_reg_weight=5e-2,
-    )
+    config_path = "../config.yaml"
+    config = load_config(config_path)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     train_year_str = get_year_str(
@@ -732,7 +703,6 @@ if __name__ == "__main__":
         data_grid_shape,
         f"../data/cleaned/solar_rad-AM-{train_year_str}-{config.region}.npy",
         f"../data/cleaned/snow_cover-{train_year_str}-{config.region}.npy",
-        tb_channels=tb_channels,
     )
     # AWS
     train_aws_data = load_persisted_data_object(
@@ -769,7 +739,6 @@ if __name__ == "__main__":
         data_grid_shape,
         f"../data/cleaned/solar_rad-AM-{test_year_str}-{config.region}.npy",
         f"../data/cleaned/snow_cover-{test_year_str}-{config.region}.npy",
-        tb_channels=tb_channels,
     )
     test_reduced_indices = list(range(1, len(test_input_ds) + 1))
     # AWS
@@ -811,7 +780,7 @@ if __name__ == "__main__":
     # Create run dir and fill with info
     root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
     print(f"Initializing run dir: {root_dir}")
-    train_summary, test_summary = init_run_dir(root_dir)
+    train_summary, test_summary = init_run_dir(root_dir, config_path)
     mpath = os.path.join(root_dir, "model.pt")
 
     train_dataloader = torch.utils.data.DataLoader(
