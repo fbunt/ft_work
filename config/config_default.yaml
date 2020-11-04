@@ -29,8 +29,8 @@ config:
     lr_step_gamma: 0.5
 
     l2_reg_weight: 1.0e-2
-    main_loss_weight: 1.0e0
-    aws_bce_weight: 5.0e0
+    main_loss_weight: 1.0e-0
+    aws_bce_weight: 5.0e-0
     lv_reg_weight: 5.0e-2
     aws_use_valid_mask: False
     val_use_valid_mask: False
