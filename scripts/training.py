@@ -68,6 +68,7 @@ Config = namedtuple(
         "n_classes",
         "depth",
         "base_filters",
+        "skips",
         "tb_channels",
         "use_land_mask",
         "use_dem",
