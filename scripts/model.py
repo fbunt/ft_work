@@ -129,6 +129,42 @@ class UNet(nn.Module):
         return self.out(x)
 
 
+class UnetDepth4(nn.Module):
+    def __init__(self, in_chan, n_classes, base_filter_bank_size=16):
+        super().__init__()
+
+        nb = base_filter_bank_size
+        if nb <= 0:
+            raise ValueError(f"Filter bank size must be greater than 0: {nb}")
+
+        self.input = _MultiConv(in_chan, nb)
+        self.downs = nn.ModuleList()
+        self.downs.append(_Down(1 * nb, 2 * nb))
+        self.downs.append(_Down(2 * nb, 4 * nb))
+        self.downs.append(_Down(4 * nb, 8 * nb))
+        self.downs.append(_Down(8 * nb, 16 * nb))
+        self.ups = nn.ModuleList()
+        self.ups.append(_Up(16 * nb, 8 * nb))
+        self.ups.append(_Up(8 * nb, 4 * nb))
+        self.ups.append(_Up(4 * nb, 2 * nb))
+        self.ups.append(_Up(2 * nb, 1 * nb))
+        self.out = nn.Conv2d(nb, n_classes, kernel_size=1)
+
+    def forward(self, x):
+        xdowns = [self.input(x)]
+        xdowns.append(self.downs[0](xdowns[-1]))
+        xdowns.append(self.downs[1](xdowns[-1]))
+        xdowns.append(self.downs[2](xdowns[-1]))
+        xdowns.append(self.downs[3](xdowns[-1]))
+        x = xdowns[4]
+        x = self.ups[0](xdowns[3], x)
+        x = self.ups[1](xdowns[2], x)
+        x = self.ups[2](xdowns[1], x)
+        x = self.ups[3](xdowns[0], x)
+        return self.out(x)
+        return self.out(x)
+
+
 def local_variation_loss(data, loss_func=nn.L1Loss()):
     """Compute the local variation around each pixel.
 
