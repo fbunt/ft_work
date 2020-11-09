@@ -129,7 +129,7 @@ class UNet(nn.Module):
         return self.out(x)
 
 
-class UnetDepth4(nn.Module):
+class UNetDepth4(nn.Module):
     def __init__(self, in_chan, n_classes, base_filter_bank_size=16):
         super().__init__()
 
