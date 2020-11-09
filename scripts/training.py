@@ -31,6 +31,7 @@ from model import (
     LABEL_OTHER,
     LABEL_THAWED,
     UNet,
+    UNetSkip,
     local_variation_loss,
 )
 from transforms import (
@@ -307,6 +308,17 @@ def load_dates(path):
             i, ds = line.strip().split(",")
             dates.append(dt.date.fromisoformat(ds))
     return dates
+
+
+def create_model(config):
+    model_class = UNet if not config.skips else UNetSkip
+    model = model_class(
+        config.in_chan,
+        config.n_classes,
+        depth=config.depth,
+        base_filter_bank_size=config.base_filters,
+    )
+    return model
 
 
 def get_predictions(input_ds, model, water_mask, water_label, device, config):
@@ -773,12 +785,7 @@ if __name__ == "__main__":
         [test_input_ds, test_era_ds, test_idx_ds, test_weights_ds]
     )
 
-    model = UNet(
-        config.in_chan,
-        config.n_classes,
-        depth=config.depth,
-        base_filter_bank_size=config.base_filters,
-    )
+    model = create_model(config)
     if torch.cuda.device_count() > 1:
         model = DataParallel(model)
     model = model.to(device)
