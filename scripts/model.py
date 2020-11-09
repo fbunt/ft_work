@@ -53,13 +53,14 @@ class _MultiConvSkip(nn.Module):
         self.layers = nn.ModuleList([_ConvLayer(in_chan, out_chan)])
         for _ in range(n - 1):
             self.layers.append(_ConvLayer(out_chan, out_chan))
+        self.skip = nn.Conv2d(in_chan, out_chan, kernel_size=1)
         self.activation = nn.LeakyReLU(LEAKY_SLOPE, inplace=True)
 
     def forward(self, x):
-        xin = x
+        xskip = self.skip(x)
         for m in self.layers:
             x = m(x)
-        x += xin
+        x += xskip
         return self.activation(x)
 
 
