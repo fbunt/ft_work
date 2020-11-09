@@ -60,7 +60,7 @@ class _MultiConvSkip(nn.Module):
         xskip = self.skip(x)
         for m in self.layers:
             x = m(x)
-        x += xskip
+        x = x + xskip
         return self.activation(x)
 
 
