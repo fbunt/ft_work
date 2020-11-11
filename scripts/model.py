@@ -88,11 +88,7 @@ class _MultiConvBlock(nn.Module):
             )
         conv_class = _MultiConvSkip if skip else _MultiConv
         self.conv_block = conv_class(in_chan, out_chan, n=n)
-        self.out = (
-            nn.Dropout2d(p=dropout_p, inplace=True)
-            if dropout
-            else _passthrough
-        )
+        self.out = nn.Dropout2d(p=dropout_p) if dropout else _passthrough
 
     def forward(self, x):
         x = self.conv_block(x)
@@ -124,7 +120,7 @@ class _Down(nn.Module):
             _MultiConvBlock(in_chan, out_chan, n=n, skip=skip),
         ]
         if dropout:
-            blocks.append(nn.Dropout2d(p=dropout_p, inplace=True))
+            blocks.append(nn.Dropout2d(p=dropout_p))
         self.model = nn.Sequential(*blocks)
 
     def forward(self, x):
@@ -156,7 +152,7 @@ class _Up(nn.Module):
         self.upsample = _UpSample(in_chan)
         self.conv = _MultiConvBlock(in_chan, out_chan, n=n, skip=skip)
         self.out = (
-            nn.Dropout2d(p=dropout_p, inplace=True)
+            nn.Dropout2d(p=dropout_p)
             if dropout
             else _passthrough
         )
