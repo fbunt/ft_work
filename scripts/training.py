@@ -31,7 +31,6 @@ from model import (
     LABEL_OTHER,
     LABEL_THAWED,
     UNet,
-    UNetSkip,
     local_variation_loss,
 )
 from transforms import (
@@ -69,6 +68,8 @@ Config = namedtuple(
         "depth",
         "base_filters",
         "skips",
+        "bndry_dropout",
+        "bndry_dropout_p",
         "tb_channels",
         "use_land_mask",
         "use_dem",
@@ -312,12 +313,14 @@ def load_dates(path):
 
 
 def create_model(config):
-    model_class = UNet if not config.skips else UNetSkip
-    model = model_class(
+    model = UNet(
         config.in_chan,
         config.n_classes,
         depth=config.depth,
         base_filter_bank_size=config.base_filters,
+        skip=config.skips,
+        bndry_dropout=config.bndry_dropout,
+        bndry_dropout_p=config.bndry_dropout_p,
     )
     return model
 

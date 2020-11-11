@@ -3,6 +3,8 @@ config:
     depth: 4
     base_filters: 64
     skips: False
+    bndry_dropout: False
+    bndry_dropout_p: 2.0e-1
 
     # The number of in channels is calculated using the options below
     tb_channels: [0, 1, 2, 3, 4]
