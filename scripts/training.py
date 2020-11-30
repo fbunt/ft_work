@@ -63,6 +63,7 @@ def get_cli_parser():
 Config = namedtuple(
     "Config",
     (
+        "cuda_gpu",
         "in_chan",
         "n_classes",
         "depth",
@@ -105,6 +106,7 @@ Config = namedtuple(
 def load_config(config_path):
     with open(config_path) as fd:
         cfg = yaml.safe_load(fd)["config"]
+    cfg["cuda_gpu"] = f"cuda:{cfg['cuda_gpu']}"
     cfg["in_chan"] = (
         len(cfg["tb_channels"])
         + cfg["use_dem"]
@@ -702,7 +704,9 @@ if __name__ == "__main__":
     args = get_cli_parser().parse_args()
     config_path = args.config_path
     config = load_config(config_path)
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        config.cuda_gpu if torch.cuda.is_available() else "cpu"
+    )
 
     train_year_str = get_year_str(
         config.train_start_year, config.train_end_year
