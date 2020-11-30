@@ -1,6 +1,4 @@
 config:
-    cuda_gpu: 0
-
     n_classes: 2
     depth: 4
     base_filters: 64
