@@ -672,3 +672,54 @@ def get_aws_data(
         thw_idxs.append(thw)
     db.close()
     return list(zip(fzn_idxs, thw_idxs))
+
+
+def get_aws_full_data_for_dates(
+    dates_path,
+    masks_path,
+    db_path,
+    land_mask,
+    transform,
+    ret_type,
+    use_valid_mask,
+):
+    train_dates = load_dates(dates_path)
+    mask_ds = NpyDataset(masks_path)
+    db = get_db_session(db_path)
+    aws_pf = WMOValidationPointFetcher(db, retrieval_type=ret_type)
+    lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
+    tree = KDTree(np.array(list(zip(lon.ravel(), lat.ravel()))))
+    geo_bounds = [
+        lon.min(),
+        lon.max(),
+        lat.min(),
+        lat.max(),
+    ]
+    results = []
+    for d, mask in tqdm.tqdm(
+        zip(train_dates, mask_ds),
+        ncols=80,
+        total=len(train_dates),
+        desc="Loading AWS",
+    ):
+        ids, vpoints, vtemps = aws_pf.fetch_bounded(
+            d, geo_bounds, include_station_ids=True
+        )
+        vft = ft_model_zero_threshold(vtemps).astype(int)
+        if use_valid_mask:
+            mask = mask & land_mask
+        else:
+            mask = land_mask
+        # The set of valid indices
+        valid_idxs = set(np.nonzero(mask.ravel())[0])
+        idxs, vft, ids = get_nearest_flat_idxs_and_values(
+            tree, vpoints, vft, valid_idxs, meta_data=ids
+        )
+        results.extend(
+            [(sid, d, fti, idx) for sid, idx, fti in zip(ids, idxs, vft)]
+        )
+    db.close()
+    data = pd.DataFrame(
+        results, columns=["sid", "date", "ft", "flat_grid_idx"]
+    )
+    return data

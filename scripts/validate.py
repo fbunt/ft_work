@@ -88,12 +88,13 @@ class WMOValidationPointFetcher:
         temps.resize(i, refcheck=False)
         return lonlats, temps
 
-    def fetch_bounded(self, datetime, bounds):
+    def fetch_bounded(self, datetime, bounds, include_station_ids=False):
         records = (
             self._db.query(
                 DbWMOMetDailyTempRecord,
                 DbWMOMetStation.lon,
                 DbWMOMetStation.lat,
+                DbWMOMetStation.id,
             )
             .join(DbWMOMetDailyTempRecord.met_station)
             .filter(DbWMOMetDailyTempRecord.date_int == date_to_int(datetime))
@@ -107,16 +108,22 @@ class WMOValidationPointFetcher:
             return None
         lonlats = np.empty((len(records), 2))
         temps = np.empty(len(records))
+        ids = np.empty(len(records))
         i = 0
         for r in records:
             t = self.retrieval_func(r[0])
             lonlats[i] = (r[1], r[2])
             temps[i] = t
+            ids[i] = r[-1]
             i += t is not None
         # Trim any extra space at ends
         lonlats.resize((i, 2), refcheck=False)
         temps.resize(i, refcheck=False)
-        return lonlats, temps
+        ids.resize(i, refcheck=False)
+        if include_station_ids:
+            return ids, lonlats, temps
+        else:
+            return lonlats, temps
 
 
 TYPE_AM = "AM"
@@ -183,7 +190,9 @@ class PointsGridder:
             grid[self.imask] = fill
 
 
-def get_nearest_flat_idxs_and_values(tree, points, values, valid_flat_idxs):
+def get_nearest_flat_idxs_and_values(
+    tree, points, values, valid_flat_idxs, meta_data=None
+):
     """Use the tree to find the indices and values that lie closest to their
     respective grid points.
 
@@ -195,29 +204,42 @@ def get_nearest_flat_idxs_and_values(tree, points, values, valid_flat_idxs):
         points: an (N, 2) sized list/array of points to query the tree with
         values: an (N,) sized list/array of values
         valid_flat_idxs: a set of valid indices to filter query results against
+        meta_data: None or an (N, ...) sized list/array of meta data associated
+                   with the data being operated on. Default is None.
 
     Returns:
         idxs: list of flat indices that resulted from querying `tree`. These
             are the indices of points that had the smallest associated
             distance.
         final_values: the corresponding values that were pulled from `values`
+        final_meta: Not returned if meta_data was None or an (N,) sized list of
+                    meta data associated with the rest of the output data.
     """
+    if meta_data is not None:
+        assert len(meta_data) == len(
+            values
+        ), "meta_data must be None or same length as values"
+    meta = meta_data if meta_data is not None else itertools.repeat(None)
     dist, idx = tree.query(points)
     # Filter out points outside of mask
-    di = [v for v in zip(dist, idx, values) if v[1] in valid_flat_idxs]
+    di = [v for v in zip(dist, idx, values, meta) if v[1] in valid_flat_idxs]
     idict = {}
     # Filter out points that share the same grid square. Only keep the
     # points that are closest to the center of the grid square.
-    for d, i, v in di:
+    for d, i, v, m in di:
         if i in idict:
             # this point is closer, overwrite current value
             if d < idict[i][0]:
-                idict[i] = (d, v)
+                idict[i] = (d, v, m)
         else:
-            idict[i] = (d, v)
+            idict[i] = (d, v, m)
     idxs = list(idict.keys())
-    final_values = [v for d, v in idict.values()]
-    return idxs, final_values
+    final_values = [v for d, v, m in idict.values()]
+    if meta_data is not None:
+        final_meta = [m for _, _, m in idict.values()]
+        return idxs, final_values, final_meta
+    else:
+        return idxs, final_values
 
 
 def validate_bounded(
