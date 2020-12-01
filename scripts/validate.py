@@ -155,7 +155,8 @@ def get_empty_data_grid_like(a):
 
 
 class PointsGridder:
-    """Take points and shift them onto a grid using nearest neighbor approach.
+    """
+    Take points and shift them onto a grid using nearest neighbor approach.
     """
 
     def __init__(self, xgrid, ygrid, invalid_mask=None):
@@ -230,29 +231,29 @@ def validate_bounded(
     variable_mask=False,
 ):
     """
-        Validate the given grids using AWS data points within the given
-        geo-grids and dates.
+    Validate the given grids using AWS data points within the given
+    geo-grids and dates.
 
-        Parameters:
-            pf: WMOValidationPointFetcher instance
-            grid_stack: A list or array of 2D frozen/thawed grids to validate
-            dates: List of dates. Same length as `grid_stack`
-            lon_grid: A 2D grid of longitude points that matches the last 2
-                dims of `grid_stack`
-            lat_grid: A 2D grid of latitude points that matches the last 2 dims
-                of `grid_stack`
-            valid_mask: A single 2D grid or list/array of 2D grids specifying
-                the valid regions of data that shoud be validated. Usage is
-                controlled by `variable_mask`.
-            show_progress: if True, a progress bar is displayed.
-                DEFAULT: False
-            variable_mask: if True, `valid_mask` is treated as an iterable of
-                2D masks. It is treated as a single mask otherwise.
-                DEFAULT: False
+    Parameters:
+        pf: WMOValidationPointFetcher instance
+        grid_stack: A list or array of 2D frozen/thawed grids to validate
+        dates: List of dates. Same length as `grid_stack`
+        lon_grid: A 2D grid of longitude points that matches the last 2
+            dims of `grid_stack`
+        lat_grid: A 2D grid of latitude points that matches the last 2 dims
+            of `grid_stack`
+        valid_mask: A single 2D grid or list/array of 2D grids specifying
+            the valid regions of data that shoud be validated. Usage is
+            controlled by `variable_mask`.
+        show_progress: if True, a progress bar is displayed.
+            DEFAULT: False
+        variable_mask: if True, `valid_mask` is treated as an iterable of
+            2D masks. It is treated as a single mask otherwise.
+            DEFAULT: False
 
-        Returns: Array of percent accuracy values with same length as
-            `grid_stack`
-        """
+    Returns: Array of percent accuracy values with same length as
+        `grid_stack`
+    """
     flat_valid_idxs_iter = None
     if not variable_mask:
         flat_valid_idxs_iter = itertools.repeat(
@@ -497,7 +498,9 @@ def perform_regional_composite_validation(
 
 
 def perform_am_regional_composite_validation(
-    am_estimate_grids, point_fetcher, point_gridder,
+    am_estimate_grids,
+    point_fetcher,
+    point_gridder,
 ):
     point_fetcher.set_retrieval_type(RETRIEVAL_MIN)
     return perform_regional_composite_validation(
@@ -506,7 +509,9 @@ def perform_am_regional_composite_validation(
 
 
 def perform_pm_regional_composite_validation(
-    pm_estimate_grids, point_fetcher, point_gridder,
+    pm_estimate_grids,
+    point_fetcher,
+    point_gridder,
 ):
     point_fetcher.set_retrieval_type(RETRIEVAL_MAX)
     return perform_regional_composite_validation(
@@ -515,7 +520,10 @@ def perform_pm_regional_composite_validation(
 
 
 def perform_am_pm_regional_composite_validation(
-    am_estimate_grids, pm_estimate_grids, point_fetcher, point_gridder,
+    am_estimate_grids,
+    pm_estimate_grids,
+    point_fetcher,
+    point_gridder,
 ):
     # AM
     print("Validating: AM")
@@ -566,7 +574,10 @@ def perform_default_am_pm_validation(
     am_estimate_grids, pm_estimate_grids, point_fetcher, point_gridder
 ):
     stats = perform_am_pm_regional_composite_validation(
-        am_estimate_grids, pm_estimate_grids, point_fetcher, point_gridder,
+        am_estimate_grids,
+        pm_estimate_grids,
+        point_fetcher,
+        point_gridder,
     )
     output_am_pm_regional_composite_validation_stats(stats)
 
