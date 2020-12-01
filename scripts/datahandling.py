@@ -722,4 +722,5 @@ def get_aws_full_data_for_dates(
     data = pd.DataFrame(
         results, columns=["sid", "date", "ft", "flat_grid_idx"]
     )
+    data["sid"] = data.sid.astype("int64")
     return data
