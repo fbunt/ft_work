@@ -411,7 +411,7 @@ def plot_accuracies(val_dates, era_acc, aws_acc, root_dir):
     plt.ylim(0, 100)
     plt.legend(loc=0)
     plt.title(
-        f"Mean Accuracy: ERA: {era_acc.mean():.3}% AWS: {aws_acc.mean():.3}"
+        f"Mean Accuracy: ERA: {era_acc.mean():.3}% AWS: {aws_acc.mean():.3}%"
     )
     plt.xlabel("Date")
     plt.ylabel("Accuracy (%)")
