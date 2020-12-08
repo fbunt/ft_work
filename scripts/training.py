@@ -493,6 +493,40 @@ def build_day_of_year_ds(dates_path, shape, config):
     return ds
 
 
+def build_input_dataset_form_config(config, is_train, eg_grid=eg.ML):
+    transform = REGION_TO_TRANS[config.region]
+    if is_train:
+        year1 = config.train_start_year
+        year2 = config.train_end_year
+    else:
+        year1 = config.test_start_year
+        year2 = config.test_end_year
+    year_str = get_year_str(year1, year2)
+    tb_path = f"../data/cleaned/tb-D-{year_str}-{config.region}.npy"
+    dem = transform(np.load("../data/z/dem.npy"))
+    land_mask = torch.tensor(
+        transform(np.load("../data/masks/ft_esdr_land_mask.npy"))
+    ).float()
+    lat_grid = torch.tensor(
+        transform(eg.v1_get_full_grid_lonlat(eg_grid)[1])
+    ).float()
+    date_map_path = f"../data/cleaned/date_map-{year_str}-{config.region}.csv"
+    data_grid_shape = dem.shape
+    solar_path = f"../data/cleaned/solar_rad-AM-{year_str}-{config.region}.npy"
+    snow_path = f"../data/cleaned/snow_cover-{year_str}-{config.region}.npy"
+    return build_input_dataset(
+        config,
+        tb_path,
+        dem,
+        land_mask,
+        lat_grid,
+        date_map_path,
+        data_grid_shape,
+        solar_path,
+        snow_path,
+    )
+
+
 def build_input_dataset(
     config,
     tb_path,
@@ -732,17 +766,7 @@ if __name__ == "__main__":
     #
     # Training data
     #
-    train_input_ds = build_input_dataset(
-        config,
-        f"../data/cleaned/tb-D-{train_year_str}-{config.region}.npy",
-        transform(np.load("../data/z/dem.npy")),
-        land_channel,
-        lat_channel,
-        f"../data/cleaned/date_map-{train_year_str}-{config.region}.csv",
-        data_grid_shape,
-        f"../data/cleaned/solar_rad-AM-{train_year_str}-{config.region}.npy",
-        f"../data/cleaned/snow_cover-{train_year_str}-{config.region}.npy",
-    )
+    train_input_ds = build_input_dataset_form_config(config, True, eg.ML)
     # AWS
     train_aws_data = load_persisted_data_object(
         f"../data/cleaned/aws_data-AM-{train_year_str}-{config.region}.pkl"
@@ -768,17 +792,7 @@ if __name__ == "__main__":
     #
     # Test Data
     #
-    test_input_ds = build_input_dataset(
-        config,
-        f"../data/cleaned/tb-D-{test_year_str}-{config.region}.npy",
-        transform(np.load("../data/z/dem.npy")),
-        land_channel,
-        lat_channel,
-        f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv",
-        data_grid_shape,
-        f"../data/cleaned/solar_rad-AM-{test_year_str}-{config.region}.npy",
-        f"../data/cleaned/snow_cover-{test_year_str}-{config.region}.npy",
-    )
+    test_input_ds = build_input_dataset_form_config(config, False, eg.ML)
     test_reduced_indices = list(range(1, len(test_input_ds) + 1))
     # AWS
     test_aws_data = load_persisted_data_object(
