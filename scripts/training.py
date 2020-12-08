@@ -325,15 +325,17 @@ def create_model(config):
     return model
 
 
-def get_predictions(input_ds, model, water_mask, water_label, device, config):
+def get_predictions(input_dl, model, water_mask, water_label, device, config):
     pred = []
-    for i, v in enumerate(tqdm.tqdm(input_ds, ncols=80)):
-        p = torch.sigmoid(
-            model(v.unsqueeze(0).to(device, dtype=torch.float)).detach()
-        )
-        p = p.cpu().squeeze().numpy().argmax(0)
-        p[..., water_mask] = water_label
-        pred.append(p)
+    with torch.no_grad():
+        for i, v in tqdm.tqdm(
+            enumerate(input_dl), ncols=80, total=len(input_dl)
+        ):
+            output = model(v.to(device, dtype=torch.float))
+            p = torch.sigmoid(output).cpu().numpy()
+            predictions = p.argmax(1)
+            predictions[..., water_mask] = water_label
+            pred.extend(predictions)
     pred = np.array(pred)
     return pred
 
@@ -886,13 +888,20 @@ if __name__ == "__main__":
             val_mask_ds = Subset(val_mask_ds, test_reduced_indices)
 
         model = snap_handler.load_best_model()
+        model.eval()
         # Log results
         pred_plot_dir = os.path.join(root_dir, "pred_plots")
         os.makedirs(pred_plot_dir)
         # Create and save predictions for test data
         print("Generating predictions")
+        test_loader = torch.utils.data.DataLoader(
+            test_input_ds,
+            batch_size=config.batch_size,
+            shuffle=False,
+            drop_last=False,
+        )
         pred = get_predictions(
-            test_input_ds, model, ~land_mask, LABEL_OTHER, device, config
+            test_loader, model, ~land_mask, LABEL_OTHER, device, config
         )
         ppath = os.path.join(root_dir, "pred.npy")
         print(f"Saving predictions: '{ppath}'")
