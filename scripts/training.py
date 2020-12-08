@@ -327,17 +327,24 @@ def create_model(config):
 
 def get_predictions(input_dl, model, water_mask, water_label, device, config):
     pred = []
+    prob = []
     with torch.no_grad():
         for i, v in tqdm.tqdm(
             enumerate(input_dl), ncols=80, total=len(input_dl)
         ):
             output = model(v.to(device, dtype=torch.float))
             p = torch.sigmoid(output).cpu().numpy()
+            prob.extend(p)
             predictions = p.argmax(1)
             predictions[..., water_mask] = water_label
             pred.extend(predictions)
     pred = np.array(pred)
-    return pred
+    # Transform the class channels into a Bernoulli distribution. This is
+    # necessary because each channel is 0 <= chan <= 1 but their sum is
+    # 0 < sum < 2. Then take only the thawed channel to compress the data.
+    prob = [(x / x.sum(0))[1] for x in prob]
+    prob = np.array(prob)
+    return pred, prob
 
 
 def validate_against_era5(pred, era_ds, valid_mask_ds, land_mask, config):
@@ -900,12 +907,15 @@ if __name__ == "__main__":
             shuffle=False,
             drop_last=False,
         )
-        pred = get_predictions(
+        pred, raw_prob = get_predictions(
             test_loader, model, ~land_mask, LABEL_OTHER, device, config
         )
-        ppath = os.path.join(root_dir, "pred.npy")
-        print(f"Saving predictions: '{ppath}'")
-        np.save(ppath, pred)
+        predictions_path = os.path.join(root_dir, "pred.npy")
+        print(f"Saving predictions: '{predictions_path}'")
+        np.save(predictions_path, pred)
+        probabilities_path = os.path.join(root_dir, "prob.npy")
+        print(f"Saving probabilities: '{probabilities_path}'")
+        np.save(probabilities_path, raw_prob)
         # Validate against ERA5
         print("Validating against ERA5")
         era_acc = validate_against_era5(
