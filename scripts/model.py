@@ -151,11 +151,7 @@ class _Up(nn.Module):
         super().__init__()
         self.upsample = _UpSample(in_chan)
         self.conv = _MultiConvBlock(in_chan, out_chan, n=n, skip=skip)
-        self.out = (
-            nn.Dropout2d(p=dropout_p)
-            if dropout
-            else _passthrough
-        )
+        self.out = nn.Dropout2d(p=dropout_p) if dropout else _passthrough
 
     def forward(self, lhs, bot):
         upbot = self.upsample(bot)
