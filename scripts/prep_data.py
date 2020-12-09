@@ -208,8 +208,7 @@ transform = reg2trans[region]
 drop_bad_days = False
 train_start_year = 2005
 train_final_year = 2014
-test_start_year = 2015
-test_final_year = 2015
+test_year = 2015
 
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 out_dir = "../data/cleaned"
@@ -280,20 +279,23 @@ prep(
 # Validation data
 print("Loading snow cover")
 snow = dataset_to_array(
-    dh.NpyDataset("../data/snow/snow_cover_2015.npy", transform)
+    dh.NpyDataset(f"../data/snow/snow_cover_{test_year}.npy", transform)
 )
 print("Loading solar")
 solar = dataset_to_array(
-    dh.NpyDataset("../data/solar/solar_rad-daily-2015.npy", transform)
+    dh.NpyDataset(f"../data/solar/solar_rad-daily-{test_year}.npy", transform)
 )
 print("Loading tb")
 tb = dataset_to_array(
-    build_tb_ds([glob.glob("../data/tb/2015/tb_2015_F17_ML_D*.nc")], transform)
+    build_tb_ds(
+        [glob.glob(f"../data/tb/{test_year}/tb_{test_year}_F17_ML_D*.nc")],
+        transform,
+    )
 )
 print("Loading ERA")
 era_ft = dataset_to_array(
     dh.ERA5BidailyFTDataset(
-        ["../data/era5/t2m/bidaily/era5-t2m-bidaily-2015.nc"],
+        [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
         "t2m",
         "AM",
         other_mask=None,
@@ -302,7 +304,7 @@ era_ft = dataset_to_array(
 )
 era_t2m = dataset_to_array(
     dh.ERA5BidailyDataset(
-        ["../data/era5/t2m/bidaily/era5-t2m-bidaily-2015.nc"],
+        [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
         "t2m",
         "AM",
         other_mask=None,
@@ -310,7 +312,7 @@ era_t2m = dataset_to_array(
     )
 )
 prep(
-    dt.date(2015, 1, 1),
+    dt.date(test_year, 1, 1),
     snow,
     solar,
     tb,
