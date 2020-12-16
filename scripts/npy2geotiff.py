@@ -55,7 +55,7 @@ class UnsupportedNumberDimsError(Exception):
 
 
 def main(args):
-    data = np.load(args.in_file)
+    data = np.load(args.in_file).astype(args.type)
     if len(data.shape) > 3 or len(data.shape) < 2:
         raise UnsupportedNumberDimsError(
             f"Number of dims must be 2 or 3. Got {len(data.shape)}."
