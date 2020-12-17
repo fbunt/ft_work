@@ -125,7 +125,6 @@ FMT_FILENAME_SOLAR = "{out_dir}/solar_rad-AM-{year_str}-{region}.npy"
 FMT_FILENAME_TB = "{out_dir}/tb-D-{year_str}-{region}.npy"
 FMT_FILENAME_ERA_FT = "{out_dir}/era5-ft-am-{year_str}-{region}.npy"
 FMT_FILENAME_ERA_T2M = "{out_dir}/era5-t2m-am-{year_str}-{region}.npy"
-FMT_FILENAME_TB_VALID = "{out_dir}/tb_valid_mask-D-{year_str}-{region}.npy"
 
 
 def prep(
@@ -165,10 +164,6 @@ def prep(
     era_t2m = era_t2m[good_idxs]
     tb = fill_gaps(tb)
     snow = np.round(fill_gaps(snow, missing_func=is_neg_one))
-    nanmask = np.isnan(tb)
-    # Only need one of the identical masks
-    nanmask = nanmask[:, 0]
-    vmask = ~nanmask
 
     start_year = dates[0].year
     end_year = dates[-1].year
@@ -179,7 +174,6 @@ def prep(
         FMT_FILENAME_TB: tb,
         FMT_FILENAME_ERA_FT: era_ft,
         FMT_FILENAME_ERA_T2M: era_t2m,
-        FMT_FILENAME_TB_VALID: vmask,
     }
     save_data(data_dict, out_dir, year_str, region)
     with open(f"{out_dir}/date_map-{year_str}-{region}.csv", "w") as fd:
