@@ -418,18 +418,9 @@ def get_predictions(input_dl, model, water_mask, water_label, device, config):
     return pred, prob
 
 
-def validate_against_era5(pred, era_ds, valid_mask_ds, land_mask, config):
-    if config.val_use_valid_mask:
-        masked_pred = [
-            p[land_mask & vmask] for p, vmask in zip(pred, val_mask_ds)
-        ]
-        era = [
-            v.argmax(0)[land_mask & vmask]
-            for v, vmask in zip(era_ds, val_mask_ds)
-        ]
-    else:
-        masked_pred = [p[land_mask] for p in pred]
-        era = [v.argmax(0)[land_mask] for v in era_ds]
+def validate_against_era5(pred, era_ds, land_mask, config):
+    masked_pred = [p[land_mask] for p in pred]
+    era = [v.argmax(0)[land_mask] for v in era_ds]
     era_acc = np.array(
         [(p == e).sum() / p.size for p, e in zip(masked_pred, era)]
     )
@@ -437,25 +428,18 @@ def validate_against_era5(pred, era_ds, valid_mask_ds, land_mask, config):
 
 
 def validate_against_aws_db(
-    pred, db, dates, lon_grid, lat_grid, valid_mask_ds, land_mask, config
+    pred, db, dates, lon_grid, lat_grid, land_mask, config
 ):
     pf = WMOValidationPointFetcher(db, RETRIEVAL_MIN)
     aws_val = WMOValidator(pf)
-    if config.val_use_valid_mask:
-        if isinstance(valid_mask_ds[0], np.ndarray):
-            mask = (land_mask & vmask for vmask in valid_mask_ds)
-        else:
-            mask = (land_mask & vmask.numpy() for vmask in valid_mask_ds)
-    else:
-        mask = land_mask
-        if not isinstance(mask, np.ndarray):
-            mask = mask.numpy()
+    if not isinstance(land_mask, np.ndarray):
+        land_mask = land_mask.numpy()
     aws_acc = aws_val.validate_bounded(
         pred,
         dates,
         lon_grid,
         lat_grid,
-        mask,
+        land_mask,
         show_progress=True,
         variable_mask=config.val_use_valid_mask,
     )
