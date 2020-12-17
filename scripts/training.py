@@ -758,8 +758,10 @@ if __name__ == "__main__":
     land_mask_np = land_mask.numpy()
     land_channel = torch.tensor(land_mask_np).float()
     dem_channel = torch.tensor(transform(np.load("../data/z/dem.npy"))).float()
-    elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
-    lat_channel = torch.tensor(transform(elat)).float()
+    lon_grid, lat_grid = [
+        transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)
+    ]
+    lat_channel = torch.tensor(lat_grid).float()
     data_grid_shape = land_mask_np.shape
 
     #
@@ -936,9 +938,8 @@ if __name__ == "__main__":
         )
         # Validate against AWS DB
         db = get_db_session("../data/dbs/wmo_gsod.db")
-        lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
         aws_acc = validate_against_aws_db(
-            pred, db, val_dates, transform, val_mask_ds, land_mask, config
+            pred, db, val_dates, lon, lat, val_mask_ds, land_mask, config
         )
         db.close()
         # Write accuracies
