@@ -23,8 +23,8 @@ config:
     region: n45
     train_start_year: 2005
     train_end_year: 2014
-    test_start_year: 2015
-    test_end_year: 2015
+    test_start_year: 2016
+    test_end_year: 2016
 
     epochs: 950
     batch_size: 28
