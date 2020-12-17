@@ -366,10 +366,9 @@ def validate_against_era5(pred, era_ds, valid_mask_ds, land_mask, config):
 
 
 def validate_against_aws_db(
-    pred, db, dates, view_transform, valid_mask_ds, land_mask, config
+    pred, db, dates, lon_grid, lat_grid, valid_mask_ds, land_mask, config
 ):
     pf = WMOValidationPointFetcher(db, RETRIEVAL_MIN)
-    elon, elat = [view_transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
     aws_val = WMOValidator(pf)
     if config.val_use_valid_mask:
         if isinstance(valid_mask_ds[0], np.ndarray):
@@ -383,8 +382,8 @@ def validate_against_aws_db(
     aws_acc = aws_val.validate_bounded(
         pred,
         dates,
-        elon,
-        elat,
+        lon_grid,
+        lat_grid,
         mask,
         show_progress=True,
         variable_mask=config.val_use_valid_mask,
@@ -759,8 +758,10 @@ if __name__ == "__main__":
     land_mask_np = land_mask.numpy()
     land_channel = torch.tensor(land_mask_np).float()
     dem_channel = torch.tensor(transform(np.load("../data/z/dem.npy"))).float()
-    elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
-    lat_channel = torch.tensor(transform(elat)).float()
+    lon_grid, lat_grid = [
+        transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)
+    ]
+    lat_channel = torch.tensor(lat_grid).float()
     data_grid_shape = land_mask_np.shape
 
     #
@@ -938,7 +939,7 @@ if __name__ == "__main__":
         # Validate against AWS DB
         db = get_db_session("../data/dbs/wmo_gsod.db")
         aws_acc = validate_against_aws_db(
-            pred, db, val_dates, transform, val_mask_ds, land_mask, config
+            pred, db, val_dates, lon, lat, val_mask_ds, land_mask, config
         )
         db.close()
         # Write accuracies
