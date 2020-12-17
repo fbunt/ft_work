@@ -1008,7 +1008,7 @@ if __name__ == "__main__":
         # Validate against AWS DB
         db = get_db_session("../data/dbs/wmo_gsod.db")
         aws_acc = validate_against_aws_db(
-            pred, db, val_dates, lon, lat, val_mask_ds, land_mask, config
+            pred, db, val_dates, lon_grid, lat_grid, val_mask_ds, land_mask, config
         )
         db.close()
         # Write accuracies
