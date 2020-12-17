@@ -140,6 +140,21 @@ ConfigV2 = namedtuple(
         "val_use_valid_mask",
         "do_val_plots",
         "do_pred_plots",
+        # Paths
+        "land_mask_path",
+        "dem_data_path",
+        "train_aws_data_path",
+        "train_date_map_path",
+        "train_tb_data_path",
+        "train_era5_ft_data_path",
+        "train_solar_data_path",
+        "train_snow_data_path",
+        "test_aws_data_path",
+        "test_date_map_path",
+        "test_tb_data_path",
+        "test_era5_ft_data_path",
+        "test_solar_data_path",
+        "test_snow_data_path",
     ),
 )
 
@@ -548,50 +563,46 @@ def build_day_of_year_ds(dates_path, shape, config):
 
 
 def build_input_dataset_form_config(config, is_train, lat_grid):
-    transform = REGION_TO_TRANS[config.region]
-    if is_train:
-        year1 = config.train_start_year
-        year2 = config.train_end_year
-    else:
-        year1 = config.test_start_year
-        year2 = config.test_end_year
-    year_str = get_year_str(year1, year2)
-    tb_path = f"../data/cleaned/tb-D-{year_str}-{config.region}.npy"
-    dem = transform(np.load("../data/z/dem.npy"))
-    land_mask = torch.tensor(
-        transform(np.load("../data/masks/ft_esdr_land_mask.npy"))
-    ).float()
+    dem = np.load(config.dem_data_path)
+    land_mask = torch.tensor(np.load(config.land_mask_path)).float()
     lat_grid = torch.tensor(lat_grid).float()
-    date_map_path = f"../data/cleaned/date_map-{year_str}-{config.region}.csv"
-    data_grid_shape = dem.shape
-    solar_path = f"../data/cleaned/solar_rad-AM-{year_str}-{config.region}.npy"
-    snow_path = f"../data/cleaned/snow_cover-{year_str}-{config.region}.npy"
-    return build_input_dataset(
-        config,
-        tb_path,
-        dem,
-        land_mask,
-        lat_grid,
-        date_map_path,
-        data_grid_shape,
-        solar_path,
-        snow_path,
-    )
+    if is_train:
+        return build_input_dataset(
+            config,
+            dem,
+            land_mask,
+            lat_grid,
+            config.train_tb_data_path,
+            config.train_date_map_path,
+            config.train_solar_data_path,
+            config.train_snow_data_path,
+        )
+    else:
+        return build_input_dataset(
+            config,
+            dem,
+            land_mask,
+            lat_grid,
+            config.test_tb_data_path,
+            config.test_date_map_path,
+            config.test_solar_data_path,
+            config.test_snow_data_path,
+        )
 
 
 def build_input_dataset(
     config,
-    tb_path,
     dem,
     land_mask,
     latitude_grid,
+    tb_path,
     date_map_path,
-    date_ds_shape,
     solar_path,
     snow_path,
 ):
     datasets = []
     tb_ds = np.load(tb_path)
+    grid_shape = dem.shape
     if config.normalize:
         tb_ds = normalize(tb_ds)
     tb_ds = NpyDataset(tb_ds, channels=config.tb_channels)
@@ -621,7 +632,7 @@ def build_input_dataset(
         datasets.append(ds)
     # Day of year channel
     if config.use_day_of_year:
-        ds = build_day_of_year_ds(date_map_path, date_ds_shape, config)
+        ds = build_day_of_year_ds(date_map_path, grid_shape, config)
         if config.use_prior_day:
             ds = Subset(ds, reduced_indices)
         datasets.append(ds)
@@ -799,36 +810,25 @@ if __name__ == "__main__":
     config = load_config(config_path)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    train_year_str = get_year_str(
-        config.train_start_year, config.train_end_year
-    )
-    test_year_str = get_year_str(config.test_start_year, config.test_end_year)
-
     transform = REGION_TO_TRANS[config.region]
-    base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
-    water_mask = torch.tensor(transform(base_water_mask))
-    land_mask = ~water_mask
+    land_mask = torch.tensor(np.load(config.land_mask_path))
+    water_mask = ~land_mask
     land_mask_np = land_mask.numpy()
     land_channel = torch.tensor(land_mask_np).float()
-    dem_channel = torch.tensor(transform(np.load("../data/z/dem.npy"))).float()
+    # TODO: load from external
     lon_grid, lat_grid = [
         transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)
     ]
     lat_channel = torch.tensor(lat_grid).float()
-    data_grid_shape = land_mask_np.shape
 
     #
     # Training data
     #
     train_input_ds = build_input_dataset_form_config(config, True, lat_channel)
     # AWS
-    train_aws_data = load_persisted_data_object(
-        f"../data/cleaned/aws_data-AM-{train_year_str}-{config.region}.pkl"
-    )
+    train_aws_data = load_persisted_data_object(config.train_aws_data_path)
     # ERA
-    train_era_ds = NpyDataset(
-        f"../data/cleaned/era5-ft-am-{train_year_str}-{config.region}.npy"
-    )
+    train_era_ds = NpyDataset(config.train_era5_ft_data_path)
     if config.use_prior_day:
         train_era_ds = Subset(
             train_era_ds, list(range(1, len(train_input_ds) + 1))
@@ -849,13 +849,9 @@ if __name__ == "__main__":
     test_input_ds = build_input_dataset_form_config(config, False, lat_channel)
     test_reduced_indices = list(range(1, len(test_input_ds) + 1))
     # AWS
-    test_aws_data = load_persisted_data_object(
-        f"../data/cleaned/aws_data-AM-{test_year_str}-{config.region}.pkl"
-    )
+    test_aws_data = load_persisted_data_object(config.test_aws_data_path)
     # ERA
-    test_era_ds = NpyDataset(
-        f"../data/cleaned/era5-ft-am-{test_year_str}-{config.region}.npy"
-    )
+    test_era_ds = NpyDataset(config.test_era5_ft_data_path)
     if config.use_prior_day:
         test_era_ds = Subset(test_era_ds, test_reduced_indices)
         test_idx_ds = IndexEchoDataset(len(test_input_ds), offset=1)
@@ -951,9 +947,7 @@ if __name__ == "__main__":
         train_dataloader = None
 
         # Validation
-        val_dates = load_dates(
-            f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv"
-        )
+        val_dates = load_dates(config.test_date_map_path)
         if config.use_prior_day:
             val_dates = Subset(val_dates, test_reduced_indices)
 
@@ -981,9 +975,7 @@ if __name__ == "__main__":
         np.save(probabilities_path, raw_prob)
         # Validate against ERA5
         print("Validating against ERA5")
-        era_acc = validate_against_era5(
-            pred, test_era_ds, land_mask, config
-        )
+        era_acc = validate_against_era5(pred, test_era_ds, land_mask, config)
         # Validate against AWS DB
         db = get_db_session("../data/dbs/wmo_gsod.db")
         aws_acc = validate_against_aws_db(
