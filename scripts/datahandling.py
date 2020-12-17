@@ -671,42 +671,34 @@ def load_dates(path):
 
 
 def get_aws_data(
-    dates_path,
-    masks_path,
+    dates,
     db_path,
     land_mask,
-    transform,
+    lon_grid,
+    lat_grid,
     ret_type,
-    use_valid_mask,
 ):
-    train_dates = load_dates(dates_path)
-    mask_ds = NpyDataset(masks_path)
     db = get_db_session(db_path)
     aws_pf = WMOValidationPointFetcher(db, retrieval_type=ret_type)
-    lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
-    tree = KDTree(np.array(list(zip(lon.ravel(), lat.ravel()))))
+    tree = KDTree(np.array(list(zip(lon_grid.ravel(), lat_grid.ravel()))))
     geo_bounds = [
-        lon.min(),
-        lon.max(),
-        lat.min(),
-        lat.max(),
+        lon_grid.min(),
+        lon_grid.max(),
+        lat_grid.min(),
+        lat_grid.max(),
     ]
     fzn_idxs = []
     thw_idxs = []
-    for d, mask in tqdm.tqdm(
-        zip(train_dates, mask_ds),
+    for d in tqdm.tqdm(
+        dates,
         ncols=80,
-        total=len(train_dates),
+        total=len(dates),
         desc="Loading AWS",
     ):
         vpoints, vtemps = aws_pf.fetch_bounded(d, geo_bounds)
         vft = ft_model_zero_threshold(vtemps).astype(int)
-        if use_valid_mask:
-            mask = mask & land_mask
-        else:
-            mask = land_mask
         # The set of valid indices
-        valid_idxs = set(np.nonzero(mask.ravel())[0])
+        valid_idxs = set(np.nonzero(land_mask.ravel())[0])
         idxs, vft = get_nearest_flat_idxs_and_values(
             tree, vpoints, vft, valid_idxs
         )
@@ -725,43 +717,35 @@ def get_aws_data(
 
 
 def get_aws_full_data_for_dates(
-    dates_path,
-    masks_path,
+    dates,
     db_path,
     land_mask,
-    transform,
+    lon_grid,
+    lat_grid,
     ret_type,
-    use_valid_mask,
 ):
-    train_dates = load_dates(dates_path)
-    mask_ds = NpyDataset(masks_path)
     db = get_db_session(db_path)
     aws_pf = WMOValidationPointFetcher(db, retrieval_type=ret_type)
-    lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
-    tree = KDTree(np.array(list(zip(lon.ravel(), lat.ravel()))))
+    tree = KDTree(np.array(list(zip(lon_grid.ravel(), lat_grid.ravel()))))
     geo_bounds = [
-        lon.min(),
-        lon.max(),
-        lat.min(),
-        lat.max(),
+        lon_grid.min(),
+        lon_grid.max(),
+        lat_grid.min(),
+        lat_grid.max(),
     ]
     results = []
-    for d, mask in tqdm.tqdm(
-        zip(train_dates, mask_ds),
+    for d in tqdm.tqdm(
+        dates,
         ncols=80,
-        total=len(train_dates),
+        total=len(dates),
         desc="Loading AWS",
     ):
         ids, vpoints, vtemps = aws_pf.fetch_bounded(
             d, geo_bounds, include_station_ids=True
         )
         vft = ft_model_zero_threshold(vtemps).astype(int)
-        if use_valid_mask:
-            mask = mask & land_mask
-        else:
-            mask = land_mask
         # The set of valid indices
-        valid_idxs = set(np.nonzero(mask.ravel())[0])
+        valid_idxs = set(np.nonzero(land_mask.ravel())[0])
         idxs, vft, ids = get_nearest_flat_idxs_and_values(
             tree, vpoints, vft, valid_idxs, meta_data=ids
         )

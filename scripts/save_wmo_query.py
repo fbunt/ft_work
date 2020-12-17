@@ -2,7 +2,8 @@ import argparse
 import numpy as np
 import os
 
-from datahandling import get_aws_data, persist_data_object
+import ease_grid as eg
+from datahandling import get_aws_data, load_dates, persist_data_object
 from transforms import GL, REGION_CODES, REGION_TO_TRANS
 from utils import validate_file_path, validate_dir_path
 from validate import RETRIEVAL_MIN, RETRIEVAL_MAX
@@ -35,12 +36,6 @@ def get_cli_parser():
         help="Region to use when querying the database. Default is GL.",
     )
     p.add_argument(
-        "-v",
-        "--valid_mask",
-        action="store_true",
-        help="Use valid mask dataset to prune query region.",
-    )
-    p.add_argument(
         "start_year",
         type=int,
         help="Start year for queryies. Can be the same as end_year.",
@@ -59,23 +54,22 @@ def main(args):
         raise ValueError("Start year must be less than or equal to end_year")
     year_str = get_year_str(args.start_year, args.end_year)
     transform = REGION_TO_TRANS[args.region]
-    dates_path = f"../data/cleaned/date_map-{year_str}-{args.region}.csv"
-    # TODO: add option for AM/PM
-    masks_ds_path = (
-        f"../data/cleaned/tb_valid_mask-D-{year_str}-{args.region}.npy"
+    dates = load_dates(
+        f"../data/cleaned/date_map-{year_str}-{args.region}.csv"
     )
+    # TODO: add option for AM/PM
     db_path = "../data/dbs/wmo_gsod.db"
     land_mask = ~transform(np.load("../data/masks/ft_esdr_water_mask.npy"))
     # TODO: add option for AM/PM
     ret_type = RETRIEVAL_MIN
+    lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
     aws_data = get_aws_data(
-        dates_path,
-        masks_ds_path,
+        dates,
         db_path,
         land_mask,
-        transform,
+        lon,
+        lat,
         ret_type,
-        args.valid_mask,
     )
     # TODO: add option for AM/PM
     out_file = os.path.join(
