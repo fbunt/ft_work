@@ -970,13 +970,8 @@ if __name__ == "__main__":
         val_dates = load_dates(
             f"../data/cleaned/date_map-{test_year_str}-{config.region}.csv"
         )
-        val_mask_ds = NpyDataset(
-            f"../data/cleaned/tb_valid_mask-D-{test_year_str}"
-            f"-{config.region}.npy"
-        )
         if config.use_prior_day:
             val_dates = Subset(val_dates, test_reduced_indices)
-            val_mask_ds = Subset(val_mask_ds, test_reduced_indices)
 
         model = snap_handler.load_best_model()
         model.eval()
@@ -1003,12 +998,12 @@ if __name__ == "__main__":
         # Validate against ERA5
         print("Validating against ERA5")
         era_acc = validate_against_era5(
-            pred, test_era_ds, val_mask_ds, land_mask, config
+            pred, test_era_ds, land_mask, config
         )
         # Validate against AWS DB
         db = get_db_session("../data/dbs/wmo_gsod.db")
         aws_acc = validate_against_aws_db(
-            pred, db, val_dates, lon_grid, lat_grid, val_mask_ds, land_mask, config
+            pred, db, val_dates, lon_grid, lat_grid, land_mask, config
         )
         db.close()
         # Write accuracies
