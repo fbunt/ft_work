@@ -60,9 +60,51 @@ def get_cli_parser():
     return p
 
 
-Config = namedtuple(
-    "Config",
+ConfigV1 = namedtuple(
+    "ConfigV1",
     (
+        "version",
+        "in_chan",
+        "n_classes",
+        "depth",
+        "base_filters",
+        "skips",
+        "bndry_dropout",
+        "bndry_dropout_p",
+        "tb_channels",
+        "use_land_mask",
+        "use_dem",
+        "use_latitude",
+        "use_day_of_year",
+        "use_solar",
+        "use_snow",
+        "use_prior_day",
+        "normalize",
+        "region",
+        "train_start_year",
+        "train_end_year",
+        "test_start_year",
+        "test_end_year",
+        "epochs",
+        "batch_size",
+        "drop_last",
+        "learning_rate",
+        "lr_milestones",
+        "lr_step_gamma",
+        "l2_reg_weight",
+        "main_loss_weight",
+        "aws_bce_weight",
+        "lv_reg_weight",
+        "aws_use_valid_mask",
+        "val_use_valid_mask",
+        "do_val_plots",
+        "do_pred_plots",
+    ),
+)
+ConfigV2 = namedtuple(
+    "ConfigV2",
+    (
+        "version",
         "in_chan",
         "n_classes",
         "depth",
@@ -102,9 +144,9 @@ Config = namedtuple(
 )
 
 
-def load_config(config_path):
-    with open(config_path) as fd:
-        cfg = yaml.safe_load(fd)["config"]
+def build_v1_config(cfg):
+    if "version" not in cfg:
+        cfg["version"] = 1
     cfg["in_chan"] = (
         len(cfg["tb_channels"])
         + cfg["use_dem"]
@@ -114,7 +156,36 @@ def load_config(config_path):
         + cfg["use_snow"]
         + (len(cfg["tb_channels"]) * cfg["use_prior_day"])
     )
-    return Config(**cfg)
+    return ConfigV1(**cfg)
+
+
+def build_v2_config(cfg):
+    cfg["in_chan"] = (
+        len(cfg["tb_channels"])
+        + cfg["use_dem"]
+        + cfg["use_latitude"]
+        + cfg["use_day_of_year"]
+        + cfg["use_solar"]
+        + cfg["use_snow"]
+        + (len(cfg["tb_channels"]) * cfg["use_prior_day"])
+    )
+    return ConfigV2(**cfg)
+
+
+class ConfigError(Exception):
+    pass
+
+
+def load_config(config_path):
+    with open(config_path) as fd:
+        cfg = yaml.safe_load(fd)["config"]
+    version = cfg.get("version", 1)
+    if version == 1:
+        return build_v1_config(cfg)
+    elif version == 2:
+        return build_v2_config(cfg)
+    else:
+        raise ConfigError("Invalid verion found in config file")
 
 
 class MinMetricTracker:
