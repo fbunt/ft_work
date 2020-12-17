@@ -3,6 +3,7 @@ import numpy as np
 import os
 import torch
 
+import ease_grid as eg
 import utils
 from model import LABEL_OTHER, UNet, UNetLegacy
 from training import (
@@ -93,6 +94,7 @@ def main(args):
     config = load_config(cfile)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     transform = REGION_TO_TRANS[config.region]
+    lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
     model_path = os.path.join(args.target_dir, "model.pt")
     utils.validate_file_path(model_path)
     model_class = UNet
@@ -114,7 +116,7 @@ def main(args):
     model_dict = torch.load(model_path)
     model_load(model, model_dict)
     model.eval()
-    input_ds = build_input_dataset_form_config(config, is_train=False)
+    input_ds = build_input_dataset_form_config(config, False, lat)
     batch_size = args.batch_size if args.batch_size > 0 else config.batch_size
     input_dl = torch.utils.data.DataLoader(
         input_ds, batch_size=batch_size, shuffle=False, drop_last=False
