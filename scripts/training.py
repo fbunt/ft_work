@@ -819,12 +819,11 @@ if __name__ == "__main__":
     lon_grid, lat_grid = [
         transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)
     ]
-    lat_channel = torch.tensor(lat_grid).float()
 
     #
     # Training data
     #
-    train_input_ds = build_input_dataset_form_config(config, True, lat_channel)
+    train_input_ds = build_input_dataset_form_config(config, True, lat_grid)
     # AWS
     train_aws_data = load_persisted_data_object(config.train_aws_data_path)
     # ERA
@@ -846,7 +845,7 @@ if __name__ == "__main__":
     #
     # Test Data
     #
-    test_input_ds = build_input_dataset_form_config(config, False, lat_channel)
+    test_input_ds = build_input_dataset_form_config(config, False, lat_grid)
     test_reduced_indices = list(range(1, len(test_input_ds) + 1))
     # AWS
     test_aws_data = load_persisted_data_object(config.test_aws_data_path)
