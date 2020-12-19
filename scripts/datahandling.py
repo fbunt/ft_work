@@ -40,6 +40,14 @@ import tb as tbmod
 import utils
 
 
+def lon180_to_lon360(lons):
+    return lons % 360
+
+
+def lon360_to_lon180(lons):
+    return ((lons + 180) % 360) - 180
+
+
 class DataLoadingError(Exception):
     pass
 
