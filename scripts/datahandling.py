@@ -235,11 +235,28 @@ class AWSDateRangeWrapperDataset(Dataset):
         return len(self.idx_to_date)
 
 
-class ERA5BidailyFTDataset(Dataset):
-    def __init__(
-        self, paths, var_name, scheme, other_mask=None, transform=None
-    ):
-        self.ds = xr.open_mfdataset(paths, combine="by_coords")
+class ERA5BidailyDataset(Dataset):
+    """Dataset for loading and regridding ERA5 netCDF files
+
+    Params:
+        paths (list): list of data file paths.
+        var_name (str): name of variable of interest in data files.
+        scheme (str): "AM" or "PM". Determines if AM or PM data is loaded.
+        out_lon (array): 1D or 2D array of longitude values for regridded data.
+                         Must use [-180, 180) range for values
+        out_lat (array): 1D or 2D array of latitude values for regridded data.
+        chunk (int): Default 1. Chunks to use when loading data with xarray.
+                     1 has, so far, proved to be fastest.
+    """
+
+    def __init__(self, paths, var_name, scheme, out_lon, out_lat, chunks=1):
+        if (out_lon >= 180).any():
+            raise ValueError("Longitude values must be -180 <= lon < 180")
+        ds = xr.open_mfdataset(
+            paths, combine="by_coords", chunks={"time": chunks}
+        )
+        self.ds = ds.roll(lon=(ds.lon.values >= 180).sum(), roll_coords=True)
+        ds.close()
         if var_name not in self.ds:
             raise KeyError(
                 f"Variable name '{var_name}' is not present in specified data"
@@ -253,42 +270,28 @@ class ERA5BidailyFTDataset(Dataset):
         else:
             raise ValueError(f"Unknown scheme option: '{scheme}'")
         self.length = len(self.data())
-        self.lon = self.ds.lon.values
-        self.lat = self.ds.lat.values
-        elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
-        self.elon = elon[0] + 180
-        self.elat = elat[:, 0]
-        self.transform = transform or (lambda x: x)
-        self.n_classes = 2 + int(other_mask is not None)
-        other_mask = (
-            other_mask
-            if other_mask is not None
-            else np.zeros(eg.GRID_NAME_TO_V1_SHAPE[eg.ML], dtype=bool)
-        )
-        self.other_mask = self.transform(other_mask)
-        self.grid_shape = self.other_mask.shape
+        self.inlon = lon360_to_lon180(self.ds.lon.values)
+        self.inlat = self.ds.lat.values
+        if len(out_lon.shape) == 2:
+            out_lon = out_lon[0]
+        if len(out_lat.shape) == 2:
+            out_lat = out_lat[:, 0]
+        self.outlon = out_lon
+        self.outlat = out_lat
 
     def data(self):
         return self.ds[self.var_name][self.data_slice]
 
     def __getitem__(self, idx):
+        # print("getting grid")
         grid = self.data()[idx].values
+        # print("creating ip")
         # Need to make lat increasing for interpolation
-        ip = RBS(self.lat[::-1], self.lon, grid[::-1])
-        igrid = ip(self.elat[::-1], self.elon)[::-1]
+        ip = RBS(self.inlat[::-1], self.inlon, grid[::-1])
+        # print("interpolating")
+        igrid = ip(self.outlat[::-1], self.outlon)[::-1]
         # Roll along the lon dimension to center at lon=0
-        igrid = np.roll(igrid, (self.elon.size // 2) + 1, axis=1)
-        igrid = self.transform(igrid)
-        out = np.zeros((self.n_classes, *self.grid_shape), dtype=int)
-        # Frozen
-        out[0] = igrid <= 273.15
-        # Thawed
-        out[1] = igrid > 273.15
-        if self.n_classes > 2:
-            # Other
-            out[0:2, self.other_mask] = 0
-            out[2, self.other_mask] = 1
-        return out
+        return igrid
 
     def __len__(self):
         return self.length
@@ -301,56 +304,6 @@ def _input_filter(fi):
         and fi.sat_pass == "D"
         and fi.freq_pol <= KEY_37V
     )
-
-
-class ERA5BidailyDataset(Dataset):
-    def __init__(
-        self, paths, var_name, scheme, other_mask=None, transform=None
-    ):
-        self.ds = xr.open_mfdataset(paths, combine="by_coords")
-        if var_name not in self.ds:
-            raise KeyError(
-                f"Variable name '{var_name}' is not present in specified data"
-            )
-        self.var_name = var_name
-        self.data_slice = None
-        if scheme == "AM":
-            self.data_slice = np.s_[::2]
-        elif scheme == "PM":
-            self.data_slice = np.s_[1::2]
-        else:
-            raise ValueError(f"Unknown scheme option: '{scheme}'")
-        self.length = len(self.data())
-        self.lon = self.ds.lon.values
-        self.lat = self.ds.lat.values
-        elon, elat = eg.v1_get_full_grid_lonlat(eg.ML)
-        self.elon = elon[0] + 180
-        self.elat = elat[:, 0]
-        self.transform = transform or (lambda x: x)
-        self.n_classes = 2 + int(other_mask is not None)
-        other_mask = (
-            other_mask
-            if other_mask is not None
-            else np.zeros(eg.GRID_NAME_TO_V1_SHAPE[eg.ML], dtype=bool)
-        )
-        self.other_mask = self.transform(other_mask)
-        self.grid_shape = self.other_mask.shape
-
-    def data(self):
-        return self.ds[self.var_name][self.data_slice]
-
-    def __getitem__(self, idx):
-        grid = self.data()[idx].values
-        # Need to make lat increasing for interpolation
-        ip = RBS(self.lat[::-1], self.lon, grid[::-1])
-        igrid = ip(self.elat[::-1], self.elon)[::-1]
-        # Roll along the lon dimension to center at lon=0
-        igrid = np.roll(igrid, (self.elon.size // 2) + 1, axis=1)
-        igrid = self.transform(igrid)
-        return igrid
-
-    def __len__(self):
-        return self.length
 
 
 def _create_input_table(paths, filter_func=_input_filter):
