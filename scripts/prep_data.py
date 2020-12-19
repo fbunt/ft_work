@@ -12,6 +12,7 @@ from transforms import (
     N45W_VIEW_TRANS,
 )
 import datahandling as dh
+import ease_grid as eg
 
 
 def get_year_str(ya, yb):
@@ -204,6 +205,8 @@ train_start_year = 2005
 train_final_year = 2014
 test_year = 2016
 
+out_lon, out_lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
+
 base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
 out_dir = "../data/cleaned"
 
@@ -234,27 +237,33 @@ print("Loading tb")
 tb = dataset_to_array(build_tb_ds(path_groups, transform))
 print("Loading ERA")
 era_ft = dataset_to_array(
-    dh.ERA5BidailyFTDataset(
-        [
-            f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
-            for y in range(train_start_year, train_final_year + 1)
-        ],
-        "t2m",
-        "AM",
-        other_mask=None,
-        transform=transform,
+    dh.TransformPipelineDataset(
+        dh.ERA5BidailyDataset(
+            [
+                f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+                for y in range(train_start_year, train_final_year + 1)
+            ],
+            "t2m",
+            "AM",
+            out_lon,
+            out_lat,
+        ),
+        [transform, dh.FTTransform()],
     )
 )
 era_t2m = dataset_to_array(
-    dh.ERA5BidailyDataset(
-        [
-            f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
-            for y in range(train_start_year, train_final_year + 1)
-        ],
-        "t2m",
-        "AM",
-        other_mask=None,
-        transform=transform,
+    dh.TransformPipelineDataset(
+        dh.ERA5BidailyDataset(
+            [
+                f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+                for y in range(train_start_year, train_final_year + 1)
+            ],
+            "t2m",
+            "AM",
+            out_lon,
+            out_lat,
+        ),
+        [transform],
     )
 )
 prep(
@@ -288,21 +297,27 @@ tb = dataset_to_array(
 )
 print("Loading ERA")
 era_ft = dataset_to_array(
-    dh.ERA5BidailyFTDataset(
-        [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
-        "t2m",
-        "AM",
-        other_mask=None,
-        transform=transform,
+    dh.TransformPipelineDataset(
+        dh.ERA5BidailyDataset(
+            [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
+            "t2m",
+            "AM",
+            out_lon,
+            out_lat,
+        ),
+        [transform, dh.FTTransform()],
     )
 )
 era_t2m = dataset_to_array(
-    dh.ERA5BidailyDataset(
-        [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
-        "t2m",
-        "AM",
-        other_mask=None,
-        transform=transform,
+    dh.TransformPipelineDataset(
+        dh.ERA5BidailyDataset(
+            [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
+            "t2m",
+            "AM",
+            out_lon,
+            out_lat,
+        ),
+        [transform],
     )
 )
 prep(

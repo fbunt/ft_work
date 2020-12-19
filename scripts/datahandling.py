@@ -589,6 +589,33 @@ class ComposedDictDataset(Dataset):
         return self.size
 
 
+class TransformPipelineDataset(Dataset):
+    """Applies a series of transforms to items from an input dataset"""
+
+    def __init__(self, input_ds, transforms):
+        self.ds = input_ds
+        self.transforms = transforms
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, idx):
+        item = self.ds[idx]
+        for t in self.transforms:
+            item = t(item)
+        return item
+
+
+class FTTransform:
+    def __call__(self, grid):
+        out = np.zeros((2, *grid.shape), dtype=int)
+        # Frozen
+        out[0] = grid <= 273.15
+        # Thawed
+        out[1] = grid > 273.15
+        return out
+
+
 def write_accuracies_file(dates, era_acc, aws_acc, path):
     with open(path, "w") as fd:
         for d, ae, aa in zip(dates, era_acc, aws_acc):
