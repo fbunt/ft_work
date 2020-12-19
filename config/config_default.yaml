@@ -45,6 +45,8 @@ config:
 
     land_mask_path: "../data/masks/ft_esdr_land_mask_n45.npy"
     dem_data_path: "../data/z/dem-n45.npy"
+    lon_grid_path: "../data/coords/lon_n45.npy"
+    lat_grid_path: "../data/coords/lat_n45.npy"
 
     train_aws_data_path: "../data/cleaned/aws_data-AM-2005-2014-n45.pkl"
     train_date_map_path: "../data/cleaned/date_map-2005-2014-n45.csv"

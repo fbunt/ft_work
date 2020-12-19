@@ -562,16 +562,14 @@ def build_day_of_year_ds(dates_path, shape, config):
     return ds
 
 
-def build_input_dataset_form_config(config, is_train, lat_grid):
+def build_input_dataset_form_config(config, is_train):
     dem = np.load(config.dem_data_path)
     land_mask = torch.tensor(np.load(config.land_mask_path)).float()
-    lat_grid = torch.tensor(lat_grid).float()
     if is_train:
         return build_input_dataset(
             config,
             dem,
             land_mask,
-            lat_grid,
             config.train_tb_data_path,
             config.train_date_map_path,
             config.train_solar_data_path,
@@ -582,7 +580,6 @@ def build_input_dataset_form_config(config, is_train, lat_grid):
             config,
             dem,
             land_mask,
-            lat_grid,
             config.test_tb_data_path,
             config.test_date_map_path,
             config.test_solar_data_path,
@@ -594,7 +591,6 @@ def build_input_dataset(
     config,
     dem,
     land_mask,
-    latitude_grid,
     tb_path,
     date_map_path,
     solar_path,
@@ -624,6 +620,7 @@ def build_input_dataset(
         datasets.append(ds)
     # Latitude channel
     if config.use_latitude:
+        latitude_grid = torch.tensor(np.load(config.lat_grid_path)).float()
         if config.normalize:
             latitude_grid = normalize(latitude_grid)
         ds = RepeatDataset(latitude_grid, len(tb_ds))
@@ -815,15 +812,11 @@ if __name__ == "__main__":
     water_mask = ~land_mask
     land_mask_np = land_mask.numpy()
     land_channel = torch.tensor(land_mask_np).float()
-    # TODO: load from external
-    lon_grid, lat_grid = [
-        transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)
-    ]
 
     #
     # Training data
     #
-    train_input_ds = build_input_dataset_form_config(config, True, lat_grid)
+    train_input_ds = build_input_dataset_form_config(config, True)
     # AWS
     train_aws_data = load_persisted_data_object(config.train_aws_data_path)
     # ERA
@@ -845,7 +838,7 @@ if __name__ == "__main__":
     #
     # Test Data
     #
-    test_input_ds = build_input_dataset_form_config(config, False, lat_grid)
+    test_input_ds = build_input_dataset_form_config(config, False)
     test_reduced_indices = list(range(1, len(test_input_ds) + 1))
     # AWS
     test_aws_data = load_persisted_data_object(config.test_aws_data_path)
@@ -977,6 +970,8 @@ if __name__ == "__main__":
         era_acc = validate_against_era5(pred, test_era_ds, land_mask, config)
         # Validate against AWS DB
         db = get_db_session("../data/dbs/wmo_gsod.db")
+        lon_grid = np.load(config.lon_grid_path)
+        lat_grid = np.load(config.lat_grid_path)
         aws_acc = validate_against_aws_db(
             pred, db, val_dates, lon_grid, lat_grid, land_mask, config
         )
