@@ -45,7 +45,6 @@ from validate import (
     WMOValidator,
 )
 from validation_db_orm import get_db_session
-import ease_grid as eg
 
 
 def get_cli_parser():
