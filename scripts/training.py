@@ -142,6 +142,8 @@ ConfigV2 = namedtuple(
         # Paths
         "land_mask_path",
         "dem_data_path",
+        "lon_grid_path",
+        "lat_grid_path",
         "train_aws_data_path",
         "train_date_map_path",
         "train_tb_data_path",
