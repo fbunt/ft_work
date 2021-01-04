@@ -33,11 +33,7 @@ from model import (
     UNet,
     local_variation_loss,
 )
-from transforms import (
-    AK,
-    N45W,
-    REGION_TO_TRANS,
-)
+from transforms import REGION_TO_TRANS
 from utils import FT_CMAP, validate_file_path
 from validate import (
     RETRIEVAL_MIN,
