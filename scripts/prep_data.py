@@ -59,20 +59,20 @@ def get_missing_ratio(x):
     return np.isnan(x).sum() / x.size
 
 
-def get_predecessor(x, i, missing):
+def get_predecessor(x, i, missing, missing_func=np.isnan):
     px = x[i].copy()
     count = np.zeros(px.shape, dtype=int)
     j = i - 1
     while missing.any():
         px[missing] = x[j, missing]
         count[missing] += 1
-        missing = np.isnan(px)
+        missing = missing_func(px)
         j -= 1
     idx = count != 0
     return px[idx], count[idx]
 
 
-def get_successor(x, i, missing):
+def get_successor(x, i, missing, missing_func=np.isnan):
     sx = x[i].copy()
     count = np.zeros(sx.shape, dtype=int)
     j = i + 1
@@ -81,7 +81,7 @@ def get_successor(x, i, missing):
     while missing.any():
         sx[missing] = x[j, missing]
         count[missing] += 1
-        missing = np.isnan(sx)
+        missing = missing_func(sx)
         j += 1
         if j >= len(x):
             j = 0
@@ -97,9 +97,9 @@ def fill_gaps(x, missing_func=np.isnan):
             continue
         # count is how far the alg had to go to find a value
         # Get past value
-        pred, pcount = get_predecessor(x, i, gaps)
+        pred, pcount = get_predecessor(x, i, gaps, missing_func)
         # Get future value
-        succ, scount = get_successor(x, i, gaps)
+        succ, scount = get_successor(x, i, gaps, missing_func)
         # Weighted mean
         total = pcount + scount
         # The predecessor/successor with the higher count should be weighted
