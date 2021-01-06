@@ -185,149 +185,155 @@ def prep(
             fd.write(f"{d}\n")
 
 
-AK = "ak"
-NH = "nh"
-N45 = "n45"
-N45W = "n45w"
-GL = "gl"
-reg2trans = {
-    AK: AK_VIEW_TRANS,
-    NH: NH_VIEW_TRANS,
-    N45: N45_VIEW_TRANS,
-    N45W: N45W_VIEW_TRANS,
-    GL: lambda x: x,
-}
-region = N45W
-transform = reg2trans[region]
+if __name__ == "__main__":
+    AK = "ak"
+    NH = "nh"
+    N45 = "n45"
+    N45W = "n45w"
+    GL = "gl"
+    reg2trans = {
+        AK: AK_VIEW_TRANS,
+        NH: NH_VIEW_TRANS,
+        N45: N45_VIEW_TRANS,
+        N45W: N45W_VIEW_TRANS,
+        GL: lambda x: x,
+    }
+    region = N45W
+    transform = reg2trans[region]
 
-drop_bad_days = False
-train_start_year = 2005
-train_final_year = 2014
-test_year = 2016
+    drop_bad_days = False
+    train_start_year = 2005
+    train_final_year = 2014
+    test_year = 2016
 
-out_lon, out_lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
+    out_lon, out_lat = [
+        transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)
+    ]
 
-base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
-out_dir = "../data/cleaned"
+    base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
+    out_dir = "../data/cleaned"
 
-# Training data
-print("Loading snow cover")
-snow = dataset_to_array(
-    torch.utils.data.ConcatDataset(
-        [
-            dh.NpyDataset(f"../data/snow/snow_cover_{y}.npy", transform)
-            for y in range(train_start_year, train_final_year + 1)
-        ]
-    )
-)
-print("Loading solar")
-solar = dataset_to_array(
-    torch.utils.data.ConcatDataset(
-        [
-            dh.NpyDataset(f"../data/solar/solar_rad-daily-{y}.npy", transform)
-            for y in range(train_start_year, train_final_year + 1)
-        ]
-    )
-)
-path_groups = [
-    glob.glob(f"../data/tb/{y}/tb_{y}_F*_ML_D*.nc")
-    for y in range(train_start_year, train_final_year + 1)
-]
-print("Loading tb")
-tb = dataset_to_array(build_tb_ds(path_groups, transform))
-print("Loading ERA")
-era_ft = dataset_to_array(
-    dh.TransformPipelineDataset(
-        dh.ERA5BidailyDataset(
+    # Training data
+    print("Loading snow cover")
+    snow = dataset_to_array(
+        torch.utils.data.ConcatDataset(
             [
-                f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+                dh.NpyDataset(f"../data/snow/snow_cover_{y}.npy", transform)
                 for y in range(train_start_year, train_final_year + 1)
-            ],
-            "t2m",
-            "AM",
-            out_lon,
-            out_lat,
-        ),
-        [transform, dh.FTTransform()],
+            ]
+        )
     )
-)
-era_t2m = dataset_to_array(
-    dh.TransformPipelineDataset(
-        dh.ERA5BidailyDataset(
+    print("Loading solar")
+    solar = dataset_to_array(
+        torch.utils.data.ConcatDataset(
             [
-                f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+                dh.NpyDataset(
+                    f"../data/solar/solar_rad-daily-{y}.npy", transform
+                )
                 for y in range(train_start_year, train_final_year + 1)
-            ],
-            "t2m",
-            "AM",
-            out_lon,
-            out_lat,
-        ),
-        [transform],
+            ]
+        )
     )
-)
-prep(
-    dt.date(train_start_year, 1, 1),
-    snow,
-    solar,
-    tb,
-    era_ft,
-    era_t2m,
-    out_dir,
-    region,
-    drop_bad_days,
-)
+    path_groups = [
+        glob.glob(f"../data/tb/{y}/tb_{y}_F*_ML_D*.nc")
+        for y in range(train_start_year, train_final_year + 1)
+    ]
+    print("Loading tb")
+    tb = dataset_to_array(build_tb_ds(path_groups, transform))
+    print("Loading ERA")
+    era_ft = dataset_to_array(
+        dh.TransformPipelineDataset(
+            dh.ERA5BidailyDataset(
+                [
+                    f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+                    for y in range(train_start_year, train_final_year + 1)
+                ],
+                "t2m",
+                "AM",
+                out_lon,
+                out_lat,
+            ),
+            [transform, dh.FTTransform()],
+        )
+    )
+    era_t2m = dataset_to_array(
+        dh.TransformPipelineDataset(
+            dh.ERA5BidailyDataset(
+                [
+                    f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+                    for y in range(train_start_year, train_final_year + 1)
+                ],
+                "t2m",
+                "AM",
+                out_lon,
+                out_lat,
+            ),
+            [transform],
+        )
+    )
+    prep(
+        dt.date(train_start_year, 1, 1),
+        snow,
+        solar,
+        tb,
+        era_ft,
+        era_t2m,
+        out_dir,
+        region,
+        drop_bad_days,
+    )
 
-
-# Validation data
-print("Loading snow cover")
-snow = dataset_to_array(
-    dh.NpyDataset(f"../data/snow/snow_cover_{test_year}.npy", transform)
-)
-print("Loading solar")
-solar = dataset_to_array(
-    dh.NpyDataset(f"../data/solar/solar_rad-daily-{test_year}.npy", transform)
-)
-print("Loading tb")
-tb = dataset_to_array(
-    build_tb_ds(
-        [glob.glob(f"../data/tb/{test_year}/tb_{test_year}_F17_ML_D*.nc")],
-        transform,
+    # Validation data
+    print("Loading snow cover")
+    snow = dataset_to_array(
+        dh.NpyDataset(f"../data/snow/snow_cover_{test_year}.npy", transform)
     )
-)
-print("Loading ERA")
-era_ft = dataset_to_array(
-    dh.TransformPipelineDataset(
-        dh.ERA5BidailyDataset(
-            [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
-            "t2m",
-            "AM",
-            out_lon,
-            out_lat,
-        ),
-        [transform, dh.FTTransform()],
+    print("Loading solar")
+    solar = dataset_to_array(
+        dh.NpyDataset(
+            f"../data/solar/solar_rad-daily-{test_year}.npy", transform
+        )
     )
-)
-era_t2m = dataset_to_array(
-    dh.TransformPipelineDataset(
-        dh.ERA5BidailyDataset(
-            [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
-            "t2m",
-            "AM",
-            out_lon,
-            out_lat,
-        ),
-        [transform],
+    print("Loading tb")
+    tb = dataset_to_array(
+        build_tb_ds(
+            [glob.glob(f"../data/tb/{test_year}/tb_{test_year}_F17_ML_D*.nc")],
+            transform,
+        )
     )
-)
-prep(
-    dt.date(test_year, 1, 1),
-    snow,
-    solar,
-    tb,
-    era_ft,
-    era_t2m,
-    out_dir,
-    region,
-    drop_bad_days,
-)
+    print("Loading ERA")
+    era_ft = dataset_to_array(
+        dh.TransformPipelineDataset(
+            dh.ERA5BidailyDataset(
+                [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
+                "t2m",
+                "AM",
+                out_lon,
+                out_lat,
+            ),
+            [transform, dh.FTTransform()],
+        )
+    )
+    era_t2m = dataset_to_array(
+        dh.TransformPipelineDataset(
+            dh.ERA5BidailyDataset(
+                [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
+                "t2m",
+                "AM",
+                out_lon,
+                out_lat,
+            ),
+            [transform],
+        )
+    )
+    prep(
+        dt.date(test_year, 1, 1),
+        snow,
+        solar,
+        tb,
+        era_ft,
+        era_t2m,
+        out_dir,
+        region,
+        drop_bad_days,
+    )
