@@ -304,23 +304,20 @@ if __name__ == "__main__":
                 out_lon,
                 out_lat,
             ),
-            [transform, dh.FTTransform()],
+            [dh.FTTransform()],
         )
     )
     era_t2m = dataset_to_array(
-        dh.TransformPipelineDataset(
-            dh.ERA5BidailyDataset(
-                [
-                    f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
-                    for y in range(train_start_year, train_final_year + 1)
-                ],
-                "t2m",
-                "AM",
-                out_lon,
-                out_lat,
-            ),
-            [transform],
-        )
+        dh.ERA5BidailyDataset(
+            [
+                f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+                for y in range(train_start_year, train_final_year + 1)
+            ],
+            "t2m",
+            "AM",
+            out_lon,
+            out_lat,
+        ),
     )
     prep(
         dt.date(train_start_year, 1, 1),
