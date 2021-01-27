@@ -1,6 +1,7 @@
 import argparse
 import numpy as np
 import os
+import re
 
 import ease_grid as eg
 from datahandling import get_aws_data, load_dates, persist_data_object
@@ -12,8 +13,11 @@ from validate import RETRIEVAL_MIN, RETRIEVAL_MAX
 def _validate_region(reg):
     if reg in REGION_CODES:
         return reg
+    if reg == "custom":
+        return None
     raise ValueError(
-        f"Invalid region code: {reg}\nValid options are: {REGION_CODES}"
+        f"Invalid region code: {reg}\nValid options are: {REGION_CODES} and "
+        "'custom'"
     )
 
 
@@ -33,7 +37,45 @@ def get_cli_parser():
         action="store",
         default=GL,
         type=_validate_region,
-        help="Region to use when querying the database. Default is GL.",
+        help=(
+            "Region to use when querying the database. Default is GL. "
+            "Use 'custom' to use custom grids. See --lon and --lat."
+        ),
+    )
+    p.add_argument(
+        "-d",
+        "--db_path",
+        type=validate_file_path,
+        default=None,
+        help="Database path. Optional.",
+    )
+    p.add_argument(
+        "--dates",
+        type=str,
+        default=None,
+        help="Database path. Optional.",
+    )
+    p.add_argument(
+        "-w",
+        "--water",
+        action="store",
+        default=None,
+        type=np.load,
+        help=".npy file containing water mask grid. Use with '-r custom'.",
+    )
+    p.add_argument(
+        "--lon",
+        action="store",
+        default=None,
+        type=np.load,
+        help=".npy file containing lon grid. Use with '-r custom'.",
+    )
+    p.add_argument(
+        "--lat",
+        action="store",
+        default=None,
+        type=np.load,
+        help=".npy file containing lat grid. Use with '-r custom'.",
     )
     p.add_argument(
         "start_year",
@@ -53,16 +95,22 @@ def main(args):
     if args.start_year > args.end_year:
         raise ValueError("Start year must be less than or equal to end_year")
     year_str = get_year_str(args.start_year, args.end_year)
-    transform = REGION_TO_TRANS[args.region]
-    dates = load_dates(
-        f"../data/cleaned/date_map-{year_str}-{args.region}.csv"
-    )
-    # TODO: add option for AM/PM
-    db_path = "../data/dbs/wmo_gsod.db"
-    land_mask = ~transform(np.load("../data/masks/ft_esdr_water_mask.npy"))
+    if args.region is not None:
+        transform = REGION_TO_TRANS[args.region]
+        land_mask = ~transform(np.load("../data/masks/ft_esdr_water_mask.npy"))
+        lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
+    else:
+        assert args.lon is not None and args.lat is not None
+        land_mask = ~args.water
+        lon = args.lon
+        lat = args.lat
     # TODO: add option for AM/PM
     ret_type = RETRIEVAL_MIN
-    lon, lat = [transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)]
+    dates = load_dates(
+        args.dates or f"../data/cleaned/date_map-{year_str}-{args.region}.csv"
+    )
+    # TODO: add option for AM/PM
+    db_path = args.db_path or "../data/dbs/wmo_gsod.db"
     aws_data = get_aws_data(
         dates,
         db_path,
