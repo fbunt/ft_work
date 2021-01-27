@@ -67,6 +67,7 @@ out_lat = np.load("../data/eu_lowres/lat-eu-lowres.npy")
 
 # Test
 tb = np.load("../data/eu_lowres/tb_18-36_eu_lowres_test.npy")
+print("Loading ERA5 FT")
 era_ft = dataset_to_array(
     dh.TransformPipelineDataset(
         dh.ERA5BidailyDataset(
@@ -80,6 +81,7 @@ era_ft = dataset_to_array(
     )
 )
 era_ft = era_ft[: len(tb)]
+print("Loading ERA5 t2m")
 era_t2m = dataset_to_array(
     dh.ERA5BidailyDataset(
         ["../data/era5/t2m/bidaily/era5-t2m-bidaily-2013.nc"],
@@ -103,6 +105,7 @@ prep(
 )
 # Training
 tb = np.load("../data/eu_lowres/tb_18-36_eu_lowres_train.npy")
+print("Loading ERA5 FT")
 era_ft = dataset_to_array(
     dh.TransformPipelineDataset(
         dh.ERA5BidailyDataset(
@@ -119,6 +122,7 @@ era_ft = dataset_to_array(
     )
 )
 era_ft = era_ft[: len(tb)]
+print("Loading ERA5 t2m")
 era_t2m = dataset_to_array(
     dh.ERA5BidailyDataset(
         [
