@@ -82,7 +82,7 @@ era_ft = dataset_to_array(
 era_ft = era_ft[: len(tb)]
 era_t2m = dataset_to_array(
     dh.ERA5BidailyDataset(
-        ["../data/era5/t2m/bidaily/era-t2m-bidaily-2013.nc"],
+        ["../data/era5/t2m/bidaily/era5-t2m-bidaily-2013.nc"],
         "t2m",
         "AM",
         out_lon,
