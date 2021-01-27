@@ -99,7 +99,6 @@ prep(
     era_t2m,
     "../data/eu_lowres",
     False,
-    missing_cutoff=0.6,
     periodic=True,
     non_periodic_bias_val=20,
 )
@@ -143,7 +142,6 @@ prep(
     era_t2m,
     "../data/eu_lowres",
     False,
-    missing_cutoff=0.6,
-    periodic=True,
+    periodic=False,
     non_periodic_bias_val=200,
 )
