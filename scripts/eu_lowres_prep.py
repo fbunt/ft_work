@@ -51,9 +51,9 @@ def prep(
     start_year = dates[0].year
     end_year = dates[-1].year
     year_str = get_year_str(start_year, end_year)
-    np.save(f"{out_dir}/tb-D-{year_str}-eu_lowres.npy")
-    np.save(f"{out_dir}/era5-ft-am-{year_str}-eu_lowres.npy")
-    np.save(f"{out_dir}/era5-t2m-am-{year_str}-eu_lowres.npy")
+    np.save(f"{out_dir}/tb-D-{year_str}-eu_lowres.npy", tb)
+    np.save(f"{out_dir}/era5-ft-am-{year_str}-eu_lowres.npy", era_ft)
+    np.save(f"{out_dir}/era5-t2m-am-{year_str}-eu_lowres.npy", era_t2m)
     with open(f"{out_dir}/date_map-{year_str}-eu_lowres.csv", "w") as fd:
         for i, d in zip(good_idxs, dates):
             fd.write(f"{i},{d}\n")
