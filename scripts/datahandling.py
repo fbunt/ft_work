@@ -676,27 +676,29 @@ def get_aws_data(
     ]
     fzn_idxs = []
     thw_idxs = []
-    for d in tqdm.tqdm(
-        dates,
-        ncols=80,
-        total=len(dates),
-        desc="Loading AWS",
-    ):
-        vpoints, vtemps = aws_pf.fetch_bounded(d, geo_bounds)
-        vft = ft_model_zero_threshold(vtemps).astype(int)
-        # The set of valid indices
-        valid_idxs = set(np.nonzero(land_mask.ravel())[0])
-        idxs, vft = get_nearest_flat_idxs_and_values(
-            tree, vpoints, vft, valid_idxs
-        )
-        fzn = torch.tensor(
-            [i for i, v in zip(idxs, vft) if v == LABEL_FROZEN],
-            dtype=torch.long,
-        )
-        thw = torch.tensor(
-            [i for i, v in zip(idxs, vft) if v == LABEL_THAWED],
-            dtype=torch.long,
-        )
+    it = tqdm.tqdm(dates, ncols=80, total=len(dates), desc="Loading AWS")
+    for d in it:
+        query_results = aws_pf.fetch_bounded(d, geo_bounds)
+        if query_results is not None:
+            vpoints, vtemps = query_results
+            vft = ft_model_zero_threshold(vtemps).astype(int)
+            # The set of valid indices
+            valid_idxs = set(np.nonzero(land_mask.ravel())[0])
+            idxs, vft = get_nearest_flat_idxs_and_values(
+                tree, vpoints, vft, valid_idxs
+            )
+            fzn = torch.tensor(
+                [i for i, v in zip(idxs, vft) if v == LABEL_FROZEN],
+                dtype=torch.long,
+            )
+            thw = torch.tensor(
+                [i for i, v in zip(idxs, vft) if v == LABEL_THAWED],
+                dtype=torch.long,
+            )
+        else:
+            it.write(f"WARNING: no data found for {d}")
+            fzn = torch.tensor([], dtype=torch.long)
+            thw = torch.tensor([], dtype=torch.long)
         fzn_idxs.append(fzn)
         thw_idxs.append(thw)
     db.close()
@@ -721,15 +723,16 @@ def get_aws_full_data_for_dates(
         lat_grid.max(),
     ]
     results = []
-    for d in tqdm.tqdm(
-        dates,
-        ncols=80,
-        total=len(dates),
-        desc="Loading AWS",
-    ):
-        ids, vpoints, vtemps = aws_pf.fetch_bounded(
+    it = tqdm.tqdm(dates, ncols=80, total=len(dates), desc="Loading AWS")
+    for d in it:
+        query_results = aws_pf.fetch_bounded(
             d, geo_bounds, include_station_ids=True
         )
+        if query_results is not None:
+            ids, vpoints, vtemps = query_results
+        else:
+            it.write(f"WARNING: no data found for {d}")
+            continue
         vft = ft_model_zero_threshold(vtemps).astype(int)
         # The set of valid indices
         valid_idxs = set(np.nonzero(land_mask.ravel())[0])
