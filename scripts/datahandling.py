@@ -282,9 +282,7 @@ class ERA5BidailyDataset(Dataset):
         return self.ds[self.var_name][self.data_slice]
 
     def __getitem__(self, idx):
-        # print("getting grid")
         grid = self.data()[idx].values
-        # print("creating ip")
         # Need to make lat increasing for interpolation
         ip = RBS(self.inlat[::-1], self.inlon, grid[::-1])
         # print("interpolating")
