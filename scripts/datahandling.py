@@ -642,8 +642,8 @@ def persist_data_object(data, path):
 
 def load_persisted_data_object(path):
     utils.validate_file_path(path)
-    with open(path, "rb", allow_pickle=True) as fd:
-        return pickle.load(fd)
+    with open(path, "rb") as fd:
+        return pickle.load(fd, allow_pickle=True)
 
 
 def load_dates(path):
