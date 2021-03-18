@@ -75,132 +75,6 @@ class DatabaseReference:
         return self.creation_func(self.path)
 
 
-class GaussianRBF:
-    """Gaussian radial basis function"""
-
-    def __init__(self, epsilon):
-        self.eps = epsilon
-
-    def __call__(self, r):
-        return np.exp(-((self.eps * r) ** 2))
-
-
-DEFAULT_RBF_EPS = 8e-6
-
-
-class AWSFuzzyLabelDataset(Dataset):
-    def __init__(
-        self,
-        db_ref,
-        rbf=GaussianRBF(DEFAULT_RBF_EPS),
-        transform=None,
-        other_mask=None,
-        k=100,
-        grid_code=eg.ML,
-    ):
-        assert k > 0, "k must be greater than 0"
-        self.db_ref = db_ref
-        self.rbf = rbf
-        self.k = k
-        self.grid_code = grid_code
-        self.transform = transform or (lambda x: x)
-        elon, elat = eg.v1_get_full_grid_lonlat(grid_code)
-        ease_xm, ease_ym = eg.v1_lonlat_to_meters(elon, elat, grid_code)
-        self.ease_xm = self.transform(ease_xm)
-        self.ease_ym = self.transform(ease_ym)
-        self.ease_tree = KDTree(
-            list(zip(self.ease_xm.ravel(), self.ease_ym.ravel()))
-        )
-        elon = self.transform(elon)
-        elat = self.transform(elat)
-        # Compute bounds for querying the db
-        self.lon_min = elon.min()
-        self.lon_max = elon.max()
-        self.lat_min = elat.min()
-        self.lat_max = elat.max()
-        self.grid_shape = self.ease_xm.shape
-        other_mask = (
-            other_mask
-            if other_mask is not None
-            else np.zeros(eg.GRID_NAME_TO_V1_SHAPE[eg.ML], dtype=bool)
-        )
-        self.other_mask = self.transform(other_mask)
-        self.ft_mask = ~self.other_mask
-
-    def __getitem__(self, dtime):
-        if not isinstance(dtime, dt.datetime):
-            raise TypeError("Index value must be a Datetime object")
-        date = dt.date(dtime.year, dtime.month, dtime.day)
-        hour = dtime.hour
-        field = DbWMOMetDailyTempRecord.temperature_mean
-        if hour == 6:
-            field = DbWMOMetDailyTempRecord.temperature_min
-        elif hour == 18:
-            field = DbWMOMetDailyTempRecord.temperature_max
-        records = (
-            self.db_ref()
-            .query(DbWMOMetStation.lon, DbWMOMetStation.lat, field)
-            .join(DbWMOMetDailyTempRecord.met_station)
-            .filter(DbWMOMetDailyTempRecord.date_int == date_to_int(date))
-            .filter(field != None)  # noqa: E711  have to use != for sqlalchemy
-            .filter(DbWMOMetStation.lon >= self.lon_min)
-            .filter(DbWMOMetStation.lon <= self.lon_max)
-            .filter(DbWMOMetStation.lat >= self.lat_min)
-            .filter(DbWMOMetStation.lat <= self.lat_max)
-            .all()
-        )
-        dgrid = np.full(np.prod(self.grid_shape), np.inf)
-        fgrid = np.full(np.prod(self.grid_shape), np.inf)
-        for i, r in enumerate(records):
-            sx, sy = eg.v1_lonlat_to_meters(r[0], r[1])
-            dist, idx = self.ease_tree.query((sx, sy), k=100)
-            # P(frozen; x) := 0.5(P(frozen=True; x_stn)*RBF(x - x_stn))) + 0.5
-            # P(thawed; x) := 1 - P(frozen; x)
-            if r[-1] <= 273.15:
-                # Frozen
-                p_frozen = (0.5 * self.rbf(dist)) + 0.5
-            else:
-                # Thawed
-                p_thawed = (0.5 * self.rbf(dist)) + 0.5
-                p_frozen = 1 - p_thawed
-            dist_min = dist < dgrid[idx]
-            view = fgrid[idx]
-            view[dist_min] = p_frozen[dist_min]
-            fgrid[idx] = view
-            view = dgrid[idx]
-            view[dist_min] = dist[dist_min]
-            dgrid[idx] = view
-            # Handle tie
-            dist_tie = dist == dgrid[idx]
-            if dist_tie.any():
-                view = fgrid[idx]
-                view[dist_tie] = (p_frozen[dist_tie] + view[dist_tie]) / 2.0
-                fgrid[idx] = view
-                view = dgrid[idx]
-                view[dist_tie] = dist[dist_tie]
-                dgrid[idx] = view
-        fgrid = fgrid.reshape(self.grid_shape)
-
-        labels = np.zeros((3, *self.grid_shape))
-        # Frozen
-        labels[0] = fgrid
-        # Thawed
-        labels[1] = 1 - fgrid
-        self.labels_copy = labels.copy()
-        # fill with 50% everywhere else
-        labels[0, np.isinf(fgrid)] = 0.5
-        labels[1, np.isinf(fgrid)] = 0.5
-        # OTHER: P(other) := 1 at mask points, 0 everywhere else
-        labels[2, self.other_mask] = 1
-        labels[2, self.ft_mask] = 0
-        labels[0, self.other_mask] = 0
-        labels[1, self.other_mask] = 0
-        return labels
-
-    def __len__(self):
-        return self.db_ref().query(DbWMOMeanDate).count()
-
-
 class AWSDateRangeWrapperDataset(Dataset):
     def __init__(self, aws_dataset, start_date, end_date, am_pm):
         """Make an AWS dataset that takes dates indexable with integers.
@@ -220,7 +94,6 @@ class AWSDateRangeWrapperDataset(Dataset):
         while date < end_date:
             dates.append(date)
             date += delta
-        dates = dates
         self.am_pm = am_pm
         self.idx_to_date = {i: d for i, d in enumerate(dates)}
         self.ds = aws_dataset
@@ -233,7 +106,7 @@ class AWSDateRangeWrapperDataset(Dataset):
 
 
 class ERA5BidailyDataset(Dataset):
-    """Dataset for loading and regridding ERA5 netCDF files """
+    """Dataset for loading and regridding ERA5 netCDF files"""
 
     def __init__(self, paths, var_name, scheme, out_lon, out_lat, chunks=1):
         """Return new dataset
@@ -287,7 +160,6 @@ class ERA5BidailyDataset(Dataset):
         ip = RBS(self.inlat[::-1], self.inlon, grid[::-1])
         # print("interpolating")
         igrid = ip(self.outlat[::-1], self.outlon)[::-1]
-        # Roll along the lon dimension to center at lon=0
         return igrid
 
     def __len__(self):
@@ -438,6 +310,18 @@ class NpyDataset(Dataset):
     """Loads a .npy data file and wraps it in a Dataset interface"""
 
     def __init__(self, data_file_or_array, transform=None, channels=None):
+        """
+        Params:
+            data_file_or_array (str or ndarray): .npy file path or numpy array
+            transform (callable): a transform that will be applied to the
+                    loaded array. Default is to do nothing.
+            channels (list of ints): The subchannels in the channel dimension
+                    to be loaded. This assumes that the data follows the
+                    PyTorch dimension convention of (N, C, *). The subchannel
+                    view of the original data is copied to avoid holding extra
+                    data in memeory.
+        """
+
         transform = transform or (lambda x: x)
         if isinstance(data_file_or_array, np.ndarray):
             data = data_file_or_array
@@ -455,6 +339,11 @@ class NpyDataset(Dataset):
 
 
 class ChannelSubsetDataset(Dataset):
+    """
+    A Datast that returns views with a subset of the original dataset's
+    channels
+    """
+
     def __init__(self, dataset, channels):
         self.ds = dataset
         self.channels = channels
@@ -467,6 +356,12 @@ class ChannelSubsetDataset(Dataset):
 
 
 class IndexEchoDataset(Dataset):
+    """A Dataset that echos the indices it is given
+
+    This is very handy for getting indices inside the training loop that can be
+    used to access data not being supplied by the data loader.
+    """
+
     def __init__(self, n, offset=0):
         self.n = n
         self.offset = offset
@@ -479,6 +374,8 @@ class IndexEchoDataset(Dataset):
 
 
 class ListDataset(Dataset):
+    """Wraps a list of data in a Dataset interface"""
+
     def __init__(self, list_obj):
         self.data = list_obj
 
@@ -518,7 +415,7 @@ class SingleValueGridDataset(Dataset):
 
 
 class GridsStackDataset(Dataset):
-    """Stacks dataset outputs into single tensor.
+    """Stacks dataset outputs into a single tensor.
 
     This dataset essentially calls torch.cat([d[idx] for d in datasets], 0)
     to get an (N_channels, H, W) tensor.
@@ -553,6 +450,12 @@ class GridsStackDataset(Dataset):
 
 
 class ComposedDataset(Dataset):
+    """Passes a query index on to a set of datasets and composses the results
+    into a list.
+
+    Extremely handy for building more complex data loading.
+    """
+
     def __init__(self, datasets):
         if not len(datasets):
             raise DataLoadingError("No datasets were provided")
@@ -568,33 +471,12 @@ class ComposedDataset(Dataset):
         return self.size
 
 
-class ComposedDictDataset(Dataset):
-    def __init__(self, datasets):
-        if not len(datasets):
-            raise DataLoadingError("No datasets were provided")
-        if len(set(len(d) for d in datasets)) > 1:
-            raise DataLoadingError("Dataset sizes must match")
-        self.datasets = datasets
-        self.size = len(self.datasets[0])
-
-    def __getitem__(self, idx):
-        if idx >= self.size or idx < 0:
-            raise IndexError(f"{idx} is out of bounds")
-        return {d.KEY: d[idx] for d in self.datasets}
-
-    def __len__(self):
-        return self.size
-
-
 class TransformPipelineDataset(Dataset):
-    """Applies a series of transforms to items from an input dataset"""
+    """Applies a series of transforms to query results from an input dataset"""
 
     def __init__(self, input_ds, transforms):
         self.ds = input_ds
         self.transforms = transforms
-
-    def __len__(self):
-        return len(self.ds)
 
     def __getitem__(self, idx):
         item = self.ds[idx]
@@ -602,8 +484,14 @@ class TransformPipelineDataset(Dataset):
             item = t(item)
         return item
 
+    def __len__(self):
+        return len(self.ds)
+
 
 class FTTransform:
+    """Returns whether inputs are above or below the Kelvin freezing temp with
+    the results split into frozen and thawed channels."""
+
     def __call__(self, grid):
         out = np.zeros((2, *grid.shape), dtype=int)
         # Frozen
@@ -634,8 +522,9 @@ def read_accuracies_file(path):
         return dates, era, aws
 
 
-def persist_data_object(data, path):
-    # TODO: check for overwrite
+def persist_data_object(data, path, overwrite=False):
+    if os.path.isfile(path) and not overwrite:
+        raise IOError("File already exists. overwrite must be forced")
     with open(path, "wb") as fd:
         pickle.dump(data, fd, -1)
 
@@ -663,6 +552,13 @@ def get_aws_data(
     lat_grid,
     ret_type,
 ):
+    """Returns the results of FT queries against an AWS database.
+
+    The return format is a list of 2-tuples. List elements correspond to the
+    query dates. Each tuple is length 2 and contains the frozen grid indices as
+    a tensor and the thawed grid indices as a tensor. The indices are flat
+    indices for the grid specified by the lon and lat grids.
+    """
     db = get_db_session(db_path)
     aws_pf = WMOValidationPointFetcher(db, retrieval_type=ret_type)
     tree = KDTree(np.array(list(zip(lon_grid.ravel(), lat_grid.ravel()))))
@@ -711,6 +607,13 @@ def get_aws_full_data_for_dates(
     lat_grid,
     ret_type,
 ):
+    """Returns the results of FT queries against an AWS database.
+
+    The return format is a pandas DataFrame in "Tidy Data" layout, AKA long
+    format. Each row corresponds to an AWS obsevation that matched the queries.
+    Each row contains the station id ("sid"), date ("date"), FT state ("ft"),
+    and the flat grid index.
+    """
     db = get_db_session(db_path)
     aws_pf = WMOValidationPointFetcher(db, retrieval_type=ret_type)
     tree = KDTree(np.array(list(zip(lon_grid.ravel(), lat_grid.ravel()))))
