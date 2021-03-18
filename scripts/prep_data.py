@@ -6,10 +6,12 @@ import torch
 import tqdm
 
 from transforms import (
-    AK_VIEW_TRANS,
-    NH_VIEW_TRANS,
-    N45_VIEW_TRANS,
-    N45W_VIEW_TRANS,
+    AK,
+    GL,
+    N45,
+    N45W,
+    NH,
+    REGION_TO_TRANS,
 )
 import datahandling as dh
 import ease_grid as eg
@@ -237,20 +239,8 @@ def prep(
 
 
 if __name__ == "__main__":
-    AK = "ak"
-    NH = "nh"
-    N45 = "n45"
-    N45W = "n45w"
-    GL = "gl"
-    reg2trans = {
-        AK: AK_VIEW_TRANS,
-        NH: NH_VIEW_TRANS,
-        N45: N45_VIEW_TRANS,
-        N45W: N45W_VIEW_TRANS,
-        GL: lambda x: x,
-    }
     region = N45W
-    transform = reg2trans[region]
+    transform = REGION_TO_TRANS[region]
 
     drop_bad_days = False
     train_start_year = 2005
