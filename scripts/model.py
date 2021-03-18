@@ -92,7 +92,7 @@ class _MultiConvBlock(nn.Module):
 
     def forward(self, x):
         x = self.conv_block(x)
-        return x
+        return self.out(x)
 
 
 class _DownSample(nn.Module):
