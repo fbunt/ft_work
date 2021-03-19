@@ -169,14 +169,16 @@ FMT_FILENAME_TB = "{out_dir}/tb-D-{year_str}-{region}.npy"
 FMT_FILENAME_ERA_FT = "{out_dir}/era5-ft-am-{year_str}-{region}.npy"
 FMT_FILENAME_ERA_T2M = "{out_dir}/era5-t2m-am-{year_str}-{region}.npy"
 
+SNOW_KEY = "snow"
+SOLAR_KEY = "solar"
+TB_KEY = "tb"
+ERA_FT_KEY = "era_ft"
+ERA_T2M_KEY = "era_t2m"
+
 
 def prep(
     start_date,
-    snow,
-    solar,
-    tb,
-    era_ft,
-    era_t2m,
+    data,
     out_dir,
     region,
     drop_bad_days,
@@ -185,7 +187,8 @@ def prep(
     non_periodic_bias_val=20,
 ):
     out_dir = os.path.abspath(out_dir)
-    n = len(solar)
+    tb = data[TB_KEY]
+    n = len(tb)
     dates = np.array(get_n_dates(start_date, n))
 
     if drop_bad_days:
@@ -202,34 +205,40 @@ def prep(
     n = len(good_idxs)
     dropped_dates = dates[bad_idxs]
     dates = dates[good_idxs]
-    snow = snow[good_idxs]
-    solar = solar[good_idxs]
+    if SNOW_KEY in data:
+        snow = data[SNOW_KEY][good_idxs]
+        snow = np.round(
+            fill_gaps(
+                snow,
+                missing_func=is_neg_one,
+                periodic=periodic,
+                non_periodic_bias_val=non_periodic_bias_val,
+            )
+        )
+    if SOLAR_KEY in data:
+        solar = data[SOLAR_KEY][good_idxs]
     tb = tb[good_idxs]
-    era_ft = era_ft[good_idxs]
-    era_t2m = era_t2m[good_idxs]
+    era_ft = data[ERA_FT_KEY][good_idxs]
+    if ERA_T2M_KEY in data:
+        era_t2m = data[ERA_T2M_KEY][good_idxs]
     tb = fill_gaps(
         tb, periodic=periodic, non_periodic_bias_val=non_periodic_bias_val
-    )
-    snow = np.round(
-        fill_gaps(
-            snow,
-            missing_func=is_neg_one,
-            periodic=periodic,
-            non_periodic_bias_val=non_periodic_bias_val,
-        )
     )
 
     start_year = dates[0].year
     end_year = dates[-1].year
     year_str = get_year_str(start_year, end_year)
-    data_dict = {
-        FMT_FILENAME_SNOW: snow,
-        FMT_FILENAME_SOLAR: solar,
+    out_dict = {
         FMT_FILENAME_TB: tb,
         FMT_FILENAME_ERA_FT: era_ft,
-        FMT_FILENAME_ERA_T2M: era_t2m,
     }
-    save_data(data_dict, out_dir, year_str, region)
+    if SNOW_KEY in data:
+        out_dict[FMT_FILENAME_SNOW] = snow
+    if SOLAR_KEY in data:
+        out_dict[FMT_FILENAME_SOLAR] = solar
+    if ERA_T2M_KEY in data:
+        out_dict[FMT_FILENAME_ERA_T2M] = era_t2m
+    save_data(out_dict, out_dir, year_str, region)
     with open(f"{out_dir}/date_map-{year_str}-{region}.csv", "w") as fd:
         for i, d in zip(good_idxs, dates):
             fd.write(f"{i},{d}\n")
@@ -241,6 +250,10 @@ def prep(
 if __name__ == "__main__":
     region = N45W
     transform = REGION_TO_TRANS[region]
+
+    prep_snow = False
+    prep_solar = False
+    prep_era_t2m = False
 
     drop_bad_days = False
     train_start_year = 2005
@@ -255,32 +268,40 @@ if __name__ == "__main__":
     out_dir = "../data/cleaned"
 
     # Training data
-    print("Loading snow cover")
-    snow = dataset_to_array(
-        torch.utils.data.ConcatDataset(
-            [
-                dh.NpyDataset(f"../data/snow/snow_cover_{y}.npy", transform)
-                for y in range(train_start_year, train_final_year + 1)
-            ]
+    data = {}
+    if prep_snow:
+        print("Loading snow cover")
+        snow = dataset_to_array(
+            torch.utils.data.ConcatDataset(
+                [
+                    dh.NpyDataset(
+                        f"../data/snow/snow_cover_{y}.npy", transform
+                    )
+                    for y in range(train_start_year, train_final_year + 1)
+                ]
+            )
         )
-    )
-    print("Loading solar")
-    solar = dataset_to_array(
-        torch.utils.data.ConcatDataset(
-            [
-                dh.NpyDataset(
-                    f"../data/solar/solar_rad-daily-{y}.npy", transform
-                )
-                for y in range(train_start_year, train_final_year + 1)
-            ]
+        data[SNOW_KEY] = snow
+    if prep_solar:
+        print("Loading solar")
+        solar = dataset_to_array(
+            torch.utils.data.ConcatDataset(
+                [
+                    dh.NpyDataset(
+                        f"../data/solar/solar_rad-daily-{y}.npy", transform
+                    )
+                    for y in range(train_start_year, train_final_year + 1)
+                ]
+            )
         )
-    )
+        solar[SOLAR_KEY] = solar
     path_groups = [
         glob.glob(f"../data/tb/{y}/tb_{y}_F*_ML_D*.nc")
         for y in range(train_start_year, train_final_year + 1)
     ]
     print("Loading tb")
     tb = dataset_to_array(build_tb_ds(path_groups, transform))
+    data[TB_KEY] = tb
     print("Loading ERA")
     era_ft = dataset_to_array(
         dh.TransformPipelineDataset(
@@ -297,41 +318,47 @@ if __name__ == "__main__":
             [dh.FTTransform()],
         )
     )
-    era_t2m = dataset_to_array(
-        dh.ERA5BidailyDataset(
-            [
-                f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
-                for y in range(train_start_year, train_final_year + 1)
-            ],
-            "t2m",
-            "AM",
-            out_lon,
-            out_lat,
-        ),
-    )
+    data[ERA_FT_KEY] = era_ft
+    if prep_era_t2m:
+        era_t2m = dataset_to_array(
+            dh.ERA5BidailyDataset(
+                [
+                    f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+                    for y in range(train_start_year, train_final_year + 1)
+                ],
+                "t2m",
+                "AM",
+                out_lon,
+                out_lat,
+            ),
+        )
+        data[ERA_T2M_KEY] = era_t2m
     prep(
         dt.date(train_start_year, 1, 1),
-        snow,
-        solar,
-        tb,
-        era_ft,
-        era_t2m,
+        data,
         out_dir,
         region,
         drop_bad_days,
     )
 
     # Validation data
-    print("Loading snow cover")
-    snow = dataset_to_array(
-        dh.NpyDataset(f"../data/snow/snow_cover_{test_year}.npy", transform)
-    )
-    print("Loading solar")
-    solar = dataset_to_array(
-        dh.NpyDataset(
-            f"../data/solar/solar_rad-daily-{test_year}.npy", transform
+    data = {}
+    if prep_snow:
+        print("Loading snow cover")
+        snow = dataset_to_array(
+            dh.NpyDataset(
+                f"../data/snow/snow_cover_{test_year}.npy", transform
+            )
         )
-    )
+        data[SNOW_KEY] = snow
+    if prep_solar:
+        print("Loading solar")
+        solar = dataset_to_array(
+            dh.NpyDataset(
+                f"../data/solar/solar_rad-daily-{test_year}.npy", transform
+            )
+        )
+        data[SOLAR_KEY] = solar
     print("Loading tb")
     tb = dataset_to_array(
         build_tb_ds(
@@ -339,6 +366,7 @@ if __name__ == "__main__":
             transform,
         )
     )
+    data[TB_KEY] = tb
     print("Loading ERA")
     era_ft = dataset_to_array(
         dh.TransformPipelineDataset(
@@ -352,25 +380,26 @@ if __name__ == "__main__":
             [transform, dh.FTTransform()],
         )
     )
-    era_t2m = dataset_to_array(
-        dh.TransformPipelineDataset(
-            dh.ERA5BidailyDataset(
-                [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
-                "t2m",
-                "AM",
-                out_lon,
-                out_lat,
-            ),
-            [transform],
+    data[ERA_FT_KEY] = era_ft
+    if prep_era_t2m:
+        era_t2m = dataset_to_array(
+            dh.TransformPipelineDataset(
+                dh.ERA5BidailyDataset(
+                    [
+                        f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"
+                    ],
+                    "t2m",
+                    "AM",
+                    out_lon,
+                    out_lat,
+                ),
+                [transform],
+            )
         )
-    )
+        data[ERA_T2M_KEY] = era_t2m
     prep(
         dt.date(test_year, 1, 1),
-        snow,
-        solar,
-        tb,
-        era_ft,
-        era_t2m,
+        data,
         out_dir,
         region,
         drop_bad_days,
