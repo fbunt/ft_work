@@ -4,8 +4,8 @@ config:
     n_classes: 2
     depth: 4
     base_filters: 64
-    skips: True
-    bndry_dropout: True
+    skips: False
+    bndry_dropout: False
     bndry_dropout_p: 2.0e-1
 
     # The number of in channels is calculated using the options below
@@ -26,16 +26,16 @@ config:
     test_start_year: 2016
     test_end_year: 2016
 
-    epochs: 1100
+    epochs: 950
     batch_size: 28
     drop_last: False
     learning_rate: 1.0e-4
-    lr_milestones: [350, 600, 750, 850, 950, 1000, 1050]
+    lr_milestones: [250, 350, 500, 650, 750, 850, 900]
     lr_step_gamma: 0.5
 
     l2_reg_weight: 1.0e-2
     main_loss_weight: 1.0e-0
-    aws_bce_weight: 5.0e+2
+    aws_bce_weight: 5.0e-0
     lv_reg_weight: 5.0e-2
     aws_use_valid_mask: False
     val_use_valid_mask: False
