@@ -1,12 +1,6 @@
 from scipy.interpolate import RectBivariateSpline as RBS
 from scipy.spatial import cKDTree as KDTree
 from torch.utils.data import Dataset
-from validate import (
-    WMOValidationPointFetcher,
-    ft_model_zero_threshold,
-    get_nearest_flat_idxs_and_values,
-)
-from validation_db_orm import get_db_session
 import datetime as dt
 import glob
 import numpy as np
@@ -26,13 +20,12 @@ from tb import (
     KEY_37V,
     SAT_DESCENDING,
 )
-from validation_db_orm import (
-    DbWMOMeanDate,
-    DbWMOMetDailyTempRecord,
-    DbWMOMetStation,
-    date_to_int,
+from validate import (
+    WMOValidationPointFetcher,
+    ft_model_zero_threshold,
+    get_nearest_flat_idxs_and_values,
 )
-import ease_grid as eg
+from validation_db_orm import get_db_session
 import tb as tbmod
 import utils
 
