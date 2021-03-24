@@ -294,7 +294,7 @@ if __name__ == "__main__":
                 ]
             )
         )
-        solar[SOLAR_KEY] = solar
+        data[SOLAR_KEY] = solar
     path_groups = [
         glob.glob(f"../data/tb/{y}/tb_{y}_F*_ML_D*.nc")
         for y in range(train_start_year, train_final_year + 1)
