@@ -4,7 +4,10 @@ import argparse
 import itertools
 import numpy as np
 import pandas as pd
-import rasterio as rio
+try:
+    import rasterio as rio
+except ImportError:
+    pass
 import re
 import tqdm
 
