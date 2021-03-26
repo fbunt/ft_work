@@ -2,7 +2,12 @@ from collections import namedtuple
 from torch.nn import DataParallel
 from torch.nn.functional import binary_cross_entropy_with_logits
 from torch.utils.data import Subset
-from torch.utils.tensorboard import SummaryWriter
+
+try:
+    from torch.utils.tensorboard import SummaryWriter
+    TENSORBOARD = True
+except ImportError:
+    TENSORBOARD = False
 import argparse
 import datetime as dt
 import matplotlib.pyplot as plt
@@ -53,6 +58,17 @@ def get_cli_parser():
         help="Path to config file. If not provided, the default file is used",
     )
     return p
+
+
+class SummaryWriterDummy:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def add_scalar(self, *args, **kwargs):
+        pass
+
+    def close(self, *args, **kwargs):
+        pass
 
 
 ConfigV1 = namedtuple(
@@ -373,8 +389,9 @@ def init_run_dir(root_dir, config_path):
     os.makedirs(log_dir, exist_ok=True)
     train_log_dir = os.path.join(log_dir, "training")
     test_log_dir = os.path.join(log_dir, "test")
-    train_summary = SummaryWriter(train_log_dir)
-    test_summary = SummaryWriter(test_log_dir)
+    summary_class = SummaryWriter if TENSORBOARD else SummaryWriterDummy
+    train_summary = summary_class(train_log_dir)
+    test_summary = summary_class(test_log_dir)
     show_log_sh = os.path.join(root_dir, "show_log.sh")
     # Create script to view logs
     with open(show_log_sh, "w") as fd:
