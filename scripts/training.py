@@ -5,6 +5,7 @@ from torch.utils.data import Subset
 
 try:
     from torch.utils.tensorboard import SummaryWriter
+
     TENSORBOARD = True
 except ImportError:
     TENSORBOARD = False
@@ -15,7 +16,6 @@ import matplotlib.ticker as tkr
 import numpy as np
 import os
 import shutil
-import stat
 import torch
 import tqdm
 import yaml
@@ -392,14 +392,6 @@ def init_run_dir(root_dir, config_path):
     summary_class = SummaryWriter if TENSORBOARD else SummaryWriterDummy
     train_summary = summary_class(train_log_dir)
     test_summary = summary_class(test_log_dir)
-    show_log_sh = os.path.join(root_dir, "show_log.sh")
-    # Create script to view logs
-    with open(show_log_sh, "w") as fd:
-        fd.write("#!/usr/bin/env bash\n")
-        fd.write(f"tensorboard --logdir {os.path.abspath(log_dir)}\n")
-        fd.flush()
-    st = os.stat(show_log_sh)
-    os.chmod(show_log_sh, st.st_mode | stat.S_IXUSR)
     return train_summary, test_summary
 
 
