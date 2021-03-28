@@ -170,34 +170,100 @@ ConfigV2 = namedtuple(
         "test_snow_data_path",
     ),
 )
+ConfigV2Plus = namedtuple(
+    "ConfigV2",
+    (
+        "version",
+        "in_chan",
+        "n_classes",
+        "depth",
+        "base_filters",
+        "skips",
+        "bndry_dropout",
+        "bndry_dropout_p",
+        "tb_channels",
+        "use_land_mask",
+        "use_dem",
+        "use_latitude",
+        "use_day_of_year",
+        "use_solar",
+        "use_snow",
+        "use_prior_day",
+        "normalize",
+        "region",
+        "train_start_year",
+        "train_end_year",
+        "test_start_year",
+        "test_end_year",
+        "epochs",
+        "batch_size",
+        "drop_last",
+        "learning_rate",
+        "lr_milestones",
+        "lr_step_gamma",
+        "l2_reg_weight",
+        "main_loss_weight",
+        "aws_bce_weight",
+        "lv_reg_weight",
+        "aws_use_valid_mask",
+        "val_use_valid_mask",
+        "do_val_plots",
+        "do_pred_plots",
+        # Paths
+        # New in v3
+        "runs_dir",
+        # New in v3
+        "db_path",
+        "land_mask_path",
+        "dem_data_path",
+        "lon_grid_path",
+        "lat_grid_path",
+        "train_aws_data_path",
+        "train_date_map_path",
+        "train_tb_data_path",
+        "train_era5_ft_data_path",
+        "train_solar_data_path",
+        "train_snow_data_path",
+        "test_aws_data_path",
+        "test_date_map_path",
+        "test_tb_data_path",
+        "test_era5_ft_data_path",
+        "test_solar_data_path",
+        "test_snow_data_path",
+    ),
+)
+
+
+def build_in_chan(cfg):
+    cfg["in_chan"] = (
+        len(cfg["tb_channels"])
+        + cfg["use_dem"]
+        + cfg["use_latitude"]
+        + cfg["use_day_of_year"]
+        + cfg["use_solar"]
+        + cfg["use_snow"]
+        + (len(cfg["tb_channels"]) * cfg["use_prior_day"])
+    )
+    return cfg
 
 
 def build_v1_config(cfg):
     if "version" not in cfg:
         cfg["version"] = 1
-    cfg["in_chan"] = (
-        len(cfg["tb_channels"])
-        + cfg["use_dem"]
-        + cfg["use_latitude"]
-        + cfg["use_day_of_year"]
-        + cfg["use_solar"]
-        + cfg["use_snow"]
-        + (len(cfg["tb_channels"]) * cfg["use_prior_day"])
-    )
+    cfg = build_in_chan(cfg)
     return ConfigV1(**cfg)
 
 
 def build_v2_config(cfg):
-    cfg["in_chan"] = (
-        len(cfg["tb_channels"])
-        + cfg["use_dem"]
-        + cfg["use_latitude"]
-        + cfg["use_day_of_year"]
-        + cfg["use_solar"]
-        + cfg["use_snow"]
-        + (len(cfg["tb_channels"]) * cfg["use_prior_day"])
-    )
+    cfg = build_in_chan(cfg)
     return ConfigV2(**cfg)
+
+
+def build_v2plus_config(cfg):
+    cfg = build_in_chan(cfg)
+    cfg["runs_dir"] = cfg.get("runs_dir", "../data/runs")
+    cfg["db_path"] = cfg.get("db_path", "../data/dbs/wmo_gsod.db")
+    return ConfigV2Plus(**cfg)
 
 
 class ConfigError(Exception):
@@ -210,8 +276,8 @@ def load_config(config_path):
     version = cfg.get("version", 1)
     if version == 1:
         return build_v1_config(cfg)
-    elif version == 2:
-        return build_v2_config(cfg)
+    elif version >= 2:
+        return build_v2plus_config(cfg)
     else:
         raise ConfigError("Invalid verion found in config file")
 
@@ -874,7 +940,12 @@ if __name__ == "__main__":
     )
 
     # Create run dir and fill with info
-    root_dir = f'../runs/{str(dt.datetime.now()).replace(" ", "-")}'
+    if not os.path.isdir(config.runs_dir):
+        print("Creating runs_dir")
+        os.mkdir(config.runs_dir)
+    root_dir = os.path.join(
+        config.runs_dir, f'{str(dt.datetime.now()).replace(" ", "-")}'
+    )
     print(f"Initializing run dir: {root_dir}")
     train_summary, test_summary = init_run_dir(root_dir, config_path)
     mpath = os.path.join(root_dir, "model.pt")
@@ -975,7 +1046,7 @@ if __name__ == "__main__":
         print("Validating against ERA5")
         era_acc = validate_against_era5(pred, test_era_ds, land_mask, config)
         # Validate against AWS DB
-        db = get_db_session("../data/dbs/wmo_gsod.db")
+        db = get_db_session(config.db_path)
         lon_grid = np.load(config.lon_grid_path)
         lat_grid = np.load(config.lat_grid_path)
         aws_acc = validate_against_aws_db(
