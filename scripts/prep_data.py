@@ -196,6 +196,7 @@ def prep(
     am_pm,
     db_path,
     drop_bad_days,
+    prep_tb,
     missing_cutoff=0.6,
     periodic=True,
     non_periodic_bias_val=20,
@@ -249,19 +250,21 @@ def prep(
         ft_label[i, 1].ravel()[ithw] = 1
     if ERA_T2M_KEY in data:
         era_t2m = data[ERA_T2M_KEY][good_idxs]
-    tb = fill_gaps(
-        tb, periodic=periodic, non_periodic_bias_val=non_periodic_bias_val
-    )
+    if prep_tb:
+        tb = fill_gaps(
+            tb, periodic=periodic, non_periodic_bias_val=non_periodic_bias_val
+        )
 
     start_year = dates[0].year
     end_year = dates[-1].year
     year_str = get_year_str(start_year, end_year)
     out_dict = {
-        FMT_FILENAME_TB: tb,
         FMT_FILENAME_ERA_FT: era_ft,
         FMT_FILENAME_FT_LABEL: ft_label,
         FMT_FILENAME_AWS_MASK: aws_mask,
     }
+    if prep_tb:
+        out_dict[FMT_FILENAME_TB] = tb,
     if SNOW_KEY in data:
         out_dict[FMT_FILENAME_SNOW] = snow
     if SOLAR_KEY in data:
@@ -286,6 +289,9 @@ if __name__ == "__main__":
     region = N45W
     transform = REGION_TO_TRANS[region]
 
+    # NOTE: prep_tb is handled differently. tb data is still loaded but no gap
+    # filling is done and the result is not saved.
+    prep_tb = True
     prep_snow = False
     prep_solar = False
     prep_era_t2m = False
@@ -384,6 +390,7 @@ if __name__ == "__main__":
         am_pm,
         db_path,
         drop_bad_days,
+        prep_tb,
     )
 
     # Validation data
@@ -453,4 +460,5 @@ if __name__ == "__main__":
         am_pm,
         db_path,
         drop_bad_days,
+        prep_tb,
     )
