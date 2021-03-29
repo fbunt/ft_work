@@ -242,7 +242,7 @@ def prep(
     era_ft = data[ERA_FT_KEY][good_idxs]
     ft_label = era_ft.copy()
     aws_mask = np.zeros((n, *lat_grid.shape), dtype=bool)
-    for i in tqdm.tqdm(n, ncols=80, desc="FT Label"):
+    for i in tqdm.tqdm(range(n), ncols=80, desc="FT Label"):
         ifzn, ithw = aws_data[i]
         aws_mask[i].ravel()[ifzn] = True
         aws_mask[i].ravel()[ithw] = True
