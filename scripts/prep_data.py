@@ -153,9 +153,15 @@ def fill_gaps(
     return gap_filled
 
 
-def save_data(data_dict, out_dir, year_str, region):
+def save_data(data_dict, out_dir, year_str, region, pass_, am_pm):
     for fname, data in data_dict.items():
-        name = fname.format(out_dir=out_dir, year_str=year_str, region=region)
+        name = fname.format(
+            out_dir=out_dir,
+            year_str=year_str,
+            region=region,
+            pass_=pass_,
+            am_pm=am_pm,
+        )
         print(f"Saving to: '{name}'")
         np.save(name, data)
 
@@ -165,10 +171,12 @@ def is_neg_one(x):
 
 
 FMT_FILENAME_SNOW = "{out_dir}/snow_cover-{year_str}-{region}.npy"
-FMT_FILENAME_SOLAR = "{out_dir}/solar_rad-AM-{year_str}-{region}.npy"
-FMT_FILENAME_TB = "{out_dir}/tb-D-{year_str}-{region}.npy"
-FMT_FILENAME_ERA_FT = "{out_dir}/era5-ft-am-{year_str}-{region}.npy"
-FMT_FILENAME_ERA_T2M = "{out_dir}/era5-t2m-am-{year_str}-{region}.npy"
+FMT_FILENAME_SOLAR = "{out_dir}/solar_rad-{am_pm}-{year_str}-{region}.npy"
+FMT_FILENAME_TB = "{out_dir}/tb-{pass_}-{year_str}-{region}.npy"
+FMT_FILENAME_ERA_FT = "{out_dir}/era5-ft-{am_pm}-{year_str}-{region}.npy"
+FMT_FILENAME_ERA_T2M = "{out_dir}/era5-t2m-{am_pm}-{year_str}-{region}.npy"
+FMT_FILENAME_FT_LABEL = "{out_dir}/ft_label-{am_pm}-{year_str}-{region}.npy"
+FMT_FILENAME_AWS_MASK = "{out_dir}/aws_mask-{am_pm}-{year_str}-{region}.npy"
 
 SNOW_KEY = "snow"
 SOLAR_KEY = "solar"
@@ -196,11 +204,8 @@ def prep(
     tb = data[TB_KEY]
     n = len(tb)
     dates = np.array(get_n_dates(start_date, n))
-
+    pass_ = "D" if am_pm == "AM" else "A"
     retrievel = RETRIEVAL_MIN if am_pm == "AM" else RETRIEVAL_MAX
-    aws_data = dh.get_aws_data(
-        dates, db_path, land_mask, lon_grid, lat_grid, retrievel
-    )
 
     if drop_bad_days:
         # Filter out indices where specified ratio of Tb data is missing
@@ -216,6 +221,10 @@ def prep(
     n = len(good_idxs)
     dropped_dates = dates[bad_idxs]
     dates = dates[good_idxs]
+
+    aws_data = dh.get_aws_data(
+        dates, db_path, land_mask, lon_grid, lat_grid, retrievel
+    )
     if SNOW_KEY in data:
         snow = data[SNOW_KEY][good_idxs]
         snow = np.round(
@@ -230,6 +239,14 @@ def prep(
         solar = data[SOLAR_KEY][good_idxs]
     tb = tb[good_idxs]
     era_ft = data[ERA_FT_KEY][good_idxs]
+    ft_label = era_ft.copy()
+    aws_mask = np.zeros((n, *lat_grid.shape), dtype=bool)
+    for i in tqdm.tqdm(n, ncols=80, desc="FT Label"):
+        ifzn, ithw = aws_data[i]
+        aws_mask[i].ravel()[ifzn] = True
+        aws_mask[i].ravel()[ithw] = True
+        ft_label[i, 0].ravel()[ifzn] = 1
+        ft_label[i, 1].ravel()[ithw] = 1
     if ERA_T2M_KEY in data:
         era_t2m = data[ERA_T2M_KEY][good_idxs]
     tb = fill_gaps(
@@ -242,6 +259,8 @@ def prep(
     out_dict = {
         FMT_FILENAME_TB: tb,
         FMT_FILENAME_ERA_FT: era_ft,
+        FMT_FILENAME_FT_LABEL: ft_label,
+        FMT_FILENAME_AWS_MASK: aws_mask,
     }
     if SNOW_KEY in data:
         out_dict[FMT_FILENAME_SNOW] = snow
@@ -249,12 +268,11 @@ def prep(
         out_dict[FMT_FILENAME_SOLAR] = solar
     if ERA_T2M_KEY in data:
         out_dict[FMT_FILENAME_ERA_T2M] = era_t2m
-    save_data(out_dict, out_dir, year_str, region)
+    save_data(out_dict, out_dir, year_str, region, pass_, am_pm)
     dh.persist_data_object(
         aws_data,
-        os.path.join(
-            out_dir, f"aws_data-AM-{year_str}-{region}.pkl"
-        ),
+        os.path.join(out_dir, f"aws_data-AM-{year_str}-{region}.pkl"),
+        overwrite=True,
     )
     with open(f"{out_dir}/date_map-{year_str}-{region}.csv", "w") as fd:
         for i, d in zip(good_idxs, dates):
