@@ -264,7 +264,7 @@ def prep(
         FMT_FILENAME_AWS_MASK: aws_mask,
     }
     if prep_tb:
-        out_dict[FMT_FILENAME_TB] = tb,
+        out_dict[FMT_FILENAME_TB] = (tb,)
     if SNOW_KEY in data:
         out_dict[FMT_FILENAME_SNOW] = snow
     if SOLAR_KEY in data:
@@ -274,7 +274,7 @@ def prep(
     save_data(out_dict, out_dir, year_str, region, pass_, am_pm)
     dh.persist_data_object(
         aws_data,
-        os.path.join(out_dir, f"aws_data-AM-{year_str}-{region}.pkl"),
+        os.path.join(out_dir, f"aws_data-{am_pm}-{year_str}-{region}.pkl"),
         overwrite=True,
     )
     with open(f"{out_dir}/date_map-{year_str}-{region}.csv", "w") as fd:
@@ -342,7 +342,7 @@ if __name__ == "__main__":
         )
         data[SOLAR_KEY] = solar
     path_groups = [
-        glob.glob(f"../data/tb/{y}/tb_{y}_F*_ML_D*.nc")
+        glob.glob(f"../data/tb/{y}/tb_{y}_F*_ML_{pass_}*.nc")
         for y in range(train_start_year, train_final_year + 1)
     ]
     print("Loading tb")
@@ -357,7 +357,7 @@ if __name__ == "__main__":
                     for y in range(train_start_year, train_final_year + 1)
                 ],
                 "t2m",
-                "AM",
+                am_pm,
                 out_lon,
                 out_lat,
             ),
@@ -373,7 +373,7 @@ if __name__ == "__main__":
                     for y in range(train_start_year, train_final_year + 1)
                 ],
                 "t2m",
-                "AM",
+                am_pm,
                 out_lon,
                 out_lat,
             ),
@@ -414,7 +414,11 @@ if __name__ == "__main__":
     print("Loading tb")
     tb = dataset_to_array(
         build_tb_ds(
-            [glob.glob(f"../data/tb/{test_year}/tb_{test_year}_F17_ML_D*.nc")],
+            [
+                glob.glob(
+                    f"../data/tb/{test_year}/tb_{test_year}_F17_ML_{pass_}*.nc"
+                )
+            ],
             transform,
         )
     )
@@ -425,7 +429,7 @@ if __name__ == "__main__":
             dh.ERA5BidailyDataset(
                 [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
                 "t2m",
-                "AM",
+                am_pm,
                 out_lon,
                 out_lat,
             ),
@@ -441,7 +445,7 @@ if __name__ == "__main__":
                         f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"
                     ],
                     "t2m",
-                    "AM",
+                    am_pm,
                     out_lon,
                     out_lat,
                 ),
