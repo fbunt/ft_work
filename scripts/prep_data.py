@@ -15,6 +15,7 @@ from transforms import (
 )
 import datahandling as dh
 import ease_grid as eg
+from validate import RETRIEVAL_MIN, RETRIEVAL_MAX
 
 
 def get_year_str(ya, yb):
@@ -181,6 +182,11 @@ def prep(
     data,
     out_dir,
     region,
+    land_mask,
+    lon_grid,
+    lat_grid,
+    am_pm,
+    db_path,
     drop_bad_days,
     missing_cutoff=0.6,
     periodic=True,
@@ -190,6 +196,11 @@ def prep(
     tb = data[TB_KEY]
     n = len(tb)
     dates = np.array(get_n_dates(start_date, n))
+
+    retrievel = RETRIEVAL_MIN if am_pm == "AM" else RETRIEVAL_MAX
+    aws_data = dh.get_aws_data(
+        dates, db_path, land_mask, lon_grid, lat_grid, retrievel
+    )
 
     if drop_bad_days:
         # Filter out indices where specified ratio of Tb data is missing
@@ -239,6 +250,12 @@ def prep(
     if ERA_T2M_KEY in data:
         out_dict[FMT_FILENAME_ERA_T2M] = era_t2m
     save_data(out_dict, out_dir, year_str, region)
+    dh.persist_data_object(
+        aws_data,
+        os.path.join(
+            out_dir, f"aws_data-AM-{year_str}-{region}.pkl"
+        ),
+    )
     with open(f"{out_dir}/date_map-{year_str}-{region}.csv", "w") as fd:
         for i, d in zip(good_idxs, dates):
             fd.write(f"{i},{d}\n")
@@ -254,6 +271,8 @@ if __name__ == "__main__":
     prep_snow = False
     prep_solar = False
     prep_era_t2m = False
+    am_pm = "AM"
+    pass_ = "D" if am_pm == "AM" else "A"
 
     drop_bad_days = False
     train_start_year = 2005
@@ -265,6 +284,9 @@ if __name__ == "__main__":
     ]
 
     base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
+    water_mask = transform(base_water_mask)
+    land_mask = ~water_mask
+    db_path = "../data/dbs/wmo_gsod.db"
     out_dir = "../data/cleaned"
 
     # Training data
@@ -338,6 +360,11 @@ if __name__ == "__main__":
         data,
         out_dir,
         region,
+        land_mask,
+        out_lon,
+        out_lat,
+        am_pm,
+        db_path,
         drop_bad_days,
     )
 
@@ -402,5 +429,10 @@ if __name__ == "__main__":
         data,
         out_dir,
         region,
+        land_mask,
+        out_lon,
+        out_lat,
+        am_pm,
+        db_path,
         drop_bad_days,
     )
