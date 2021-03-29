@@ -124,7 +124,7 @@ def main(args):
         args.out_dir, f"aws_data-AM-{year_str}-{args.region}.pkl"
     )
     print(f"Saving data to '{out_file}'")
-    persist_data_object(aws_data, out_file)
+    persist_data_object(aws_data, out_file, overwrite=True)
 
 
 if __name__ == "__main__":
