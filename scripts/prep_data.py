@@ -286,7 +286,7 @@ def prep(
 
 
 if __name__ == "__main__":
-    region = N45W
+    region = NH
     transform = REGION_TO_TRANS[region]
 
     # NOTE: prep_tb is handled differently. tb data is still loaded but no gap
