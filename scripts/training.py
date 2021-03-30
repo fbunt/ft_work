@@ -21,11 +21,9 @@ import yaml
 from datahandling import (
     ComposedDataset,
     GridsStackDataset,
-    IndexEchoDataset,
     NpyDataset,
     RepeatDataset,
     SingleValueGridDataset,
-    load_persisted_data_object,
     read_accuracies_file,
     write_accuracies_file,
 )
@@ -732,7 +730,6 @@ def run_model(
     device,
     iterator,
     optimizer,
-    aws_data,
     land_mask,
     water_mask,
     summary,
@@ -742,8 +739,9 @@ def run_model(
     confusion_matrix=None,
 ):
     loss_sum = 0.0
-    for i, (input_data, batch_era, batch_idxs, batch_bce_weights) in iterator:
+    for i, (input_data, labels, label_weights) in iterator:
         input_data = input_data.to(device, dtype=torch.float)
+        label_weights = label_weights.to(device)
 
         if is_train:
             model.zero_grad()
@@ -752,24 +750,8 @@ def run_model(
         #
         # ERA/AWS
         #
-        flat_era = batch_era.view(batch_era.size(0), batch_era.size(1), -1)
-        flat_bce_weights = batch_bce_weights.view(
-            batch_bce_weights.size(0), batch_bce_weights.size(1), -1
-        )
-        batch_aws = [aws_data[idx] for idx in batch_idxs]
-        batch_aws_fzn_idxs = [v[0] for v in batch_aws]
-        batch_aws_thw_idxs = [v[1] for v in batch_aws]
-        for i in range(len(flat_era)):
-            i_fzn = batch_aws_fzn_idxs[i]
-            i_thw = batch_aws_thw_idxs[i]
-            flat_era[i, LABEL_FROZEN, i_fzn] = 1
-            flat_era[i, LABEL_THAWED, i_thw] = 1
-            flat_bce_weights[i, :, i_fzn] = config.aws_bce_weight
-            flat_bce_weights[i, :, i_thw] = config.aws_bce_weight
-        batch_era = batch_era.to(device)
-        batch_bce_weights = batch_bce_weights.to(device)
         comb_loss = binary_cross_entropy_with_logits(
-            log_class_prob, batch_era, batch_bce_weights
+            log_class_prob, labels, label_weights
         )
         comb_loss *= config.main_loss_weight
 
@@ -787,7 +769,7 @@ def run_model(
         loss_sum += loss
 
         if confusion_matrix is not None:
-            flat_labels = batch_era.argmax(1)[..., land_mask].view(-1)
+            flat_labels = labels.argmax(1)[..., land_mask].view(-1)
             flat_predictions = class_prob.argmax(1)[..., land_mask].view(-1)
             confusion_matrix.update(flat_labels, flat_predictions)
     loss_mean = loss_sum / len(iterator)
@@ -800,7 +782,6 @@ def test(
     device,
     dataloader,
     optimizer,
-    aws_data,
     land_mask,
     water_mask,
     summary,
@@ -821,7 +802,6 @@ def test(
             device,
             it,
             optimizer,
-            aws_data,
             land_mask,
             water_mask,
             summary,
@@ -838,7 +818,6 @@ def train(
     device,
     dataloader,
     optimizer,
-    aws_data,
     land_mask,
     water_mask,
     summary,
@@ -857,7 +836,6 @@ def train(
         device,
         it,
         optimizer,
-        aws_data,
         land_mask,
         water_mask,
         summary,
@@ -884,21 +862,26 @@ if __name__ == "__main__":
     #
     train_input_ds = build_input_dataset_form_config(config, True)
     # AWS
-    train_aws_data = load_persisted_data_object(config.train_aws_data_path)
-    # ERA
-    train_era_ds = NpyDataset(config.train_era5_ft_data_path)
+    train_aws_mask = np.load(config.train_aws_mask)
     if config.use_prior_day:
-        train_era_ds = Subset(
-            train_era_ds, list(range(1, len(train_input_ds) + 1))
-        )
-        train_idx_ds = IndexEchoDataset(len(train_input_ds), offset=1)
-    else:
-        train_idx_ds = IndexEchoDataset(len(train_input_ds))
-    ws = torch.zeros((1, *land_mask.shape), dtype=torch.float)
+        train_aws_mask = train_aws_mask[1:]
+    train_aws_mask = torch.tensor(train_aws_mask)
+    ws = torch.zeros(
+        (len(train_input_ds), 1, *land_mask.shape), dtype=torch.float
+    )
     ws[..., land_mask] = 1.0
-    train_weights_ds = RepeatDataset(ws, len(train_input_ds))
+    for i in tqdm.tqdm(range(len(ws)), ncols=80, desc="Weights"):
+        ws[i, :, train_aws_mask[i]] *= config.aws_bce_weight
+    train_weights_ds = TensorDataset(ws)
+    train_aws_mask = None
+    # FT label
+    train_label_ds = NpyDataset(config.train_ft_label_data_path)
+    if config.use_prior_day:
+        train_label_ds = Subset(
+            train_label_ds, list(range(1, len(train_input_ds) + 1))
+        )
     train_ds = ComposedDataset(
-        [train_input_ds, train_era_ds, train_idx_ds, train_weights_ds]
+        [train_input_ds, train_label_ds, train_weights_ds]
     )
 
     #
@@ -907,18 +890,26 @@ if __name__ == "__main__":
     test_input_ds = build_input_dataset_form_config(config, False)
     test_reduced_indices = list(range(1, len(test_input_ds) + 1))
     # AWS
-    test_aws_data = load_persisted_data_object(config.test_aws_data_path)
-    # ERA
+    test_aws_mask = NpyDataset(config.test_aws_mask)
+    if config.use_prior_day:
+        test_aws_mask = test_aws_mask[1:]
+    test_aws_mask = torch.tensor(test_aws_mask)
+    ws = torch.zeros(
+        (len(test_input_ds), 1, *land_mask.shape), dtype=torch.float
+    )
+    ws[..., land_mask] = 1.0
+    for i in tqdm.tqdm(range(len(ws)), ncols=80, desc="Weights"):
+        ws[i, :, test_aws_mask[i]] *= config.aws_bce_weight
+    test_weights_ds = TensorDataset(ws)
+    test_aws_mask = None
+    # ERA and FT Label
+    test_label_ds = NpyDataset(config.test_ft_label_data_path)
+    # Keep this for post training validation
     test_era_ds = NpyDataset(config.test_era5_ft_data_path)
     if config.use_prior_day:
         test_era_ds = Subset(test_era_ds, test_reduced_indices)
-        test_idx_ds = IndexEchoDataset(len(test_input_ds), offset=1)
-    else:
-        test_idx_ds = IndexEchoDataset(len(test_input_ds))
-    test_weights_ds = RepeatDataset(ws, len(test_input_ds))
-    test_ds = ComposedDataset(
-        [test_input_ds, test_era_ds, test_idx_ds, test_weights_ds]
-    )
+        test_label_ds = Subset(test_label_ds, test_reduced_indices)
+    test_ds = ComposedDataset([test_input_ds, test_label_ds, test_weights_ds])
 
     model = create_model(config)
     if torch.cuda.device_count() > 1:
@@ -971,7 +962,6 @@ if __name__ == "__main__":
                 device,
                 train_dataloader,
                 opt,
-                train_aws_data,
                 land_mask,
                 water_mask,
                 train_summary,
@@ -983,7 +973,6 @@ if __name__ == "__main__":
                 device,
                 test_dataloader,
                 opt,
-                test_aws_data,
                 land_mask,
                 water_mask,
                 test_summary,
@@ -1004,7 +993,8 @@ if __name__ == "__main__":
         test_summary.close()
         # Free up data for GC
         train_input_ds = None
-        train_era_ds = None
+        train_weights_ds = None
+        train_label_ds = None
         train_idx_ds = None
         train_ds = None
         train_dataloader = None
