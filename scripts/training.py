@@ -206,28 +206,26 @@ ConfigV2Plus = namedtuple(
         "do_val_plots",
         "do_pred_plots",
         # Paths
-        # New in v3
-        "runs_dir",
-        # New in v3
-        "db_path",
+        "runs_dir",  # v3
+        "db_path",  # v3
         "land_mask_path",
         "dem_data_path",
         "lon_grid_path",
         "lat_grid_path",
         "train_aws_data_path",
+        "train_aws_mask_path",  # v4
         "train_date_map_path",
         "train_tb_data_path",
         "train_era5_ft_data_path",
-        # New in v4
-        "train_ft_label_data_path",
+        "train_ft_label_data_path",  # v4
         "train_solar_data_path",
         "train_snow_data_path",
         "test_aws_data_path",
+        "test_aws_mask_path",  # v4
         "test_date_map_path",
         "test_tb_data_path",
         "test_era5_ft_data_path",
-        # New in v4
-        "test_ft_label_data_path",
+        "test_ft_label_data_path",  # v4
         "test_solar_data_path",
         "test_snow_data_path",
     ),
@@ -258,9 +256,11 @@ def build_v2plus_config(cfg):
     cfg = build_in_chan(cfg)
     cfg["runs_dir"] = cfg.get("runs_dir", "../data/runs")
     cfg["db_path"] = cfg.get("db_path", "../data/dbs/wmo_gsod.db")
-    # Handle v2-3 case where ft_label is not used
+    # Handle v2-3 case where ft_label and aws_mask are not used
     cfg["train_ft_label_data_path"] = cfg.get("train_ft_label_data_path", None)
     cfg["test_ft_label_data_path"] = cfg.get("test_ft_label_data_path", None)
+    cfg["train_aws_mask_path"] = cfg.get("train_aws_mask_path", None)
+    cfg["test_aws_mask_path"] = cfg.get("test_aws_mask_path", None)
     return ConfigV2Plus(**cfg)
 
 
@@ -862,7 +862,7 @@ if __name__ == "__main__":
     #
     train_input_ds = build_input_dataset_form_config(config, True)
     # AWS
-    train_aws_mask = np.load(config.train_aws_mask)
+    train_aws_mask = np.load(config.train_aws_mask_path)
     if config.use_prior_day:
         train_aws_mask = train_aws_mask[1:]
     train_aws_mask = torch.tensor(train_aws_mask)
@@ -890,7 +890,7 @@ if __name__ == "__main__":
     test_input_ds = build_input_dataset_form_config(config, False)
     test_reduced_indices = list(range(1, len(test_input_ds) + 1))
     # AWS
-    test_aws_mask = NpyDataset(config.test_aws_mask)
+    test_aws_mask = NpyDataset(config.test_aws_mask_path)
     if config.use_prior_day:
         test_aws_mask = test_aws_mask[1:]
     test_aws_mask = torch.tensor(test_aws_mask)

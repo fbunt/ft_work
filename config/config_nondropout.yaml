@@ -51,6 +51,7 @@ config:
     lat_grid_path: "../data/coords/lat_n45.npy"
 
     train_aws_data_path: "../data/cleaned/aws_data-AM-2005-2014-n45.pkl"
+    train_aws_mask_path: "../data/cleaned/aws_mask-AM-2005-2014-n45.npy"
     train_date_map_path: "../data/cleaned/date_map-2005-2014-n45.csv"
     train_tb_data_path: "../data/cleaned/tb-D-2005-2014-n45.npy"
     train_era5_ft_data_path: "../data/cleaned/era5-ft-AM-2005-2014-n45.npy"
@@ -59,6 +60,7 @@ config:
     train_snow_data_path: "../data/cleaned/snow_cover-2005-2014-n45.npy"
 
     test_aws_data_path: "../data/cleaned/aws_data-AM-2016-n45.pkl"
+    test_aws_mask_path: "../data/cleaned/aws_mask-AM-2016-n45.npy"
     test_date_map_path: "../data/cleaned/date_map-2016-n45.csv"
     test_tb_data_path: "../data/cleaned/tb-D-2016-n45.npy"
     test_era5_ft_data_path: "../data/cleaned/era5-ft-AM-2016-n45.npy"
