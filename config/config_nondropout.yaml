@@ -1,5 +1,5 @@
 config:
-    version: 3
+    version: 4
 
     n_classes: 2
     depth: 4
@@ -53,13 +53,15 @@ config:
     train_aws_data_path: "../data/cleaned/aws_data-AM-2005-2014-n45.pkl"
     train_date_map_path: "../data/cleaned/date_map-2005-2014-n45.csv"
     train_tb_data_path: "../data/cleaned/tb-D-2005-2014-n45.npy"
-    train_era5_ft_data_path: "../data/cleaned/era5-ft-am-2005-2014-n45.npy"
+    train_era5_ft_data_path: "../data/cleaned/era5-ft-AM-2005-2014-n45.npy"
+    train_ft_label_data_path: "../data/cleaned/ft_label-AM-2005-2014-n45.npy"
     train_solar_data_path: "../data/cleaned/solar_rad-AM-2005-2014-n45.npy"
     train_snow_data_path: "../data/cleaned/snow_cover-2005-2014-n45.npy"
 
     test_aws_data_path: "../data/cleaned/aws_data-AM-2016-n45.pkl"
     test_date_map_path: "../data/cleaned/date_map-2016-n45.csv"
     test_tb_data_path: "../data/cleaned/tb-D-2016-n45.npy"
-    test_era5_ft_data_path: "../data/cleaned/era5-ft-am-2016-n45.npy"
+    test_era5_ft_data_path: "../data/cleaned/era5-ft-AM-2016-n45.npy"
+    test_ft_label_data_path: "../data/cleaned/ft_label-AM-2016-n45.npy"
     test_solar_data_path: "../data/cleaned/solar_rad-AM-2016-n45.npy"
     test_snow_data_path: "../data/cleaned/snow_cover-2016-n45.npy"

@@ -1,7 +1,7 @@
 from collections import namedtuple
 from torch.nn import DataParallel
 from torch.nn.functional import binary_cross_entropy_with_logits
-from torch.utils.data import Subset
+from torch.utils.data import Subset, TensorDataset
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -169,7 +169,7 @@ ConfigV2 = namedtuple(
     ),
 )
 ConfigV2Plus = namedtuple(
-    "ConfigV2",
+    "ConfigV2Plus",
     (
         "version",
         "in_chan",
@@ -220,12 +220,16 @@ ConfigV2Plus = namedtuple(
         "train_date_map_path",
         "train_tb_data_path",
         "train_era5_ft_data_path",
+        # New in v4
+        "train_ft_label_data_path",
         "train_solar_data_path",
         "train_snow_data_path",
         "test_aws_data_path",
         "test_date_map_path",
         "test_tb_data_path",
         "test_era5_ft_data_path",
+        # New in v4
+        "test_ft_label_data_path",
         "test_solar_data_path",
         "test_snow_data_path",
     ),
@@ -252,15 +256,13 @@ def build_v1_config(cfg):
     return ConfigV1(**cfg)
 
 
-def build_v2_config(cfg):
-    cfg = build_in_chan(cfg)
-    return ConfigV2(**cfg)
-
-
 def build_v2plus_config(cfg):
     cfg = build_in_chan(cfg)
     cfg["runs_dir"] = cfg.get("runs_dir", "../data/runs")
     cfg["db_path"] = cfg.get("db_path", "../data/dbs/wmo_gsod.db")
+    # Handle v2-3 case where ft_label is not used
+    cfg["train_ft_label_data_path"] = cfg.get("train_ft_label_data_path", None)
+    cfg["test_ft_label_data_path"] = cfg.get("test_ft_label_data_path", None)
     return ConfigV2Plus(**cfg)
 
 
