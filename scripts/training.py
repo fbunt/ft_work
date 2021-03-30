@@ -603,22 +603,6 @@ def add_plots_to_run_dir(root_dir, do_val_plots, do_pred_plots):
         )
 
 
-def aws_loss_func(batch_pred_logits, batch_idxs, batch_labels, config, device):
-    loss = 0.0
-    for pred, flat_idxs, labels in zip(
-        batch_pred_logits, batch_idxs, batch_labels
-    ):
-        if not sum(flat_idxs.size()):
-            continue
-        # Add batch dim to left and flatten the (H, W) dims
-        pred = pred.view(1, config.n_classes, -1)
-        # Index in with indices corresponding to AWS stations
-        pred = pred[..., flat_idxs]
-        labels = labels.unsqueeze(0).to(device)
-        loss += binary_cross_entropy_with_logits(pred, labels)
-    return loss
-
-
 def normalize(x):
     if len(x.shape) < 4:
         return (x - x.min()) / (x.max() - x.min())
