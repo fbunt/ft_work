@@ -433,23 +433,18 @@ if __name__ == "__main__":
                 out_lon,
                 out_lat,
             ),
-            [transform, dh.FTTransform()],
+            [dh.FTTransform()],
         )
     )
     data[ERA_FT_KEY] = era_ft
     if prep_era_t2m:
         era_t2m = dataset_to_array(
-            dh.TransformPipelineDataset(
-                dh.ERA5BidailyDataset(
-                    [
-                        f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"
-                    ],
-                    "t2m",
-                    am_pm,
-                    out_lon,
-                    out_lat,
-                ),
-                [transform],
+            dh.ERA5BidailyDataset(
+                [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
+                "t2m",
+                am_pm,
+                out_lon,
+                out_lat,
             )
         )
         data[ERA_T2M_KEY] = era_t2m
