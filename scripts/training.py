@@ -536,6 +536,7 @@ def validate_against_aws_db(
 def plot_accuracies(val_dates, era_acc, aws_acc, root_dir):
     import matplotlib.pyplot as plt
     import matplotlib.ticker as tkr
+
     # ERA
     plt.figure()
     plt.plot(val_dates, era_acc, lw=1, label="ERA5")
@@ -575,6 +576,7 @@ def plot_accuracies(val_dates, era_acc, aws_acc, root_dir):
 
 def plot_predictions(dates, predictions, root_dir, pred_plot_dir):
     import matplotlib.pyplot as plt
+
     # Save prediction plots
     print(f"Creating prediction plots: '{pred_plot_dir}'")
     pfmt = os.path.join(pred_plot_dir, "{:03}.png")
