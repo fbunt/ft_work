@@ -582,7 +582,12 @@ def plot_predictions(dates, predictions, root_dir, pred_plot_dir):
     pfmt = os.path.join(pred_plot_dir, "{:03}.png")
     for i, p in enumerate(tqdm.tqdm(predictions, ncols=80)):
         plt.figure()
-        plt.imshow(p, cmap=FT_CMAP, vmin=LABEL_FROZEN, vmax=LABEL_OTHER)
+        plt.imshow(
+            p,
+            cmap=FT_CMAP,
+            vmin=LABEL_FROZEN,
+            vmax=max(LABEL_THAWED, LABEL_OTHER),
+        )
         plt.title(f"Day: {i + 1}, {dates[i]}")
         plt.tight_layout(pad=2)
         plt.savefig(pfmt.format(i + 1), dpi=400)
