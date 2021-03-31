@@ -331,6 +331,19 @@ class NpyDataset(Dataset):
         return len(self.data)
 
 
+class ArrayDataset(Dataset):
+    """Simple dataset for turning an array into a dataset"""
+
+    def __init__(self, data):
+        self.data = data
+
+    def __getitem__(self, idx):
+        return self.data[idx]
+
+    def __len__(self):
+        return len(self.data)
+
+
 class ChannelSubsetDataset(Dataset):
     """
     A Datast that returns views with a subset of the original dataset's
