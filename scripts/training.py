@@ -1,7 +1,7 @@
 from collections import namedtuple
 from torch.nn import DataParallel
 from torch.nn.functional import binary_cross_entropy_with_logits
-from torch.utils.data import Subset, TensorDataset
+from torch.utils.data import Subset
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -19,6 +19,7 @@ import tqdm
 import yaml
 
 from datahandling import (
+    ArrayDataset,
     ComposedDataset,
     GridsStackDataset,
     NpyDataset,
@@ -872,7 +873,7 @@ if __name__ == "__main__":
     ws[..., land_mask] = 1.0
     for i in tqdm.tqdm(range(len(ws)), ncols=80, desc="Weights"):
         ws[i, :, train_aws_mask[i]] *= config.aws_bce_weight
-    train_weights_ds = TensorDataset(ws)
+    train_weights_ds = ArrayDataset(ws)
     train_aws_mask = None
     # FT label
     train_label_ds = NpyDataset(config.train_ft_label_data_path)
@@ -900,7 +901,7 @@ if __name__ == "__main__":
     ws[..., land_mask] = 1.0
     for i in tqdm.tqdm(range(len(ws)), ncols=80, desc="Weights"):
         ws[i, :, test_aws_mask[i]] *= config.aws_bce_weight
-    test_weights_ds = TensorDataset(ws)
+    test_weights_ds = ArrayDataset(ws)
     test_aws_mask = None
     # ERA and FT Label
     test_label_ds = NpyDataset(config.test_ft_label_data_path)
