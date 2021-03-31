@@ -729,6 +729,7 @@ def build_input_dataset(
 def run_model(
     model,
     device,
+    scaler,
     iterator,
     optimizer,
     land_mask,
@@ -766,8 +767,9 @@ def run_model(
         loss = comb_loss
         loss += lv_loss
         if is_train:
-            loss.backward()
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
         loss_sum += loss
 
         if confusion_matrix is not None:
@@ -782,6 +784,7 @@ def run_model(
 def test(
     model,
     device,
+    scaler,
     dataloader,
     optimizer,
     land_mask,
@@ -802,6 +805,7 @@ def test(
         loss = run_model(
             model,
             device,
+            scaler,
             it,
             optimizer,
             land_mask,
@@ -818,6 +822,7 @@ def test(
 def train(
     model,
     device,
+    scaler,
     dataloader,
     optimizer,
     land_mask,
@@ -836,6 +841,7 @@ def train(
     run_model(
         model,
         device,
+        scaler,
         it,
         optimizer,
         land_mask,
@@ -925,6 +931,7 @@ if __name__ == "__main__":
     sched = torch.optim.lr_scheduler.MultiStepLR(
         opt, config.lr_milestones, config.lr_step_gamma
     )
+    grad_scaler = torch.cuda.amp.GradScaler()
 
     # Create run dir and fill with info
     if not os.path.isdir(config.runs_dir):
@@ -962,6 +969,7 @@ if __name__ == "__main__":
             train(
                 model,
                 device,
+                grad_scaler,
                 train_dataloader,
                 opt,
                 land_mask,
@@ -973,6 +981,7 @@ if __name__ == "__main__":
             loss, cm = test(
                 model,
                 device,
+                grad_scaler,
                 test_dataloader,
                 opt,
                 land_mask,

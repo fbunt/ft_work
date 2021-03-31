@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.cuda.amp import autocast
 
 
 DEFAULT_KERNEL_SIZE = 3
@@ -226,6 +227,7 @@ class UNet(nn.Module):
             )
         self.out = nn.Conv2d(nb, n_classes, kernel_size=1)
 
+    @autocast()
     def forward(self, x):
         xdowns = [self.input(x)]
         for down in self.downs:
