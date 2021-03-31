@@ -43,7 +43,7 @@ config:
     do_val_plots: False
     do_pred_plots: False
 
-    runs_dir: "../data/runs"
+    runs_dir: "../runs"
     db_path: "../data/dbs/wmo_gsod.db"
     land_mask_path: "../data/masks/ft_esdr_land_mask_n45.npy"
     dem_data_path: "../data/z/dem-n45.npy"

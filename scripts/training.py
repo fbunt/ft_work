@@ -255,7 +255,7 @@ def build_v1_config(cfg):
 
 def build_v2plus_config(cfg):
     cfg = build_in_chan(cfg)
-    cfg["runs_dir"] = cfg.get("runs_dir", "../data/runs")
+    cfg["runs_dir"] = cfg.get("runs_dir", "../runs")
     cfg["db_path"] = cfg.get("db_path", "../data/dbs/wmo_gsod.db")
     # Handle v2-3 case where ft_label and aws_mask are not used
     cfg["train_ft_label_data_path"] = cfg.get("train_ft_label_data_path", None)
