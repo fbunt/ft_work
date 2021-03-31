@@ -742,6 +742,7 @@ def run_model(
     loss_sum = 0.0
     for i, (input_data, labels, label_weights) in iterator:
         input_data = input_data.to(device, dtype=torch.float)
+        labels = labels.to(device)
         label_weights = label_weights.to(device)
 
         if is_train:
