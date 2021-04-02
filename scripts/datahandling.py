@@ -346,7 +346,7 @@ class ArrayDataset(Dataset):
 
 class ChannelSubsetDataset(Dataset):
     """
-    A Datast that returns views with a subset of the original dataset's
+    A Dataset that returns views with a subset of the original dataset's
     channels
     """
 
