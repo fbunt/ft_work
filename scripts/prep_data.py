@@ -8,6 +8,7 @@ import tqdm
 from transforms import (
     AK,
     GL,
+    N20,
     N45,
     N45W,
     NH,
