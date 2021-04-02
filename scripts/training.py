@@ -25,6 +25,7 @@ from datahandling import (
     NpyDataset,
     RepeatDataset,
     SingleValueGridDataset,
+    Tile3HDataset,
     read_accuracies_file,
     write_accuracies_file,
 )
@@ -129,13 +130,15 @@ ConfigV2Plus = namedtuple(
         "use_snow",
         "use_prior_day",
         "normalize",
+        "tile",  # v5
         "region",
         "train_start_year",
         "train_end_year",
         "test_start_year",
         "test_end_year",
         "epochs",
-        "batch_size",
+        "train_batch_size",
+        "test_batch_size",
         "drop_last",
         "learning_rate",
         "lr_milestones",
@@ -204,6 +207,13 @@ def build_v2plus_config(cfg):
     cfg["test_ft_label_data_path"] = cfg.get("test_ft_label_data_path", None)
     cfg["train_aws_mask_path"] = cfg.get("train_aws_mask_path", None)
     cfg["test_aws_mask_path"] = cfg.get("test_aws_mask_path", None)
+    # Handle addition of tile key in v5
+    cfg["tile"] = cfg.get("tile", False)
+    # Handle splitting of batch size into train and test inv v5
+    if cfg["version"] < 5:
+        bs = cfg.pop("batch_size")
+        cfg["train_batch_size"] = bs
+        cfg["test_batch_size"] = bs
     return ConfigV2Plus(**cfg)
 
 
@@ -830,9 +840,10 @@ if __name__ == "__main__":
         train_label_ds = Subset(
             train_label_ds, list(range(1, len(train_input_ds) + 1))
         )
-    train_ds = ComposedDataset(
-        [train_input_ds, train_label_ds, train_weights_ds]
-    )
+    datasets = [train_input_ds, train_label_ds, train_weights_ds]
+    if config.tile:
+        datasets = [Tile3HDataset(d, land_mask.shape) for d in datasets]
+    train_ds = ComposedDataset(datasets)
 
     #
     # Test Data
@@ -888,13 +899,13 @@ if __name__ == "__main__":
 
     train_dataloader = torch.utils.data.DataLoader(
         train_ds,
-        batch_size=config.batch_size,
+        batch_size=config.train_batch_size,
         shuffle=True,
         drop_last=config.drop_last,
     )
     test_dataloader = torch.utils.data.DataLoader(
         test_ds,
-        batch_size=config.batch_size,
+        batch_size=config.test_batch_size,
         shuffle=False,
         drop_last=False,
     )
@@ -966,7 +977,7 @@ if __name__ == "__main__":
         print("Generating predictions")
         test_loader = torch.utils.data.DataLoader(
             test_input_ds,
-            batch_size=config.batch_size,
+            batch_size=config.test_batch_size,
             shuffle=False,
             drop_last=False,
         )

@@ -361,6 +361,30 @@ class ChannelSubsetDataset(Dataset):
         return len(self.ds)
 
 
+class Tile3HDataset(Dataset):
+    """
+    A Dataset that tiles horizontally with left/right halves and an overlapping
+    middle tile. All tiles are the same size (+/-1).
+    """
+
+    def __init__(self, data, shape):
+        self.data = data
+        r, c = shape
+        chalf = c // 2
+        cleft = chalf // 2
+        cright = cleft + chalf
+        slice_left = np.s_[..., :, :chalf]
+        slice_mid = np.s_[..., :, cleft:cright]
+        slice_right = np.s_[..., :, chalf:]
+        self.slices = [slice_left, slice_mid, slice_right]
+
+    def __getitem__(self, idx):
+        return self.data[idx // 3][self.slices[idx % 3]]
+
+    def __len__(self):
+        return 3 * len(self.data)
+
+
 class IndexEchoDataset(Dataset):
     """A Dataset that echos the indices it is given
 

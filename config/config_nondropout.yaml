@@ -19,6 +19,7 @@ config:
     use_prior_day: True
 
     normalize: False
+    tile: False
     # This must match one of the region codes in scripts/transforms.py
     region: n45
     train_start_year: 2005
@@ -27,7 +28,8 @@ config:
     test_end_year: 2016
 
     epochs: 950
-    batch_size: 28
+    train_batch_size: 28
+    test_batch_size: 28
     drop_last: False
     learning_rate: 1.0e-4
     lr_milestones: [250, 350, 500, 650, 750, 850, 900]
