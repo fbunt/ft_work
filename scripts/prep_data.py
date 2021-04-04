@@ -265,7 +265,7 @@ def prep(
         FMT_FILENAME_AWS_MASK: aws_mask,
     }
     if prep_tb:
-        out_dict[FMT_FILENAME_TB] = (tb,)
+        out_dict[FMT_FILENAME_TB] = tb
     if SNOW_KEY in data:
         out_dict[FMT_FILENAME_SNOW] = snow
     if SOLAR_KEY in data:
