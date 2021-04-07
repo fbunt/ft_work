@@ -27,28 +27,6 @@ def get_year_str(ya, yb):
         return f"{ya}-{yb}"
 
 
-def build_tb_ds(path_groups, transform):
-    dss = [
-        dh.GridsStackDataset(
-            [
-                dh.NCDataset([f], "tb", transform=transform)
-                for f in sorted(group)
-            ]
-        )
-        for group in path_groups
-    ]
-    return torch.utils.data.ConcatDataset(dss)
-
-
-def dataset_to_array(ds, dtype=float):
-    n = len(ds)
-    shape = (n, *ds[0].shape)
-    ar = np.zeros(shape, dtype=dtype)
-    for i, x in enumerate(tqdm.tqdm(ds, ncols=80, desc="DS to array")):
-        ar[i] = x
-    return ar
-
-
 def get_n_dates(start_date, n):
     dates = []
     d = dt.date(start_date.year, start_date.month, start_date.day)
@@ -318,7 +296,7 @@ if __name__ == "__main__":
     data = {}
     if prep_snow:
         print("Loading snow cover")
-        snow = dataset_to_array(
+        snow = dh.dataset_to_array(
             torch.utils.data.ConcatDataset(
                 [
                     dh.NpyDataset(
@@ -331,7 +309,7 @@ if __name__ == "__main__":
         data[SNOW_KEY] = snow
     if prep_solar:
         print("Loading solar")
-        solar = dataset_to_array(
+        solar = dh.dataset_to_array(
             torch.utils.data.ConcatDataset(
                 [
                     dh.NpyDataset(
@@ -347,10 +325,10 @@ if __name__ == "__main__":
         for y in range(train_start_year, train_final_year + 1)
     ]
     print("Loading tb")
-    tb = dataset_to_array(build_tb_ds(path_groups, transform))
+    tb = dh.dataset_to_array(dh.build_tb_ds(path_groups, transform))
     data[TB_KEY] = tb
     print("Loading ERA")
-    era_ft = dataset_to_array(
+    era_ft = dh.dataset_to_array(
         dh.TransformPipelineDataset(
             dh.ERA5BidailyDataset(
                 [
@@ -367,7 +345,7 @@ if __name__ == "__main__":
     )
     data[ERA_FT_KEY] = era_ft
     if prep_era_t2m:
-        era_t2m = dataset_to_array(
+        era_t2m = dh.dataset_to_array(
             dh.ERA5BidailyDataset(
                 [
                     f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
@@ -398,7 +376,7 @@ if __name__ == "__main__":
     data = {}
     if prep_snow:
         print("Loading snow cover")
-        snow = dataset_to_array(
+        snow = dh.dataset_to_array(
             dh.NpyDataset(
                 f"../data/snow/snow_cover_{test_year}.npy", transform
             )
@@ -406,15 +384,15 @@ if __name__ == "__main__":
         data[SNOW_KEY] = snow
     if prep_solar:
         print("Loading solar")
-        solar = dataset_to_array(
+        solar = dh.dataset_to_array(
             dh.NpyDataset(
                 f"../data/solar/solar_rad-daily-{test_year}.npy", transform
             )
         )
         data[SOLAR_KEY] = solar
     print("Loading tb")
-    tb = dataset_to_array(
-        build_tb_ds(
+    tb = dh.dataset_to_array(
+        dh.build_tb_ds(
             [
                 glob.glob(
                     f"../data/tb/{test_year}/tb_{test_year}_F17_ML_{pass_}*.nc"
@@ -425,7 +403,7 @@ if __name__ == "__main__":
     )
     data[TB_KEY] = tb
     print("Loading ERA")
-    era_ft = dataset_to_array(
+    era_ft = dh.dataset_to_array(
         dh.TransformPipelineDataset(
             dh.ERA5BidailyDataset(
                 [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
@@ -439,7 +417,7 @@ if __name__ == "__main__":
     )
     data[ERA_FT_KEY] = era_ft
     if prep_era_t2m:
-        era_t2m = dataset_to_array(
+        era_t2m = dh.dataset_to_array(
             dh.ERA5BidailyDataset(
                 [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
                 "t2m",

@@ -531,6 +531,32 @@ class FTTransform:
         return out
 
 
+def dataset_to_array(ds, dtype=float, progress=True):
+    n = len(ds)
+    shape = (n, *ds[0].shape)
+    ar = np.zeros(shape, dtype=dtype)
+    if progress:
+        it = tqdm.tqdm(ds, ncols=80, desc="DS to array")
+    else:
+        it = ds
+    for i, x in enumerate(it):
+        ar[i] = x
+    return ar
+
+
+def build_tb_ds(path_groups, transform):
+    dss = [
+        GridsStackDataset(
+            [
+                NCDataset([f], "tb", transform=transform)
+                for f in sorted(group)
+            ]
+        )
+        for group in path_groups
+    ]
+    return torch.utils.data.ConcatDataset(dss)
+
+
 def write_accuracies_file(dates, era_acc, aws_acc, path):
     with open(path, "w") as fd:
         for d, ae, aa in zip(dates, era_acc, aws_acc):
