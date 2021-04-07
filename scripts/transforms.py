@@ -38,7 +38,7 @@ N20 = "n20"
 N45 = "n45"
 N45W = "n45w"
 NH = "nh"
-REGION_CODES = frozenset((AK, N45, N45W, NH))
+REGION_CODES = frozenset((AK, GL, N20, N45, N45W, NH))
 REGION_TO_TRANS = {
     AK: AK_VIEW_TRANS,
     GL: GL_VIEW_TRANS,
