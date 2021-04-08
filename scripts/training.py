@@ -722,14 +722,14 @@ def run_model(
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-        loss_sum += loss
+        loss_sum += loss.item()
 
         if confusion_matrix is not None:
             flat_labels = labels.argmax(1)[..., land_mask].view(-1)
             flat_predictions = class_prob.argmax(1)[..., land_mask].view(-1)
             confusion_matrix.update(flat_labels, flat_predictions)
     loss_mean = loss_sum / len(iterator)
-    summary.add_scalar("Loss", loss_mean.item(), epoch)
+    summary.add_scalar("Loss", loss_mean, epoch)
     return loss_mean
 
 
@@ -768,7 +768,7 @@ def test(
             False,
             cm,
         )
-    return loss.item(), cm
+    return loss, cm
 
 
 def train(
