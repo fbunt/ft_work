@@ -458,6 +458,7 @@ def prep_data(
         )
         data[SOLAR_KEY] = solar
     # Tb
+    # TODO: caching
     path_groups = [
         glob.glob(f"../data/tb/{y}/tb_{y}_F*_ML_{pass_}*.nc")
         for y in range(start_date.year, end_date.year + 1)
@@ -470,6 +471,7 @@ def prep_data(
     )
     data[TB_KEY] = tb
     # ERA5 FT
+    # TODO: caching
     print("Loading ERA")
     era_ft = dh.dataset_to_array(
         trim_datasets_to_dates(
@@ -492,6 +494,7 @@ def prep_data(
     )
     data[ERA_FT_KEY] = era_ft
     # ERA5 t2m
+    # TODO: caching
     if prep_era_t2m:
         era_t2m = dh.dataset_to_array(
             trim_datasets_to_dates(
