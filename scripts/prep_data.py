@@ -25,6 +25,19 @@ def get_dates(start_date, end_date):
     return dates
 
 
+def build_tb_ds(path_groups, transform):
+    dss = [
+        dh.GridsStackDataset(
+            [
+                dh.NCDataset([f], "tb", transform=transform)
+                for f in sorted(group)
+            ]
+        )
+        for group in path_groups
+    ]
+    return torch.utils.data.ConcatDataset(dss)
+
+
 def get_missing_ratio(x):
     return np.isnan(x).sum() / x.size
 
@@ -452,7 +465,7 @@ def prep_data(
     print("Loading tb")
     tb = dh.dataset_to_array(
         trim_datasets_to_dates(
-            dh.build_tb_ds(path_groups, transform), start_date, end_date
+            build_tb_ds(path_groups, transform), start_date, end_date
         )
     )
     data[TB_KEY] = tb
