@@ -1,39 +1,27 @@
+import argparse
 import datetime as dt
 import glob
 import numpy as np
 import os
+import re
 import torch
 import tqdm
 
 from transforms import (
-    AK,
-    GL,
-    N20,
-    N45,
-    N45W,
-    NH,
+    REGION_CODES,
     REGION_TO_TRANS,
 )
 import datahandling as dh
 import ease_grid as eg
+from utils import validate_dir_path, validate_file_path
 from validate import RETRIEVAL_MIN, RETRIEVAL_MAX
 
 
-def get_year_str(ya, yb):
-    if ya == yb:
-        return str(ya)
-    else:
-        ya, yb = sorted([ya, yb])
-        return f"{ya}-{yb}"
-
-
-def get_n_dates(start_date, n):
-    dates = []
-    d = dt.date(start_date.year, start_date.month, start_date.day)
-    delta = dt.timedelta(days=1)
-    for i in range(n):
-        dates.append(d)
-        d += delta
+def get_dates(start_date, end_date):
+    d = dt.timedelta(days=1)
+    dates = [start_date]
+    while dates[-1] < end_date:
+        dates.append(dates[-1] + d)
     return dates
 
 
@@ -132,11 +120,11 @@ def fill_gaps(
     return gap_filled
 
 
-def save_data(data_dict, out_dir, year_str, region, pass_, am_pm):
+def save_data(data_dict, out_dir, dates_str, region, pass_, am_pm):
     for fname, data in data_dict.items():
         name = fname.format(
             out_dir=out_dir,
-            year_str=year_str,
+            dates_str=dates_str,
             region=region,
             pass_=pass_,
             am_pm=am_pm,
@@ -149,13 +137,13 @@ def is_neg_one(x):
     return x == -1
 
 
-FMT_FILENAME_SNOW = "{out_dir}/snow_cover-{year_str}-{region}.npy"
-FMT_FILENAME_SOLAR = "{out_dir}/solar_rad-{am_pm}-{year_str}-{region}.npy"
-FMT_FILENAME_TB = "{out_dir}/tb-{pass_}-{year_str}-{region}.npy"
-FMT_FILENAME_ERA_FT = "{out_dir}/era5-ft-{am_pm}-{year_str}-{region}.npy"
-FMT_FILENAME_ERA_T2M = "{out_dir}/era5-t2m-{am_pm}-{year_str}-{region}.npy"
-FMT_FILENAME_FT_LABEL = "{out_dir}/ft_label-{am_pm}-{year_str}-{region}.npy"
-FMT_FILENAME_AWS_MASK = "{out_dir}/aws_mask-{am_pm}-{year_str}-{region}.npy"
+FMT_FILENAME_SNOW = "{out_dir}/snow_cover-{dates_str}-{region}.npy"
+FMT_FILENAME_SOLAR = "{out_dir}/solar_rad-{am_pm}-{dates_str}-{region}.npy"
+FMT_FILENAME_TB = "{out_dir}/tb-{pass_}-{dates_str}-{region}.npy"
+FMT_FILENAME_ERA_FT = "{out_dir}/era5-ft-{am_pm}-{dates_str}-{region}.npy"
+FMT_FILENAME_ERA_T2M = "{out_dir}/era5-t2m-{am_pm}-{dates_str}-{region}.npy"
+FMT_FILENAME_FT_LABEL = "{out_dir}/ft_label-{am_pm}-{dates_str}-{region}.npy"
+FMT_FILENAME_AWS_MASK = "{out_dir}/aws_mask-{am_pm}-{dates_str}-{region}.npy"
 
 SNOW_KEY = "snow"
 SOLAR_KEY = "solar"
@@ -166,6 +154,7 @@ ERA_T2M_KEY = "era_t2m"
 
 def prep(
     start_date,
+    end_date,
     data,
     out_dir,
     region,
@@ -180,13 +169,13 @@ def prep(
     periodic=True,
     non_periodic_bias_val=20,
 ):
+    dates = np.array(get_dates(start_date, end_date))
+    n = len(dates)
     out_dir = os.path.abspath(out_dir)
-    tb = data[TB_KEY]
-    n = len(tb)
-    dates = np.array(get_n_dates(start_date, n))
     pass_ = "D" if am_pm == "AM" else "A"
     retrievel = RETRIEVAL_MIN if am_pm == "AM" else RETRIEVAL_MAX
 
+    tb = data[TB_KEY]
     if drop_bad_days:
         # Filter out indices where specified ratio of Tb data is missing
         good_idxs = [
@@ -234,9 +223,9 @@ def prep(
             tb, periodic=periodic, non_periodic_bias_val=non_periodic_bias_val
         )
 
-    start_year = dates[0].year
-    end_year = dates[-1].year
-    year_str = get_year_str(start_year, end_year)
+    ss = start_date.year if is_first_day_of_year(start_date) else start_date
+    es = end_date.year if is_last_day_of_year(end_date) else end_date
+    dates_str = f"{ss}_{es}"
     out_dict = {
         FMT_FILENAME_ERA_FT: era_ft,
         FMT_FILENAME_FT_LABEL: ft_label,
@@ -250,118 +239,273 @@ def prep(
         out_dict[FMT_FILENAME_SOLAR] = solar
     if ERA_T2M_KEY in data:
         out_dict[FMT_FILENAME_ERA_T2M] = era_t2m
-    save_data(out_dict, out_dir, year_str, region, pass_, am_pm)
+    save_data(out_dict, out_dir, dates_str, region, pass_, am_pm)
     dh.persist_data_object(
         aws_data,
-        os.path.join(out_dir, f"aws_data-{am_pm}-{year_str}-{region}.pkl"),
+        os.path.join(out_dir, f"aws_data-{am_pm}-{dates_str}-{region}.pkl"),
         overwrite=True,
     )
-    with open(f"{out_dir}/date_map-{year_str}-{region}.csv", "w") as fd:
+    with open(f"{out_dir}/date_map-{dates_str}-{region}.csv", "w") as fd:
         for i, d in zip(good_idxs, dates):
             fd.write(f"{i},{d}\n")
-    with open(f"{out_dir}/dropped_dates-{year_str}-{region}.csv", "w") as fd:
+    with open(f"{out_dir}/dropped_dates-{dates_str}-{region}.csv", "w") as fd:
         for d in dropped_dates:
             fd.write(f"{d}\n")
 
 
-if __name__ == "__main__":
-    region = NH
+def is_first_day_of_year(date):
+    return date.month == 1 and date.day == 1
+
+
+def is_last_day_of_year(date):
+    return date.month == 12 and date.day == 31
+
+
+def trim_datasets_to_dates(dss, start_date, end_date):
+    single = False
+    if isinstance(dss, torch.utils.data.Dataset):
+        # if input is single dataset rather than a list of them, wrap in list
+        dss = [dss]
+        single = True
+    start_yday = start_date.timetuple().tm_yday
+    end_yday = end_date.timetuple().tm_yday
+    if start_date.year == end_date.year:
+        idxs = list(range(start_yday - 1, end_yday))
+        dss = [torch.utils.data.Subset(dss[0], idxs)]
+    else:
+        if len(dss) == 1:
+            # Datasets already joined into one
+            diff = end_date - start_date
+            # Number of days total
+            n = diff.days + 1
+            idxs = list(range(start_yday - 1, start_yday - 1 + n))
+            dss = [torch.utils.data.Subset(dss[0], idxs)]
+        else:
+            if not is_first_day_of_year(start_date):
+                idxs = list(range(start_yday - 1, len(dss[0])))
+                dss[0] = torch.utils.data.Subset(dss[0], idxs)
+            if not is_last_day_of_year(end_date):
+                idxs = list(range(0, end_yday))
+                dss[-1] = torch.utils.data.Subset(dss[-1], idxs)
+    if not single:
+        return dss
+    else:
+        return dss[0]
+
+
+def validate_region(reg):
+    if reg in REGION_CODES:
+        return reg
+    else:
+        raise ValueError(f"Unknown region code: '{reg}'")
+
+
+def _parse_date_arg(s, start=True):
+    _YEAR_PATTERN = re.compile(r"^\d{4}$")
+    if _YEAR_PATTERN.match(s) is not None:
+        if start:
+            s = f"{s}-01-01"
+        else:
+            s = f"{s}-12-31"
+    # Parse dates of the form YYYY-MM-DD
+    return dt.date.fromisoformat(s)
+
+
+DEFAULT_DB = "../data/dbs/wmo_gsod.db"
+
+
+def get_parser():
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "-d",
+        "--db_path",
+        type=validate_file_path,
+        default=DEFAULT_DB,
+        help=f"Path to AWS database file. Default: '{DEFAULT_DB}'",
+    )
+    p.add_argument(
+        "-b",
+        "--drop_bad_days",
+        action="store_true",
+        help="Drop days with large amounts of missing data",
+    )
+    p.add_argument(
+        "-t",
+        "--prep_tb",
+        action="store_true",
+        help=(
+            "Prepare Tb data. This is handled differently. tb data is still"
+            " loaded but no gap filling is done and the result is not saved."
+        ),
+    )
+    p.add_argument(
+        "-s",
+        "--prep_solar",
+        action="store_true",
+        help="Prepare total daily solar data.",
+    )
+    p.add_argument(
+        "-n",
+        "--prep_snow",
+        action="store_true",
+        help="Prepare snow cover data.",
+    )
+    p.add_argument(
+        "-e",
+        "--prep_era_t2m",
+        action="store_true",
+        help="Prepare ERA4 t2m data.",
+    )
+    ropts = (("{}, " * (len(REGION_CODES) - 1)) + "{}").format(
+        *sorted(REGION_CODES)
+    )
+    p.add_argument(
+        "region",
+        type=validate_region,
+        help=f"The region to pull data from. Options are: {ropts}",
+    )
+    p.add_argument("am_pm", type=str, help="AM or PM data")
+    p.add_argument(
+        "start_date",
+        type=_parse_date_arg,
+        help="Data start date or year. If year, then the entire year is used.",
+    )
+    p.add_argument(
+        "end_date",
+        type=lambda x: _parse_date_arg(x, False),
+        help="Data end date or year. If year, then the entire year is used.",
+    )
+    p.add_argument("dest", type=validate_dir_path, help="Output directory")
+    return p
+
+
+def prep_data(
+    region,
+    start_date,
+    end_date,
+    am_pm,
+    dest="../data/cleaned",
+    db_path="../data/dbs/wmo_gsod.db",
+    prep_tb=True,
+    prep_solar=False,
+    prep_snow=False,
+    prep_era_t2m=False,
+    drop_bad_days=False,
+):
+    if isinstance(start_date, int):
+        start_date = _parse_date_arg(str(start_date))
+    if isinstance(end_date, int):
+        end_date = _parse_date_arg(str(end_date), False)
+    assert start_date < end_date, "Start date must come before end date"
+
     transform = REGION_TO_TRANS[region]
-
-    # NOTE: prep_tb is handled differently. tb data is still loaded but no gap
-    # filling is done and the result is not saved.
-    prep_tb = True
-    prep_snow = False
-    prep_solar = False
-    prep_era_t2m = False
-    am_pm = "AM"
     pass_ = "D" if am_pm == "AM" else "A"
-
-    drop_bad_days = False
-    train_start_year = 2005
-    train_final_year = 2014
-    test_year = 2016
-
     out_lon, out_lat = [
         transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)
     ]
-
     base_water_mask = np.load("../data/masks/ft_esdr_water_mask.npy")
     water_mask = transform(base_water_mask)
     land_mask = ~water_mask
-    db_path = "../data/dbs/wmo_gsod.db"
-    out_dir = "../data/cleaned"
 
-    # Training data
     data = {}
+    # Snow
     if prep_snow:
         print("Loading snow cover")
         snow = dh.dataset_to_array(
             torch.utils.data.ConcatDataset(
-                [
-                    dh.NpyDataset(
-                        f"../data/snow/snow_cover_{y}.npy", transform
-                    )
-                    for y in range(train_start_year, train_final_year + 1)
-                ]
+                trim_datasets_to_dates(
+                    [
+                        dh.NpyDataset(
+                            f"../data/snow/snow_cover_{y}.npy", transform
+                        )
+                        for y in range(start_date.year, end_date.year + 1)
+                    ],
+                    start_date,
+                    end_date,
+                )
             )
         )
         data[SNOW_KEY] = snow
+    # Solar
     if prep_solar:
         print("Loading solar")
         solar = dh.dataset_to_array(
             torch.utils.data.ConcatDataset(
-                [
-                    dh.NpyDataset(
-                        f"../data/solar/solar_rad-daily-{y}.npy", transform
-                    )
-                    for y in range(train_start_year, train_final_year + 1)
-                ]
+                trim_datasets_to_dates(
+                    [
+                        dh.NpyDataset(
+                            f"../data/solar/solar_rad-daily-{y}.npy", transform
+                        )
+                        for y in range(start_date.year, end_date.year + 1)
+                    ],
+                    start_date,
+                    end_date,
+                )
             )
         )
         data[SOLAR_KEY] = solar
+    # Tb
     path_groups = [
         glob.glob(f"../data/tb/{y}/tb_{y}_F*_ML_{pass_}*.nc")
-        for y in range(train_start_year, train_final_year + 1)
+        for y in range(start_date.year, end_date.year + 1)
     ]
     print("Loading tb")
-    tb = dh.dataset_to_array(dh.build_tb_ds(path_groups, transform))
+    tb = dh.dataset_to_array(
+        trim_datasets_to_dates(
+            dh.build_tb_ds(path_groups, transform), start_date, end_date
+        )
+    )
     data[TB_KEY] = tb
+    # ERA5 FT
     print("Loading ERA")
     era_ft = dh.dataset_to_array(
-        dh.TransformPipelineDataset(
-            dh.ERA5BidailyDataset(
-                [
-                    f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
-                    for y in range(train_start_year, train_final_year + 1)
-                ],
-                "t2m",
-                am_pm,
-                out_lon,
-                out_lat,
+        trim_datasets_to_dates(
+            dh.TransformPipelineDataset(
+                dh.ERA5BidailyDataset(
+                    [
+                        f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+                        for y in range(start_date.year, end_date.year + 1)
+                    ],
+                    "t2m",
+                    am_pm,
+                    out_lon,
+                    out_lat,
+                ),
+                [dh.FTTransform()],
             ),
-            [dh.FTTransform()],
+            start_date,
+            end_date,
         )
     )
     data[ERA_FT_KEY] = era_ft
+    # ERA5 t2m
     if prep_era_t2m:
         era_t2m = dh.dataset_to_array(
-            dh.ERA5BidailyDataset(
-                [
-                    f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
-                    for y in range(train_start_year, train_final_year + 1)
-                ],
-                "t2m",
-                am_pm,
-                out_lon,
-                out_lat,
-            ),
+            trim_datasets_to_dates(
+                dh.ERA5BidailyDataset(
+                    [
+                        f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{y}.nc"
+                        for y in range(start_date.year, end_date.year + 1)
+                    ],
+                    "t2m",
+                    am_pm,
+                    out_lon,
+                    out_lat,
+                ),
+                start_date,
+                end_date,
+            )
         )
         data[ERA_T2M_KEY] = era_t2m
+    sizes = set(len(d) for d in data.values())
+    assert (
+        len(sizes) == 1
+    ), "All data must be the same length in the time dimension"
     prep(
-        dt.date(train_start_year, 1, 1),
+        start_date,
+        end_date,
         data,
-        out_dir,
+        dest,
         region,
         land_mask,
         out_lon,
@@ -372,71 +516,8 @@ if __name__ == "__main__":
         prep_tb,
     )
 
-    # Validation data
-    data = {}
-    if prep_snow:
-        print("Loading snow cover")
-        snow = dh.dataset_to_array(
-            dh.NpyDataset(
-                f"../data/snow/snow_cover_{test_year}.npy", transform
-            )
-        )
-        data[SNOW_KEY] = snow
-    if prep_solar:
-        print("Loading solar")
-        solar = dh.dataset_to_array(
-            dh.NpyDataset(
-                f"../data/solar/solar_rad-daily-{test_year}.npy", transform
-            )
-        )
-        data[SOLAR_KEY] = solar
-    print("Loading tb")
-    tb = dh.dataset_to_array(
-        dh.build_tb_ds(
-            [
-                glob.glob(
-                    f"../data/tb/{test_year}/tb_{test_year}_F17_ML_{pass_}*.nc"
-                )
-            ],
-            transform,
-        )
-    )
-    data[TB_KEY] = tb
-    print("Loading ERA")
-    era_ft = dh.dataset_to_array(
-        dh.TransformPipelineDataset(
-            dh.ERA5BidailyDataset(
-                [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
-                "t2m",
-                am_pm,
-                out_lon,
-                out_lat,
-            ),
-            [dh.FTTransform()],
-        )
-    )
-    data[ERA_FT_KEY] = era_ft
-    if prep_era_t2m:
-        era_t2m = dh.dataset_to_array(
-            dh.ERA5BidailyDataset(
-                [f"../data/era5/t2m/bidaily/era5-t2m-bidaily-{test_year}.nc"],
-                "t2m",
-                am_pm,
-                out_lon,
-                out_lat,
-            )
-        )
-        data[ERA_T2M_KEY] = era_t2m
-    prep(
-        dt.date(test_year, 1, 1),
-        data,
-        out_dir,
-        region,
-        land_mask,
-        out_lon,
-        out_lat,
-        am_pm,
-        db_path,
-        drop_bad_days,
-        prep_tb,
-    )
+
+if __name__ == "__main__":
+    args = get_parser().parse_args()
+    args = vars(args)
+    prep_data(**args)
