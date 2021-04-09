@@ -71,6 +71,7 @@ ConfigV2Plus = namedtuple(
         "epochs",
         "train_batch_size",  # v5
         "test_batch_size",  # v5
+        "am_pm",  # v6
         "drop_last",
         "learning_rate",
         "lr_milestones",
@@ -146,6 +147,8 @@ def build_v2plus_config(cfg):
         bs = cfg.pop("batch_size")
         cfg["train_batch_size"] = bs
         cfg["test_batch_size"] = bs
+    # Handle v6 am_pm field
+    cfg["am_pm"] = cfg.get("am_pm", "AM")
     return ConfigV2Plus(**cfg)
 
 

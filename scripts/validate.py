@@ -4,6 +4,7 @@ import argparse
 import itertools
 import numpy as np
 import pandas as pd
+
 try:
     import rasterio as rio
 except ImportError:
@@ -252,6 +253,7 @@ def validate_bounded(
     lon_grid,
     lat_grid,
     valid_mask,
+    return_raw_comp_results=False,
     show_progress=False,
     variable_mask=False,
 ):
@@ -270,6 +272,9 @@ def validate_bounded(
         valid_mask: A single 2D grid or list/array of 2D grids specifying
             the valid regions of data that shoud be validated. Usage is
             controlled by `variable_mask`.
+        return_raw_comp_results: If True, returns the raw results from
+            comparing the input against the AWS data as a DataFrame. If False,
+            the mean accuracy values are returned. Default is False.
         show_progress: if True, a progress bar is displayed.
             DEFAULT: False
         variable_mask: if True, `valid_mask` is treated as an iterable of
@@ -295,7 +300,6 @@ def validate_bounded(
         lat_grid.max(),
     ]
     tree = KDTree(np.array(list(zip(lon_grid.ravel(), lat_grid.ravel()))))
-    acc = np.zeros(len(grid_stack))
     it = tqdm.tqdm(
         zip(dates, grid_stack, flat_valid_idxs_iter),
         ncols=80,
@@ -303,14 +307,21 @@ def validate_bounded(
         disable=not show_progress,
         desc="AWS Validation",
     )
+    if return_raw_comp_results:
+        results = []
+    else:
+        results = np.zeros(len(grid_stack))
     for j, (d, g, flat_valid_idxs) in enumerate(it):
         vpoints, vtemps = pf.fetch_bounded(d, geo_bounds)
         vft = ft_model_zero_threshold(vtemps)
         idxs, values = get_nearest_flat_idxs_and_values(
             tree, vpoints, vft, flat_valid_idxs
         )
-        acc[j] = float((g.ravel()[idxs] == values).sum()) / len(values)
-    return acc
+        if return_raw_comp_results:
+            results.append(g.ravel()[idxs] == values)
+        else:
+            results[j] = float((g.ravel()[idxs] == values).sum()) / len(values)
+    return results
 
 
 class WMOValidator:
@@ -326,6 +337,7 @@ class WMOValidator:
         lon_grid,
         lat_grid,
         valid_mask,
+        return_raw_comp_results=False,
         show_progress=False,
         variable_mask=False,
     ):
@@ -336,9 +348,48 @@ class WMOValidator:
             lon_grid,
             lat_grid,
             valid_mask,
+            return_raw_comp_results,
             show_progress=show_progress,
             variable_mask=variable_mask,
         )
+
+
+def am_pm_to_retrieval(am_pm):
+    if am_pm == "AM":
+        return RETRIEVAL_MIN
+    else:
+        return RETRIEVAL_MAX
+
+
+def validate_against_aws_db(
+    grid_stack, db, dates, lon_grid, lat_grid, valid_mask, am_pm
+):
+    retrieval = am_pm_to_retrieval(am_pm)
+    pf = WMOValidationPointFetcher(db, retrieval)
+    aws_val = WMOValidator(pf)
+    res = aws_val.validate_bounded(
+        grid_stack,
+        dates,
+        lon_grid,
+        lat_grid,
+        valid_mask,
+        return_raw_comp_results=True,
+        show_progress=True,
+        variable_mask=False,
+    )
+    df = []
+    for r in res:
+        ag = r.sum()
+        dis = r.size - ag
+        tot = r.size
+        acc = ag / tot
+        df.append([acc, ag, dis, tot])
+    df = pd.DataFrame(
+        df,
+        index=pd.to_datetime(dates),
+        columns=["acc", "agree", "disagree", "total"],
+    )
+    return df
 
 
 COL_YEAR = "year"

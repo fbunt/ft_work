@@ -1,5 +1,5 @@
 config:
-    version: 5
+    version: 6
 
     n_classes: 2
     depth: 4
@@ -26,6 +26,7 @@ config:
     train_end_year: 2014
     test_start_year: 2016
     test_end_year: 2016
+    am_pm: AM
 
     epochs: 1100
     train_batch_size: 28

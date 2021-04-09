@@ -41,6 +41,7 @@ from validate import (
     RETRIEVAL_MIN,
     WMOValidationPointFetcher,
     WMOValidator,
+    validate_against_aws_db,
 )
 from validation_db_orm import get_db_session
 
@@ -287,23 +288,21 @@ def validate_against_era5(pred, era_ds, land_mask, config):
     return era_acc * 100
 
 
-def validate_against_aws_db(
+def validate_against_aws(
     pred, db, dates, lon_grid, lat_grid, land_mask, config
 ):
-    pf = WMOValidationPointFetcher(db, RETRIEVAL_MIN)
-    aws_val = WMOValidator(pf)
     if not isinstance(land_mask, np.ndarray):
         land_mask = land_mask.numpy()
-    aws_acc = aws_val.validate_bounded(
+    df = validate_against_aws_db(
         pred,
+        db,
         dates,
         lon_grid,
         lat_grid,
         land_mask,
-        show_progress=True,
-        variable_mask=config.val_use_valid_mask,
+        am_pm=config.am_pm,
     )
-    return aws_acc * 100
+    return df.acc.to_nump() * 100
 
 
 def plot_accuracies(val_dates, era_acc, aws_acc, root_dir):
@@ -819,7 +818,7 @@ if __name__ == "__main__":
         db = get_db_session(config.db_path)
         lon_grid = np.load(config.lon_grid_path)
         lat_grid = np.load(config.lat_grid_path)
-        aws_acc = validate_against_aws_db(
+        aws_acc = validate_against_aws(
             pred, db, val_dates, lon_grid, lat_grid, land_mask, config
         )
         db.close()
