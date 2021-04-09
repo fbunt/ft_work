@@ -196,13 +196,13 @@ class MetricImprovementChecker:
 
 FNAME_MODEL = "model.pt"
 FNAME_PREDICTIONS = "pred.npy"
+FNAME_PROBABILITIES = "prob.npy"
 
 
 class SnapshotHandler:
-    def __init__(self, root_dir, model, config):
+    def __init__(self, root_dir, model)
         self.root_path = os.path.abspath(root_dir)
         self.model = model
-        self.config = config
         self.model_path = os.path.join(self.root_path, FNAME_MODEL)
         self.pred_path = os.path.join(self.root_path, FNAME_PREDICTIONS)
         self.counter = 0
@@ -217,8 +217,8 @@ class SnapshotHandler:
         return True
 
     def load_best_model(self):
-        model.load_state_dict(torch.load(self.model_path))
-        return model
+        self.model.load_state_dict(torch.load(self.model_path))
+        return self.model
 
 
 def log_metrics(writer, cm, step):
@@ -805,10 +805,10 @@ if __name__ == "__main__":
         pred, raw_prob = get_predictions(
             test_loader, model, ~land_mask, LABEL_OTHER, device, config
         )
-        predictions_path = os.path.join(root_dir, "pred.npy")
+        predictions_path = os.path.join(root_dir, FNAME_PREDICTIONS)
         print(f"Saving predictions: '{predictions_path}'")
         np.save(predictions_path, pred)
-        probabilities_path = os.path.join(root_dir, "prob.npy")
+        probabilities_path = os.path.join(root_dir, FNAME_PROBABILITIES)
         print(f"Saving probabilities: '{probabilities_path}'")
         np.save(probabilities_path, raw_prob)
         # Validate against ERA5
