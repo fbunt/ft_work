@@ -197,9 +197,11 @@ class MetricImprovementChecker:
 
 
 FNAME_MODEL = "model.pt"
+FNAME_MODEL_TMP = "model.pt.tmp"
 FNAME_PREDICTIONS = "pred.npy"
 FNAME_PROBABILITIES = "prob.npy"
 FNAME_FULL_SNAPSHOT = "snap_full.pt"
+FNAME_FULL_SNAPSHOT_TMP = "snap_full.pt.tmp"
 SNAP_KEY_EPOCH = "epoch"
 SNAP_KEY_MODEL = "model"
 SNAP_KEY_OPTIMIZER = "optimizer"
@@ -213,11 +215,18 @@ class SnapshotHandler:
         self.opt = optimizer
         self.lr_sched = lr_sched
         self.model_path = os.path.join(self.root_path, FNAME_MODEL)
+        self.model_path_tmp = os.path.join(self.root_path, FNAME_MODEL_TMP)
         self.full_snap_path = os.path.join(self.root_path, FNAME_FULL_SNAPSHOT)
+        self.full_snap_path_tmp = os.path.join(
+            self.root_path, FNAME_FULL_SNAPSHOT_TMP
+        )
         self.counter = 0
 
     def save_model(self):
-        torch.save(self.model.state_dict(), self.model_path)
+        # Make sure that there is always a possible recovery mode in case of
+        # early termination during file write.
+        torch.save(self.model.state_dict(), self.model_path_tmp)
+        os.replace(self.model_path_tmp, self.model_path)
 
     def take_model_snapshot(self):
         print("\nTaking snapshot")
@@ -233,7 +242,10 @@ class SnapshotHandler:
             SNAP_KEY_LR_SCHED: self.lr_sched.state_dict(),
         }
         print("Taking full snapshot")
-        torch.save(snap, self.full_snap_path)
+        # Make sure that there is always a possible recovery mode in case of
+        # early termination during file write.
+        torch.save(snap, self.full_snap_path_tmp)
+        os.replace(self.full_snap_path_tmp, self.full_snap_path)
 
     def load_best_model(self):
         self.model.load_state_dict(torch.load(self.model_path))
