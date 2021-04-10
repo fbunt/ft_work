@@ -296,7 +296,7 @@ def validate_against_aws(
         land_mask,
         am_pm=config.am_pm,
     )
-    return df.acc.to_nump() * 100
+    return df.acc.to_numpy() * 100
 
 
 def plot_accuracies(val_dates, era_acc, aws_acc, root_dir):
