@@ -241,7 +241,6 @@ class SnapshotHandler:
             SNAP_KEY_OPTIMIZER: self.opt.state_dict(),
             SNAP_KEY_LR_SCHED: self.lr_sched.state_dict(),
         }
-        print("Taking full snapshot")
         # Make sure that there is always a possible recovery mode in case of
         # early termination during file write.
         torch.save(snap, self.full_snap_path_tmp)
@@ -802,7 +801,7 @@ def main(config_path, resume_dir=None):
                 snap_handler.take_model_snapshot()
             log_metrics(test_summary, cm, epoch)
             sched.step()
-            if epoch % 5 == 0 and epoch != 0:
+            if epoch % 3 == 0 and epoch != 0:
                 snap_handler.take_full_snapshot(epoch)
     except KeyboardInterrupt:
         print("Exiting training loop")
