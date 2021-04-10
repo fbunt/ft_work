@@ -191,14 +191,21 @@ class MetricImprovementChecker:
 FNAME_MODEL = "model.pt"
 FNAME_PREDICTIONS = "pred.npy"
 FNAME_PROBABILITIES = "prob.npy"
+FNAME_FULL_SNAPSHOT = "snap_full.pt"
+SNAP_KEY_EPOCH = "epoch"
+SNAP_KEY_MODEL = "model"
+SNAP_KEY_OPTIMIZER = "optimizer"
+SNAP_KEY_LR_SCHED = "lr_sched"
 
 
 class SnapshotHandler:
-    def __init__(self, root_dir, model)
+    def __init__(self, root_dir, model, optimizer, lr_sched):
         self.root_path = os.path.abspath(root_dir)
         self.model = model
+        self.opt = optimizer
+        self.lr_sched = lr_sched
         self.model_path = os.path.join(self.root_path, FNAME_MODEL)
-        self.pred_path = os.path.join(self.root_path, FNAME_PREDICTIONS)
+        self.full_snap_path = os.path.join(self.root_path, FNAME_FULL_SNAPSHOT)
         self.counter = 0
 
     def save_model(self):
@@ -210,9 +217,27 @@ class SnapshotHandler:
         self.counter += 1
         return True
 
+    def take_full_snapshot(self, epoch):
+        snap = {
+            SNAP_KEY_EPOCH: epoch,
+            SNAP_KEY_MODEL: self.model.state_dict(),
+            SNAP_KEY_OPTIMIZER: self.opt.state_dict(),
+            SNAP_KEY_LR_SCHED: self.lr_sched.state_dict(),
+        }
+        torch.save(snap, self.full_snap_path)
+
     def load_best_model(self):
         self.model.load_state_dict(torch.load(self.model_path))
         return self.model
+
+    def load_full_snapshot(self):
+        print("Loading full snapshot")
+        snap = torch.load(self.full_snap_path)
+        epoch = snap[SNAP_KEY_EPOCH]
+        self.model.load_state_dict(snap[SNAP_KEY_MODEL])
+        self.opt.load_state_dict(snap[SNAP_KEY_MODEL])
+        self.lr_sched.load_state_dict(snap[SNAP_KEY_LR_SCHED])
+        return epoch, self.model, self.opt, self.lr_sched
 
 
 def log_metrics(writer, cm, step):
@@ -704,7 +729,7 @@ if __name__ == "__main__":
         shuffle=False,
         drop_last=False,
     )
-    snap_handler = SnapshotHandler(root_dir, model, config)
+    snap_handler = SnapshotHandler(root_dir, model, opt, sched)
     metric_checker = MetricImprovementChecker(
         MaxMetricTracker(-np.inf), MET_MCC
     )
@@ -740,6 +765,8 @@ if __name__ == "__main__":
                 snap_handler.take_model_snapshot()
             log_metrics(test_summary, cm, epoch)
             sched.step()
+            if epoch % 5 == 0 and epoch != 0:
+                snap_handler.take_full_snapshot(epoch)
     except KeyboardInterrupt:
         print("Exiting training loop")
     except Exception as e:
