@@ -409,9 +409,7 @@ def add_plots_to_run_dir(root_dir, do_val_plots, do_pred_plots):
     if do_pred_plots:
         dates, _, _ = read_accuracies_file(os.path.join(root_dir, "acc.csv"))
         preds = np.load(os.path.join(root_dir, "pred.npy"))
-        plot_predictions(
-            dates, preds, os.path.join(root_dir, "pred_plots")
-        )
+        plot_predictions(dates, preds, os.path.join(root_dir, "pred_plots"))
 
 
 def normalize(x):
