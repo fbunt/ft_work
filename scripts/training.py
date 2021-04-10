@@ -35,14 +35,8 @@ from model import (
     UNet,
     local_variation_loss,
 )
-from transforms import REGION_TO_TRANS
 from utils import FT_CMAP, validate_file_path
-from validate import (
-    RETRIEVAL_MIN,
-    WMOValidationPointFetcher,
-    WMOValidator,
-    validate_against_aws_db,
-)
+from validate import validate_against_aws_db
 from validation_db_orm import get_db_session
 
 
