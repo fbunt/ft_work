@@ -25,6 +25,7 @@ from datahandling import (
     RepeatDataset,
     SingleValueGridDataset,
     Tile3HDataset,
+    dataset_to_array,
     read_accuracies_file,
     write_accuracies_file,
 )
@@ -35,7 +36,7 @@ from model import (
     UNet,
     local_variation_loss,
 )
-from utils import FT_CMAP, validate_file_path
+from utils import FT_CMAP, validate_dir_path, validate_file_path
 from validate import validate_against_aws_db
 from validation_db_orm import get_db_session
 
@@ -48,6 +49,13 @@ def get_cli_parser():
         default="../config/config_default.yaml",
         type=validate_file_path,
         help="Path to config file. If not provided, the default file is used",
+    )
+    p.add_argument(
+        "-r",
+        "--resume_dir",
+        default=None,
+        type=validate_dir_path,
+        help="Path to run dir to resume training from",
     )
     return p
 
@@ -224,6 +232,7 @@ class SnapshotHandler:
             SNAP_KEY_OPTIMIZER: self.opt.state_dict(),
             SNAP_KEY_LR_SCHED: self.lr_sched.state_dict(),
         }
+        print("Taking full snapshot")
         torch.save(snap, self.full_snap_path)
 
     def load_best_model(self):
@@ -235,7 +244,7 @@ class SnapshotHandler:
         snap = torch.load(self.full_snap_path)
         epoch = snap[SNAP_KEY_EPOCH]
         self.model.load_state_dict(snap[SNAP_KEY_MODEL])
-        self.opt.load_state_dict(snap[SNAP_KEY_MODEL])
+        self.opt.load_state_dict(snap[SNAP_KEY_OPTIMIZER])
         self.lr_sched.load_state_dict(snap[SNAP_KEY_LR_SCHED])
         return epoch, self.model, self.opt, self.lr_sched
 
@@ -253,12 +262,16 @@ def get_year_str(ya, yb):
         return f"{ya}-{yb}"
 
 
-def init_run_dir(root_dir, config_path):
-    os.makedirs(root_dir, exist_ok=True)
-    # Dump configuration info
-    shutil.copyfile(config_path, os.path.join(root_dir, "config.yaml"))
+FNAME_CONFIG = "config.yaml"
+
+
+def init_run_dir(root_dir, config_path, resume=False):
     log_dir = os.path.join(root_dir, "logs")
-    os.makedirs(log_dir, exist_ok=True)
+    if not resume:
+        os.makedirs(root_dir, exist_ok=True)
+        # Dump configuration info
+        shutil.copyfile(config_path, os.path.join(root_dir, FNAME_CONFIG))
+        os.makedirs(log_dir, exist_ok=True)
     train_log_dir = os.path.join(log_dir, "training")
     test_log_dir = os.path.join(log_dir, "test")
     summary_class = SummaryWriter if TENSORBOARD else SummaryWriterDummy
@@ -300,7 +313,7 @@ def get_predictions(input_dl, model, water_mask, water_label, device, config):
 
 def validate_against_era5(pred, era_ds, land_mask, config):
     masked_pred = [p[land_mask] for p in pred]
-    era = [v.argmax(0)[land_mask] for v in era_ds]
+    era = [v[land_mask] for v in era_ds]
     era_acc = np.array(
         [(p == e).sum() / p.size for p, e in zip(masked_pred, era)]
     )
@@ -365,9 +378,11 @@ def plot_accuracies(val_dates, era_acc, aws_acc, root_dir):
     plt.close()
 
 
-def plot_predictions(dates, predictions, root_dir, pred_plot_dir):
+def plot_predictions(dates, predictions, pred_plot_dir):
     import matplotlib.pyplot as plt
 
+    if not os.path.isdir(pred_plot_dir):
+        os.makedirs(pred_plot_dir, exist_ok=True)
     # Save prediction plots
     print(f"Creating prediction plots: '{pred_plot_dir}'")
     pfmt = os.path.join(pred_plot_dir, "{:03}.png")
@@ -395,7 +410,7 @@ def add_plots_to_run_dir(root_dir, do_val_plots, do_pred_plots):
         dates, _, _ = read_accuracies_file(os.path.join(root_dir, "acc.csv"))
         preds = np.load(os.path.join(root_dir, "pred.npy"))
         plot_predictions(
-            dates, preds, root_dir, os.path.join(root_dir, "pred_plots")
+            dates, preds, os.path.join(root_dir, "pred_plots")
         )
 
 
@@ -640,7 +655,7 @@ def train(
     )
 
 
-def build_full_dataset_from_config(config, is_train):
+def build_full_dataset_from_config(config, land_mask, is_train):
     if is_train:
         aws_mask_path = config.train_aws_mask_path
         ft_label_data_path = config.train_ft_label_data_path
@@ -674,27 +689,17 @@ def build_full_dataset_from_config(config, is_train):
         )
         return ds, input_ds, era_ds
     return ds
-if __name__ == "__main__":
-    args = get_cli_parser().parse_args()
-    config_path = args.config_path
+
+
+def main(config_path, resume_dir=None):
     config = load_config(config_path)
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0")
 
-    land_mask = torch.tensor(np.load(config.land_mask_path))
-
-    #
-    # Training data
-    #
-    train_ds = build_full_dataset_from_config(config, True)
-    #
-    # Test Data
-    #
-    test_ds, test_input_ds, test_era_ds = build_full_dataset_from_config(
-        config, False
-    )
+    resume = resume_dir is not None
 
     model = create_model(UNet, config)
     if torch.cuda.device_count() > 1:
+        print("Using DataParallel")
         model = DataParallel(model)
     model = model.to(device)
     opt = torch.optim.Adam(
@@ -707,15 +712,37 @@ if __name__ == "__main__":
     )
     grad_scaler = torch.cuda.amp.GradScaler()
 
-    # Create run dir and fill with info
-    if not os.path.isdir(config.runs_dir):
-        print("Creating runs_dir")
-        os.mkdir(config.runs_dir)
-    root_dir = os.path.join(
-        config.runs_dir, f'{str(dt.datetime.now()).replace(" ", "-")}'
-    )
+    if resume:
+        root_dir = resume_dir
+    else:
+        # Create run dir and fill with info
+        if not os.path.isdir(config.runs_dir):
+            print("Creating runs_dir")
+            os.mkdir(config.runs_dir)
+        root_dir = os.path.join(
+            config.runs_dir, f'{str(dt.datetime.now()).replace(" ", "-")}'
+        )
     print(f"Initializing run dir: {root_dir}")
-    train_summary, test_summary = init_run_dir(root_dir, config_path)
+    train_summary, test_summary = init_run_dir(
+        root_dir, config_path, resume=resume
+    )
+
+    snap_handler = SnapshotHandler(root_dir, model, opt, sched)
+    last_epoch = 0
+    if resume:
+        last_epoch, model, opt, sched = snap_handler.load_full_snapshot()
+
+    land_mask = torch.tensor(np.load(config.land_mask_path))
+    #
+    # Training data
+    #
+    train_ds = build_full_dataset_from_config(config, land_mask, True)
+    #
+    # Test Data
+    #
+    test_ds, test_input_ds, test_era_ds = build_full_dataset_from_config(
+        config, land_mask, False
+    )
 
     train_dataloader = torch.utils.data.DataLoader(
         train_ds,
@@ -729,13 +756,13 @@ if __name__ == "__main__":
         shuffle=False,
         drop_last=False,
     )
-    snap_handler = SnapshotHandler(root_dir, model, opt, sched)
     metric_checker = MetricImprovementChecker(
         MaxMetricTracker(-np.inf), MET_MCC
     )
-    snap_handler.take_model_snapshot()
+    if not resume:
+        snap_handler.take_model_snapshot()
     try:
-        for epoch in range(config.epochs):
+        for epoch in range(last_epoch, config.epochs):
             train_summary.add_scalar(
                 "learning_rate", next(iter(opt.param_groups))["lr"], epoch
             )
@@ -776,10 +803,6 @@ if __name__ == "__main__":
         train_summary.close()
         test_summary.close()
         # Free up data for GC
-        train_input_ds = None
-        train_weights_ds = None
-        train_label_ds = None
-        train_idx_ds = None
         train_ds = None
         train_dataloader = None
 
@@ -790,9 +813,6 @@ if __name__ == "__main__":
 
         model = snap_handler.load_best_model()
         model.eval()
-        # Log results
-        pred_plot_dir = os.path.join(root_dir, "pred_plots")
-        os.makedirs(pred_plot_dir)
         # Create and save predictions for test data
         print("Generating predictions")
         test_loader = torch.utils.data.DataLoader(
@@ -812,6 +832,7 @@ if __name__ == "__main__":
         np.save(probabilities_path, raw_prob)
         # Validate against ERA5
         print("Validating against ERA5")
+        test_era_ds = dataset_to_array(test_era_ds).argmax(1).squeeze()
         era_acc = validate_against_era5(pred, test_era_ds, land_mask, config)
         # Validate against AWS DB
         db = get_db_session(config.db_path)
@@ -829,3 +850,11 @@ if __name__ == "__main__":
         add_plots_to_run_dir(
             root_dir, config.do_val_plots, config.do_pred_plots
         )
+
+
+if __name__ == "__main__":
+    args = get_cli_parser().parse_args()
+    config_path = args.config_path
+    if args.resume_dir:
+        config_path = os.path.join(args.resume_dir, FNAME_CONFIG)
+    main(config_path, args.resume_dir)
