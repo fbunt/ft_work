@@ -506,7 +506,6 @@ def run_model(
     iterator,
     optimizer,
     land_mask,
-    water_mask,
     summary,
     epoch,
     config,
@@ -561,7 +560,6 @@ def test(
     dataloader,
     optimizer,
     land_mask,
-    water_mask,
     summary,
     epoch,
     config,
@@ -582,7 +580,6 @@ def test(
             it,
             optimizer,
             land_mask,
-            water_mask,
             summary,
             epoch,
             config,
@@ -599,7 +596,6 @@ def train(
     dataloader,
     optimizer,
     land_mask,
-    water_mask,
     summary,
     epoch,
     config,
@@ -618,7 +614,6 @@ def train(
         it,
         optimizer,
         land_mask,
-        water_mask,
         summary,
         epoch,
         config,
@@ -626,72 +621,58 @@ def train(
     )
 
 
+def build_full_dataset_from_config(config, is_train):
+    if is_train:
+        aws_mask_path = config.train_aws_mask_path
+        ft_label_data_path = config.train_ft_label_data_path
+    else:
+        aws_mask_path = config.test_aws_mask_path
+        ft_label_data_path = config.test_ft_label_data_path
+    input_ds = build_input_dataset_form_config(config, is_train)
+    # AWS
+    aws_mask = np.load(aws_mask_path)
+    if config.use_prior_day:
+        aws_mask = aws_mask[1:]
+    aws_mask = torch.tensor(aws_mask)
+    ws = torch.zeros((len(input_ds), 1, *land_mask.shape), dtype=torch.float)
+    ws[..., land_mask] = 1.0
+    for i in tqdm.tqdm(range(len(ws)), ncols=80, desc="Weights"):
+        ws[i, :, aws_mask[i]] *= config.aws_bce_weight
+    weights_ds = ArrayDataset(ws)
+    aws_mask = None
+    # FT label
+    label_ds = NpyDataset(ft_label_data_path)
+    reduced_indices = list(range(1, len(input_ds) + 1))
+    if config.use_prior_day:
+        label_ds = Subset(label_ds, list(range(1, len(input_ds) + 1)))
+    datasets = [input_ds, label_ds, weights_ds]
+    if config.tile and is_train:
+        datasets = [Tile3HDataset(d, land_mask.shape) for d in datasets]
+    ds = ComposedDataset(datasets)
+    if not is_train:
+        era_ds = Subset(
+            NpyDataset(config.test_era5_ft_data_path), reduced_indices
+        )
+        return ds, input_ds, era_ds
+    return ds
 if __name__ == "__main__":
     args = get_cli_parser().parse_args()
     config_path = args.config_path
     config = load_config(config_path)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    transform = REGION_TO_TRANS[config.region]
     land_mask = torch.tensor(np.load(config.land_mask_path))
-    water_mask = ~land_mask
-    land_mask_np = land_mask.numpy()
-    land_channel = torch.tensor(land_mask_np).float()
 
     #
     # Training data
     #
-    train_input_ds = build_input_dataset_form_config(config, True)
-    # AWS
-    train_aws_mask = np.load(config.train_aws_mask_path)
-    if config.use_prior_day:
-        train_aws_mask = train_aws_mask[1:]
-    train_aws_mask = torch.tensor(train_aws_mask)
-    ws = torch.zeros(
-        (len(train_input_ds), 1, *land_mask.shape), dtype=torch.float
-    )
-    ws[..., land_mask] = 1.0
-    for i in tqdm.tqdm(range(len(ws)), ncols=80, desc="Weights"):
-        ws[i, :, train_aws_mask[i]] *= config.aws_bce_weight
-    train_weights_ds = ArrayDataset(ws)
-    train_aws_mask = None
-    # FT label
-    train_label_ds = NpyDataset(config.train_ft_label_data_path)
-    if config.use_prior_day:
-        train_label_ds = Subset(
-            train_label_ds, list(range(1, len(train_input_ds) + 1))
-        )
-    datasets = [train_input_ds, train_label_ds, train_weights_ds]
-    if config.tile:
-        datasets = [Tile3HDataset(d, land_mask.shape) for d in datasets]
-    train_ds = ComposedDataset(datasets)
-
+    train_ds = build_full_dataset_from_config(config, True)
     #
     # Test Data
     #
-    test_input_ds = build_input_dataset_form_config(config, False)
-    test_reduced_indices = list(range(1, len(test_input_ds) + 1))
-    # AWS
-    test_aws_mask = NpyDataset(config.test_aws_mask_path)
-    if config.use_prior_day:
-        test_aws_mask = test_aws_mask[1:]
-    test_aws_mask = torch.tensor(test_aws_mask)
-    ws = torch.zeros(
-        (len(test_input_ds), 1, *land_mask.shape), dtype=torch.float
+    test_ds, test_input_ds, test_era_ds = build_full_dataset_from_config(
+        config, False
     )
-    ws[..., land_mask] = 1.0
-    for i in tqdm.tqdm(range(len(ws)), ncols=80, desc="Weights"):
-        ws[i, :, test_aws_mask[i]] *= config.aws_bce_weight
-    test_weights_ds = ArrayDataset(ws)
-    test_aws_mask = None
-    # ERA and FT Label
-    test_label_ds = NpyDataset(config.test_ft_label_data_path)
-    # Keep this for post training validation
-    test_era_ds = NpyDataset(config.test_era5_ft_data_path)
-    if config.use_prior_day:
-        test_era_ds = Subset(test_era_ds, test_reduced_indices)
-        test_label_ds = Subset(test_label_ds, test_reduced_indices)
-    test_ds = ComposedDataset([test_input_ds, test_label_ds, test_weights_ds])
 
     model = create_model(UNet, config)
     if torch.cuda.device_count() > 1:
@@ -716,7 +697,6 @@ if __name__ == "__main__":
     )
     print(f"Initializing run dir: {root_dir}")
     train_summary, test_summary = init_run_dir(root_dir, config_path)
-    mpath = os.path.join(root_dir, "model.pt")
 
     train_dataloader = torch.utils.data.DataLoader(
         train_ds,
@@ -747,7 +727,6 @@ if __name__ == "__main__":
                 train_dataloader,
                 opt,
                 land_mask,
-                water_mask,
                 train_summary,
                 epoch,
                 config,
@@ -759,7 +738,6 @@ if __name__ == "__main__":
                 test_dataloader,
                 opt,
                 land_mask,
-                water_mask,
                 test_summary,
                 epoch,
                 config,
@@ -787,7 +765,7 @@ if __name__ == "__main__":
         # Validation
         val_dates = load_dates(config.test_date_map_path)
         if config.use_prior_day:
-            val_dates = Subset(val_dates, test_reduced_indices)
+            val_dates = val_dates[1:]
 
         model = snap_handler.load_best_model()
         model.eval()
