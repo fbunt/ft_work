@@ -104,16 +104,22 @@ class ERA5BidailyDataset(Dataset):
     def __init__(self, paths, var_name, scheme, out_lon, out_lat, chunks=1):
         """Return new dataset
 
-        Params:
-            paths (list): list of data file paths.
-            var_name (str): name of variable of interest in data files.
-            scheme (str): "AM" or "PM". Determines if AM or PM data is loaded.
-            out_lon (array): 1D or 2D array of longitude values for regridded
-                             data.  Must use [-180, 180) range for values
-            out_lat (array): 1D or 2D array of latitude values for regridded
-                             data.
-            chunk (int): Default 1. Chunks to use when loading data with
-                         xarray.  1 has, so far, proved to be fastest.
+        Parameters
+        ----------
+        paths: list-like
+            list of data file paths.
+        var_name: str
+            name of variable of interest in data files.
+        scheme: str
+            "AM" or "PM". Determines if AM or PM data is loaded.
+        out_lon: array-like
+            1D or 2D array of longitude values for regridded data.  Must use
+            [-180, 180) range for values
+        out_lat: array-like
+            1D or 2D array of latitude values for regridded data.
+        chunk: int
+            Default 1. Chunks to use when loading data with xarray.  1 has,
+            so far, proved to be fastest.
         """
         if (out_lon >= 180).any():
             raise ValueError("Longitude values must be -180 <= lon < 180")
