@@ -24,7 +24,7 @@ from datahandling import (
     NpyDataset,
     RepeatDataset,
     SingleValueGridDataset,
-    Tile3HDataset,
+    TilingDataset,
     dataset_to_array,
     read_accuracies_file,
     write_accuracies_file,
@@ -690,7 +690,10 @@ def build_full_dataset_from_config(config, land_mask, is_train):
         label_ds = Subset(label_ds, list(range(1, len(input_ds) + 1)))
     datasets = [input_ds, label_ds, weights_ds]
     if config.tile and is_train:
-        datasets = [Tile3HDataset(d, land_mask.shape) for d in datasets]
+        datasets = [
+            TilingDataset(d, land_mask.shape, config.tile_layout)
+            for d in datasets
+        ]
     ds = ComposedDataset(datasets)
     if not is_train:
         era_ds = Subset(

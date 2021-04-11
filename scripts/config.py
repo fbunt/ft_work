@@ -63,6 +63,7 @@ ConfigV2Plus = namedtuple(
         "use_prior_day",
         "normalize",
         "tile",  # v5
+        "tile_layout",  # v7
         "region",
         "train_start_year",
         "train_end_year",
@@ -149,6 +150,8 @@ def build_v2plus_config(cfg):
         cfg["test_batch_size"] = bs
     # Handle v6 am_pm field
     cfg["am_pm"] = cfg.get("am_pm", "AM")
+    # Handle v7 tile_layout field
+    cfg["tile_layout"] = tuple(cfg.get("tile_layout", (1, 3)))
     return ConfigV2Plus(**cfg)
 
 

@@ -385,6 +385,63 @@ class Tile3HDataset(Dataset):
         return 3 * len(self.data)
 
 
+def _get_dim_splits(n_pix, n_tiles):
+    if n_pix % n_tiles == 0:
+        # Evenly divisible
+        d = n_pix // n_tiles
+        sp = list(range(0, n_pix + 1, d))
+        return [sp[i : i + 2] for i in range(len(sp) - 1)]
+    else:
+        # Not evenly divisible so need to overlap slightly on last tile
+        # Find next number evenly divisible by n_tiles and do divisions based
+        # on that.
+        d = (n_pix + n_tiles - n_pix % n_tiles) // n_tiles
+        sp = list(range(0, n_pix + d, d))
+        sp = [sp[i : i + 2] for i in range(len(sp) - 1)]
+        # swap last split with overlapping split
+        sp[-1] = [n_pix - d, n_pix]
+        return sp
+
+
+class TilingDataset(Dataset):
+    """
+    A Dataset that tiles the underlying data based on the given layout. The
+    tiles do not overlap.
+    """
+
+    def __init__(self, data, grid_shape, tile_layout):
+        """Returns new Dataset
+
+        Parameters
+        ----------
+        data: Dataset-like, array-like
+            the underlying data to tile.
+        grid_shape: 2-tuple
+            the (H, W) shape of the grids in `data`.
+        tile_layout: 2-tuple
+            the desired tiling layout of the form (R, C), where R is the
+            number of tiles in the row dimension and C is the number of tiles
+            in the column dimension.
+        """
+        self.data = data
+        self.layout = tile_layout
+        r, c = grid_shape
+        tr, tc = self.layout
+        self.slices = []
+        for rsp in _get_dim_splits(r, tr):
+            for csp in _get_dim_splits(c, tc):
+                self.slices.append(
+                    np.s_[..., rsp[0] : rsp[1], csp[0] : csp[1]]
+                )
+        self.n = len(self.slices)
+
+    def __getitem__(self, idx):
+        return self.data[idx // self.n][self.slices[idx % self.n]]
+
+    def __len__(self):
+        return self.n * len(self.data)
+
+
 class IndexEchoDataset(Dataset):
     """A Dataset that echos the indices it is given
 
