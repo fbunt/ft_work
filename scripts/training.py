@@ -669,7 +669,9 @@ def build_full_dataset_from_config(config, land_mask, is_train):
     else:
         aws_mask_path = config.test_aws_mask_path
         ft_label_data_path = config.test_ft_label_data_path
-    input_ds = build_input_dataset_form_config(config, is_train)
+    input_ds = ArrayDataset(
+        dataset_to_array(build_input_dataset_form_config(config, is_train))
+    )
     # AWS
     aws_mask = np.load(aws_mask_path)
     if config.use_prior_day:
