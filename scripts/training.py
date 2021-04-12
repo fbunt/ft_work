@@ -1,3 +1,10 @@
+import argparse
+import datetime as dt
+import numpy as np
+import os
+import shutil
+import torch
+import tqdm
 from torch.nn import DataParallel
 from torch.nn.functional import binary_cross_entropy_with_logits
 from torch.utils.data import Subset
@@ -8,13 +15,6 @@ try:
     TENSORBOARD = True
 except ImportError:
     TENSORBOARD = False
-import argparse
-import datetime as dt
-import numpy as np
-import os
-import shutil
-import torch
-import tqdm
 
 from config import create_model, load_config
 from datahandling import (
