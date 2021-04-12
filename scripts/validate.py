@@ -392,6 +392,23 @@ def validate_against_aws_db(
     return df
 
 
+def validate_against_grid_stack(grids, val_grids, dates, valid_mask=np.s_[:]):
+    df = []
+    for p, v in zip(grids, val_grids):
+        r = p[valid_mask] == v[valid_mask]
+        tot = r.size
+        ag = r.sum()
+        dis = tot - ag
+        acc = ag / tot
+        df.append([acc, ag, dis, tot])
+    df = pd.DataFrame(
+        df,
+        index=pd.to_datetime(dates),
+        columns=["acc", "agree", "disagree", "total"],
+    )
+    return df
+
+
 COL_YEAR = "year"
 COL_MONTH = "month"
 COL_SCORE = "score"

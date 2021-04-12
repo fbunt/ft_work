@@ -37,7 +37,7 @@ from model import (
     local_variation_loss,
 )
 from utils import FT_CMAP, validate_dir_path, validate_file_path
-from validate import validate_against_aws_db
+from validate import validate_against_aws_db, validate_against_grid_stack
 from validation_db_orm import get_db_session
 
 
@@ -322,13 +322,11 @@ def get_predictions(input_dl, model, water_mask, water_label, device, config):
     return pred, prob
 
 
-def validate_against_era5(pred, era_ds, land_mask, config):
-    masked_pred = [p[land_mask] for p in pred]
-    era = [v[land_mask] for v in era_ds]
-    era_acc = np.array(
-        [(p == e).sum() / p.size for p, e in zip(masked_pred, era)]
-    )
-    return era_acc * 100
+def validate_against_era5(pred, era_ds, dates, land_mask):
+    if not isinstance(land_mask, np.ndarray):
+        land_mask = land_mask.numpy()
+    df = validate_against_grid_stack(pred, era_ds, dates, land_mask)
+    return df.acc.to_numpy() * 100
 
 
 def validate_against_aws(
@@ -845,7 +843,9 @@ def main(config_path, resume_dir=None):
         # Validate against ERA5
         print("Validating against ERA5")
         test_era_ds = dataset_to_array(test_era_ds).argmax(1).squeeze()
-        era_acc = validate_against_era5(pred, test_era_ds, land_mask, config)
+        era_acc = validate_against_era5(
+            pred, test_era_ds, val_dates, land_mask
+        )
         # Validate against AWS DB
         db = get_db_session(config.db_path)
         lon_grid = np.load(config.lon_grid_path)
