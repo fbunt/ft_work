@@ -83,6 +83,8 @@ ConfigV2Plus = namedtuple(
         "lv_reg_weight",
         "aws_use_valid_mask",
         "val_use_valid_mask",
+        "cold_constrained_weight_scale",  # v8
+        "use_cold_constrained_weight_boost",  # v8
         "do_val_plots",
         "do_pred_plots",
         # Paths
@@ -92,6 +94,7 @@ ConfigV2Plus = namedtuple(
         "dem_data_path",
         "lon_grid_path",
         "lat_grid_path",
+        "cold_constrained_mask_path",  # v8
         "train_aws_data_path",
         "train_aws_mask_path",  # v4
         "train_date_map_path",
@@ -152,6 +155,17 @@ def build_v2plus_config(cfg):
     cfg["am_pm"] = cfg.get("am_pm", "AM")
     # Handle v7 tile_layout field
     cfg["tile_layout"] = tuple(cfg.get("tile_layout", (1, 3)))
+    # Handle v8 cold_constrained weighting
+    cfg["cold_constrained_weight_scale"] = cfg.get(
+        "cold_constrained_weight_scale", 1.3
+    )
+    cfg["use_cold_constrained_weight_boost"] = cfg.get(
+        "use_cold_constrained_weight_boost", False
+    )
+    cfg["cold_constrained_mask_path"] = cfg.get(
+        "cold_constrained_mask_path",
+        "../data/masks/ft_esdr_cold_constrained_mask",
+    )
     return ConfigV2Plus(**cfg)
 
 

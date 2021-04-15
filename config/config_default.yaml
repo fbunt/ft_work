@@ -1,5 +1,5 @@
 config:
-    version: 7
+    version: 8
 
     n_classes: 2
     depth: 4
@@ -43,6 +43,8 @@ config:
     lv_reg_weight: 5.0e-2
     aws_use_valid_mask: False
     val_use_valid_mask: False
+    cold_constrained_weight_scale: 1.3
+    use_cold_constrained_weight_boost: False
 
     do_val_plots: False
     do_pred_plots: False
@@ -53,6 +55,7 @@ config:
     dem_data_path: "../data/z/dem-n45.npy"
     lon_grid_path: "../data/coords/lon_n45.npy"
     lat_grid_path: "../data/coords/lat_n45.npy"
+    cold_constrained_mask_path: "../data/masks/ft_esdr_cold_constrained_mask-n45.npy"
 
     train_aws_data_path: "../data/cleaned/aws_data-AM-2005-2014-n45.pkl"
     train_aws_mask_path: "../data/cleaned/aws_mask-AM-2005-2014-n45.npy"

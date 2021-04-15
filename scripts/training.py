@@ -677,10 +677,17 @@ def build_full_dataset_from_config(config, land_mask, is_train):
     if config.use_prior_day:
         aws_mask = aws_mask[1:]
     aws_mask = torch.tensor(aws_mask)
+    if config.use_cold_constrained_weight_boost:
+        cold_constrained_mask = torch.tensor(
+            np.load(config.cold_constrained_mask_path)
+        )
     ws = torch.zeros((len(input_ds), 1, *land_mask.shape), dtype=torch.float)
     ws[..., land_mask] = 1.0
     for i in tqdm.tqdm(range(len(ws)), ncols=80, desc="Weights"):
         ws[i, :, aws_mask[i]] *= config.aws_bce_weight
+    if config.use_cold_constrained_weight_boost:
+        ws[..., cold_constrained_mask] *= config.cold_constrained_weight_scale
+        cold_constrained_mask = None
     weights_ds = ArrayDataset(ws)
     aws_mask = None
     # FT label
