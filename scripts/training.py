@@ -206,14 +206,16 @@ SNAP_KEY_EPOCH = "epoch"
 SNAP_KEY_MODEL = "model"
 SNAP_KEY_OPTIMIZER = "optimizer"
 SNAP_KEY_LR_SCHED = "lr_sched"
+SNAP_KEY_CHECKER_VAL = "checker_val"
 
 
 class SnapshotHandler:
-    def __init__(self, root_dir, model, optimizer, lr_sched):
+    def __init__(self, root_dir, model, optimizer, lr_sched, checker):
         self.root_path = os.path.abspath(root_dir)
         self.model = model
         self.opt = optimizer
         self.lr_sched = lr_sched
+        self.checker = checker
         self.model_path = os.path.join(self.root_path, FNAME_MODEL)
         self.model_path_tmp = os.path.join(self.root_path, FNAME_MODEL_TMP)
         self.full_snap_path = os.path.join(self.root_path, FNAME_FULL_SNAPSHOT)
@@ -240,6 +242,7 @@ class SnapshotHandler:
             SNAP_KEY_MODEL: self.model.state_dict(),
             SNAP_KEY_OPTIMIZER: self.opt.state_dict(),
             SNAP_KEY_LR_SCHED: self.lr_sched.state_dict(),
+            SNAP_KEY_CHECKER_VAL: self.checker.tracker.value,
         }
         # Make sure that there is always a possible recovery mode in case of
         # early termination during file write.
@@ -257,7 +260,8 @@ class SnapshotHandler:
         self.model.load_state_dict(snap[SNAP_KEY_MODEL])
         self.opt.load_state_dict(snap[SNAP_KEY_OPTIMIZER])
         self.lr_sched.load_state_dict(snap[SNAP_KEY_LR_SCHED])
-        return epoch, self.model, self.opt, self.lr_sched
+        self.checker.tracker.value = snap[SNAP_KEY_CHECKER_VAL]
+        return epoch, self.model, self.opt, self.lr_sched, self.checker
 
 
 def log_metrics(writer, cm, step):
@@ -746,10 +750,19 @@ def main(config_path, resume_dir=None):
         root_dir, config_path, resume=resume
     )
 
-    snap_handler = SnapshotHandler(root_dir, model, opt, sched)
+    metric_checker = MetricImprovementChecker(
+        MaxMetricTracker(-np.inf), MET_MCC
+    )
+    snap_handler = SnapshotHandler(root_dir, model, opt, sched, metric_checker)
     last_epoch = 0
     if resume:
-        last_epoch, model, opt, sched = snap_handler.load_full_snapshot()
+        (
+            last_epoch,
+            model,
+            opt,
+            sched,
+            metric_checker,
+        ) = snap_handler.load_full_snapshot()
 
     land_mask = torch.tensor(np.load(config.land_mask_path))
     #
@@ -774,9 +787,6 @@ def main(config_path, resume_dir=None):
         batch_size=config.test_batch_size,
         shuffle=False,
         drop_last=False,
-    )
-    metric_checker = MetricImprovementChecker(
-        MaxMetricTracker(-np.inf), MET_MCC
     )
     if not resume:
         snap_handler.take_model_snapshot()
