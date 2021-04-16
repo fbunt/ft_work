@@ -79,7 +79,7 @@ class MinMetricTracker:
 
     def update(self, new_value):
         ret = False
-        if new_value <= self.value:
+        if not np.isinf(new_value) and new_value <= self.value:
             # Err on the side of caution and return true for == case
             self.value = new_value
             ret = True
@@ -94,7 +94,7 @@ class MaxMetricTracker:
 
     def update(self, new_value):
         ret = False
-        if new_value >= self.value:
+        if not np.isinf(new_value) and new_value >= self.value:
             # Err on the side of caution and return true for == case
             self.value = new_value
             ret = True
