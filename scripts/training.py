@@ -51,11 +51,10 @@ def get_cli_parser():
         help="Path to config file. If not provided, the default file is used",
     )
     p.add_argument(
-        "-r",
-        "--resume_dir",
-        default=None,
-        type=validate_dir_path,
-        help="Path to run dir to resume training from",
+        "-R",
+        "--resumable",
+        action="store_true",
+        help="Allow program to resume using run dir in the config file",
     )
     return p
 
@@ -229,6 +228,9 @@ class SnapshotHandler:
         # early termination during file write.
         torch.save(self.model.state_dict(), self.model_path_tmp)
         os.replace(self.model_path_tmp, self.model_path)
+
+    def can_resume(self):
+        return os.path.isfile(self.full_snap_path)
 
     def take_model_snapshot(self):
         print("\nTaking snapshot")
@@ -714,11 +716,9 @@ def build_full_dataset_from_config(config, land_mask, is_train):
     return ds
 
 
-def main(config_path, resume_dir=None):
+def main(config_path, resumable=False):
     config = load_config(config_path)
     device = torch.device("cuda:0")
-
-    resume = resume_dir is not None
 
     model = create_model(UNet, config)
     if torch.cuda.device_count() > 1:
@@ -735,25 +735,19 @@ def main(config_path, resume_dir=None):
     )
     grad_scaler = torch.cuda.amp.GradScaler()
 
+    metric_checker = MetricImprovementChecker(
+        MaxMetricTracker(-np.inf), MET_MCC
+    )
+    root_dir = config.run_dir
+    snap_handler = SnapshotHandler(root_dir, model, opt, sched, metric_checker)
+    resume = resumable and snap_handler.can_resume()
     if resume:
-        root_dir = resume_dir
-    else:
-        # Create run dir and fill with info
-        if not os.path.isdir(config.runs_dir):
-            print("Creating runs_dir")
-            os.mkdir(config.runs_dir)
-        root_dir = os.path.join(
-            config.runs_dir, f'{str(dt.datetime.now()).replace(" ", "-")}'
-        )
+        print("Resuming")
     print(f"Initializing run dir: {root_dir}")
     train_summary, test_summary = init_run_dir(
         root_dir, config_path, resume=resume
     )
 
-    metric_checker = MetricImprovementChecker(
-        MaxMetricTracker(-np.inf), MET_MCC
-    )
-    snap_handler = SnapshotHandler(root_dir, model, opt, sched, metric_checker)
     last_epoch = 0
     if resume:
         (
@@ -886,6 +880,4 @@ def main(config_path, resume_dir=None):
 if __name__ == "__main__":
     args = get_cli_parser().parse_args()
     config_path = args.config_path
-    if args.resume_dir:
-        config_path = os.path.join(args.resume_dir, FNAME_CONFIG)
-    main(config_path, args.resume_dir)
+    main(config_path, args.resumable)

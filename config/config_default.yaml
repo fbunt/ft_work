@@ -1,5 +1,5 @@
 config:
-    version: 8
+    version: 9
 
     n_classes: 2
     depth: 4
@@ -49,7 +49,7 @@ config:
     do_val_plots: False
     do_pred_plots: False
 
-    runs_dir: "../runs"
+    run_dir: "../runs/run_am_n45"
     db_path: "../data/dbs/wmo_gsod.db"
     land_mask_path: "../data/masks/ft_esdr_land_mask_n45.npy"
     dem_data_path: "../data/z/dem-n45.npy"

@@ -1,5 +1,7 @@
-from collections import namedtuple
+import datetime as dt
+import os
 import yaml
+from collections import namedtuple
 
 ConfigV1 = namedtuple(
     "ConfigV1",
@@ -88,7 +90,7 @@ ConfigV2Plus = namedtuple(
         "do_val_plots",
         "do_pred_plots",
         # Paths
-        "runs_dir",  # v3
+        "run_dir",  # v9
         "db_path",  # v3
         "land_mask_path",
         "dem_data_path",
@@ -137,7 +139,6 @@ def build_v1_config(cfg):
 
 def build_v2plus_config(cfg):
     cfg = build_in_chan(cfg)
-    cfg["runs_dir"] = cfg.get("runs_dir", "../runs")
     cfg["db_path"] = cfg.get("db_path", "../data/dbs/wmo_gsod.db")
     # Handle v2-3 case where ft_label and aws_mask are not used
     cfg["train_ft_label_data_path"] = cfg.get("train_ft_label_data_path", None)
@@ -166,6 +167,15 @@ def build_v2plus_config(cfg):
         "cold_constrained_mask_path",
         "../data/masks/ft_esdr_cold_constrained_mask",
     )
+    # Handle replacement of runs_dir with run_dir, v9
+    if "run_dir" not in cfg:
+        assert "runs_dir" in cfg
+        root = cfg.pop("runs_dir", "../runs")
+        cfg["run_dir"] = os.path.join(
+            root, f'{str(dt.datetime.now()).replace(" ", "-")}'
+        )
+    else:
+        assert "runs_dir" not in cfg
     return ConfigV2Plus(**cfg)
 
 
