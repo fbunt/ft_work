@@ -43,7 +43,7 @@ config:
     lv_reg_weight: 5.0e-2
     aws_use_valid_mask: False
     val_use_valid_mask: False
-    cold_constrained_weight_scale: 1.3
+    cold_constrained_weight_scale: 1.2
     use_cold_constrained_weight_boost: False
 
     do_val_plots: False
