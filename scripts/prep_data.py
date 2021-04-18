@@ -338,8 +338,7 @@ def _parse_date_arg(s, start=True):
 DEFAULT_DB = "../data/dbs/wmo_gsod.db"
 
 
-def get_parser():
-    p = argparse.ArgumentParser()
+def build_training_command_parser(p):
     p.add_argument(
         "-d",
         "--db_path",
@@ -400,6 +399,27 @@ def get_parser():
         help="Data end date or year. If year, then the entire year is used.",
     )
     p.add_argument("dest", type=validate_dir_path, help="Output directory")
+    return p
+
+
+def build_tbfill_command_parser(p):
+    p.add_argument(
+        "-r",
+        "--region",
+        type=validate_region,
+        help="The region to process. Default is NH.",
+    )
+    p.add_argument("am_pm", type=str, help="AM or PM")
+    p.add_argument("start_year", type=int, help="First year of data")
+    p.add_argument("end_year", type=int, help="Final year of data")
+    return p
+
+
+def get_parser():
+    p = argparse.ArgumentParser()
+    subparsers = p.add_subparsers(dest="subcom_name")
+    ptrain = build_training_command_parser(subparsers.add_parser("training"))
+    ptbfill = build_tbfill_command_parser(subparsers.add_parser("tbfill"))
     return p
 
 
@@ -544,7 +564,52 @@ def prep_data(
     )
 
 
+def load_tb_year(year, am_pm, transform):
+    pass_ = "D" if am_pm == "AM" else "A"
+    year = year
+    trans = transform
+    files = glob.glob(f"../data/tb/{year}/tb_{year}_F*_ML_{pass_}*.nc")
+    print(f"loading {year}")
+    return dh.dataset_to_array(build_tb_ds([files], trans))
+
+
+def tbfill(region, am_pm, start_year, end_year):
+    assert start_year <= end_year
+    transform = REGION_TO_TRANS[region]
+    ycur = load_tb_year(start_year - 1, am_pm, transform)
+    ynext = load_tb_year(start_year, am_pm, transform)
+    for y in range(start_year, end_year + 1):
+        yprev = ycur
+        ycur = ynext
+        nprev = yprev.shape[0] // 6
+        ncur = ycur.shape[0]
+        if y < end_year:
+            ynext = load_tb_year(y + 1, am_pm, transform)
+            nnext = ynext.shape[0] // 6
+            n = nprev + ncur + nnext
+            unfilled = np.zeros((n, *ycur.shape[1:]))
+            unfilled[:nprev] = yprev[-nprev:]
+            unfilled[nprev : nprev + ncur] = ycur
+            unfilled[-nnext:] = ynext[:nnext]
+        else:
+            n = nprev + ncur
+            unfilled = np.zeros((n, *ycur.shape[1:]))
+            unfilled[:nprev] = yprev[-nprev:]
+            unfilled[nprev:] = ycur
+        print(f"Filling {y}")
+        filled = fill_gaps(unfilled, periodic=False)[nprev : nprev + ncur]
+        np.save(f"../data/tb/{y}/tb_{y}_{am_pm}_{region}_filled.npy", filled)
+        unfilled = None
+        filled = None
+
+
+def main(args):
+    if args.subcom_name == "training":
+        prep_data(**vars(args))
+    elif args.subcom_name == "tbfill":
+        tbfill(**vars(args))
+
+
 if __name__ == "__main__":
     args = get_parser().parse_args()
-    args = vars(args)
-    prep_data(**args)
+    main(args)
