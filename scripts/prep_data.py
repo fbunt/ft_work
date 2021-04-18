@@ -48,27 +48,32 @@ def get_predecessor(
     missing,
     missing_func=np.isnan,
     periodic=True,
-    non_periodic_bias_val=20,
 ):
     px = x[i].copy()
     count = np.zeros(px.shape, dtype=int)
+    skip_loop = False
     j = i - 1
-    add_bias = False
-    if j < 0 and not periodic:
-        # If j has gone past the end and the dataset is not periodic, add the
-        # bias on the next iteration.
-        add_bias = True
-    while missing.any():
-        px[missing] = x[j, missing]
-        count[missing] += 1 + (add_bias * non_periodic_bias_val)
-        missing = missing_func(px)
-        j -= 1
-        # If j has gone past the end and the dataset is not periodic, add the
-        # bias on the next iteration. If not, then add_bias is set to false and
-        # no bias will be added.
-        add_bias = (j < 0) and (not periodic)
-        if j < 0:
+    if j < 0:
+        if periodic:
             j = len(x) - 1
+        else:
+            missing = missing_func(px)
+            px[missing] = 0
+            count[missing] = -1
+            skip_loop = True
+    if not skip_loop:
+        while missing.any():
+            px[missing] = x[j, missing]
+            count[missing] += 1
+            missing = missing_func(px)
+            j -= 1
+            if j < 0:
+                if periodic:
+                    j = len(x) - 1
+                else:
+                    px[missing] = 0
+                    count[missing] = -1
+                    break
     idx = count != 0
     return px[idx], count[idx]
 
@@ -79,36 +84,37 @@ def get_successor(
     missing,
     missing_func=np.isnan,
     periodic=True,
-    non_periodic_bias_val=20,
 ):
     sx = x[i].copy()
     count = np.zeros(sx.shape, dtype=int)
+    skip_loop = False
     j = i + 1
-    add_bias = False
     if j >= len(x):
-        j = 0
-        if not periodic:
-            # If j has gone past the end and the dataset is not periodic, add
-            # the bias on the next iteration.
-            add_bias = True
-    while missing.any():
-        sx[missing] = x[j, missing]
-        count[missing] += 1 + (add_bias * non_periodic_bias_val)
-        missing = missing_func(sx)
-        j += 1
-        # If j has gone past the end and the dataset is not periodic, add the
-        # bias on the next iteration. If not, then add_bias is set to false and
-        # no bias will be added.
-        add_bias = (j >= len(x)) and (not periodic)
-        if j >= len(x):
+        if periodic:
             j = 0
+        else:
+            missing = missing_func(sx)
+            sx[missing] = 0
+            count[missing] = -1
+            skip_loop = True
+    if not skip_loop:
+        while missing.any():
+            sx[missing] = x[j, missing]
+            count[missing] += 1
+            missing = missing_func(sx)
+            j += 1
+            if j >= len(x):
+                if periodic:
+                    j = 0
+                else:
+                    sx[missing] = 0
+                    count[missing] = -1
+                    break
     idx = count != 0
     return sx[idx], count[idx]
 
 
-def fill_gaps(
-    x, missing_func=np.isnan, periodic=True, non_periodic_bias_val=20
-):
+def fill_gaps(x, missing_func=np.isnan, periodic=True):
     gap_filled = x.copy()
     for i in tqdm.tqdm(range(len(x)), ncols=80, desc="Gap fill"):
         gaps = missing_func(x[i])
@@ -116,13 +122,26 @@ def fill_gaps(
             continue
         # count is how far the alg had to go to find a value
         # Get past value
-        pred, pcount = get_predecessor(
-            x, i, gaps, missing_func, periodic, non_periodic_bias_val
-        )
+        pred, pcount = get_predecessor(x, i, gaps, missing_func, periodic)
+        # Areas where get_predecessor ran into the edge and periodic
+        # edge-handling was turned off
+        pedge = pcount == -1
         # Get future value
-        succ, scount = get_successor(
-            x, i, gaps, missing_func, periodic, non_periodic_bias_val
-        )
+        succ, scount = get_successor(x, i, gaps, missing_func, periodic)
+        # Areas where get_successor ran into the edge and periodic
+        # edge-handling was turned off
+        sedge = scount == -1
+        assert not (
+            pedge & sedge
+        ).any(), "Ran into edge in forward and backword search"
+        # Remove -1 flag values
+        pcount[pedge] = 0
+        scount[sedge] = 0
+        # Set opposite count to 0 so that the search direction that didn't hit
+        # an edge gets all of the weight in the average below
+        pcount[sedge] = 0
+        scount[pedge] = 0
+
         # Weighted mean
         total = pcount + scount
         # The predecessor/successor with the higher count should be weighted
@@ -180,7 +199,6 @@ def prep(
     prep_tb,
     missing_cutoff=0.6,
     periodic=True,
-    non_periodic_bias_val=20,
 ):
     dates = np.array(get_dates(start_date, end_date))
     n = len(dates)
@@ -210,12 +228,7 @@ def prep(
     if SNOW_KEY in data:
         snow = data[SNOW_KEY][good_idxs]
         snow = np.round(
-            fill_gaps(
-                snow,
-                missing_func=is_neg_one,
-                periodic=periodic,
-                non_periodic_bias_val=non_periodic_bias_val,
-            )
+            fill_gaps(snow, missing_func=is_neg_one, periodic=periodic)
         )
     if SOLAR_KEY in data:
         solar = data[SOLAR_KEY][good_idxs]
@@ -232,9 +245,7 @@ def prep(
     if ERA_T2M_KEY in data:
         era_t2m = data[ERA_T2M_KEY][good_idxs]
     if prep_tb:
-        tb = fill_gaps(
-            tb, periodic=periodic, non_periodic_bias_val=non_periodic_bias_val
-        )
+        tb = fill_gaps(tb, periodic=periodic)
 
     ss = start_date.year if is_first_day_of_year(start_date) else start_date
     es = end_date.year if is_last_day_of_year(end_date) else end_date
