@@ -604,10 +604,12 @@ def tbfill(region, am_pm, start_year, end_year):
 
 
 def main(args):
-    if args.subcom_name == "training":
-        prep_data(**vars(args))
-    elif args.subcom_name == "tbfill":
-        tbfill(**vars(args))
+    args = vars(args)
+    com = args.pop("subcom_name")
+    if com == "training":
+        prep_data(**args)
+    elif com == "tbfill":
+        tbfill(**args)
 
 
 if __name__ == "__main__":
