@@ -134,14 +134,14 @@ def fill_gaps(x, missing_func=np.isnan, periodic=True):
         assert not (
             pedge & sedge
         ).any(), "Ran into edge in forward and backword search"
-        # Remove -1 flag values
-        pcount[pedge] = 0
-        scount[sedge] = 0
-        # Set opposite count to 0 so that the search direction that didn't hit
-        # an edge gets all of the weight in the average below
-        pcount[sedge] = 0
-        scount[pedge] = 0
-
+        # For parts where the edge was hit and periodic handling was turned
+        # off, just fill with opposite search's results. Then trim.
+        gap_filled[i, gaps][pedge] = succ[pedge]
+        gap_filled[i, gaps][sedge] = pred[sedge]
+        pcount = pcount[~pedge]
+        pred = pred[~pedge]
+        scount = scount[~sedge]
+        succ = succ[~sedge]
         # Weighted mean
         total = pcount + scount
         # The predecessor/successor with the higher count should be weighted
