@@ -131,24 +131,29 @@ def fill_gaps(x, missing_func=np.isnan, periodic=True):
         # Areas where get_successor ran into the edge and periodic
         # edge-handling was turned off
         sedge = scount == -1
+        pedge_any = pedge.any()
+        sedge_any = sedge.any()
         assert not (
-            pedge & sedge
+            pedge_any and sedge_any
         ).any(), "Ran into edge in forward and backword search"
         # For parts where the edge was hit and periodic handling was turned
         # off, just fill with opposite search's results. Then trim.
-        gap_filled[i, gaps][pedge] = succ[pedge]
-        gap_filled[i, gaps][sedge] = pred[sedge]
-        pcount = pcount[~pedge]
-        pred = pred[~pedge]
-        scount = scount[~sedge]
-        succ = succ[~sedge]
+        if pedge_any:
+            gap_filled[i, gaps][pedge] = succ[pedge]
+        if sedge_any:
+            gap_filled[i, gaps][sedge] = pred[sedge]
+        remaining = ~(pedge | sedge)
+        pcount = pcount[remaining]
+        pred = pred[remaining]
+        scount = scount[remaining]
+        succ = succ[remaining]
         # Weighted mean
         total = pcount + scount
         # The predecessor/successor with the higher count should be weighted
         # less and the opposing weight should be 1 - w.
         pweight = 1 - (pcount / total)
         sweight = 1 - (scount / total)
-        gap_filled[i][gaps] = (pweight * pred) + (sweight * succ)
+        gap_filled[i, gaps][remaining] = (pweight * pred) + (sweight * succ)
     return gap_filled
 
 
