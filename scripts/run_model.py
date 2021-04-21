@@ -60,7 +60,7 @@ def get_parser():
         type=str,
         help=(
             "Output prefix path. Will be used for FT predictions and"
-            " probabilities files.",
+            " probabilities files."
         ),
     )
     return p
@@ -116,7 +116,7 @@ def main(
             f"../data/tb/gapfilled_{region}/tb_{y}_{am_pm}_{region}_filled.npy"
         )
         ni = (dt.date(y + 1, 1, 1) - dt.date(y, 1, 1)).days
-        ds = dh.LazyLoadFastUnloadingNpyDataset(fname, ni)
+        ds = dh.LazyLoadFastUnloadNpyDataset(fname, ni)
         tbdss.append(ds)
         n += ni
     tbdss = torch.utils.data.ConcatDataset(tbdss)
