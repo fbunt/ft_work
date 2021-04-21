@@ -7,7 +7,7 @@ import tqdm
 import datahandling as dh
 import utils
 from config import load_config, create_model
-from model import UNet
+from model import LABEL_OTHER, UNet
 from transforms import REGION_CODES
 
 
@@ -128,7 +128,9 @@ def main(
         ds, batch_size=batch_size, shuffle=False, drop_last=False
     )
     water_mask = np.load(config.land_mask_path)
-    pred, prob = get_predictions(dloader, model, water_mask, device)
+    pred, prob = get_predictions(
+        dloader, model, water_mask, LABEL_OTHER, device
+    )
     np.save(f"{output_path_prefix}_pred.npy", pred)
     np.save(f"{output_path_prefix}_prob.npy", pred)
 
