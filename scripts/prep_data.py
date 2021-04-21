@@ -136,12 +136,14 @@ def fill_gaps(x, missing_func=np.isnan, periodic=True):
         assert not (
             pedge_any and sedge_any
         ).any(), "Ran into edge in forward and backword search"
+        # [i, gaps] returns a copy instead of a view
+        gap_copy = gap_filled[i, gaps]
         # For parts where the edge was hit and periodic handling was turned
         # off, just fill with opposite search's results. Then trim.
         if pedge_any:
-            gap_filled[i, gaps][pedge] = succ[pedge]
+            gap_copy[pedge] = succ[pedge]
         if sedge_any:
-            gap_filled[i, gaps][sedge] = pred[sedge]
+            gap_copy[sedge] = pred[sedge]
         remaining = ~(pedge | sedge)
         pcount = pcount[remaining]
         pred = pred[remaining]
@@ -153,7 +155,8 @@ def fill_gaps(x, missing_func=np.isnan, periodic=True):
         # less and the opposing weight should be 1 - w.
         pweight = 1 - (pcount / total)
         sweight = 1 - (scount / total)
-        gap_filled[i, gaps][remaining] = (pweight * pred) + (sweight * succ)
+        gap_copy[remaining] = (pweight * pred) + (sweight * succ)
+        gap_filled[i, gaps] = gap_copy
     return gap_filled
 
 
