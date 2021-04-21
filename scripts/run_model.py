@@ -129,7 +129,7 @@ def main(
     dloader = torch.utils.data.DataLoader(
         ds, batch_size=batch_size, shuffle=False, drop_last=False
     )
-    water_mask = np.load(config.land_mask_path)
+    water_mask = ~np.load(config.land_mask_path)
     pred, prob = get_predictions(
         dloader, model, water_mask, LABEL_OTHER, device
     )
