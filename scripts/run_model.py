@@ -100,7 +100,7 @@ def main(
     parallel,
 ):
     config = load_config(config_path)
-    batch_size = batch_size or config.batch_size
+    batch_size = batch_size or config.test_batch_size
     device = torch.device("cuda:0")
     model = create_model(UNet, config)
     if parallel:
