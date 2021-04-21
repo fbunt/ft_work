@@ -134,7 +134,7 @@ def main(
         dloader, model, water_mask, LABEL_OTHER, device
     )
     np.save(f"{output_path_prefix}_pred.npy", pred)
-    np.save(f"{output_path_prefix}_prob.npy", pred)
+    np.save(f"{output_path_prefix}_prob.npy", prob)
 
 
 if __name__ == "__main__":
