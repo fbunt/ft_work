@@ -120,7 +120,7 @@ def main(
         tbdss.append(ds)
         n += ni
     tbdss = torch.utils.data.ConcatDataset(tbdss)
-    ptbss = torch, utils.data.Subset(tbdss, list(range(0, len(tbdss) - 1)))
+    ptbss = torch.utils.data.Subset(tbdss, list(range(0, len(tbdss) - 1)))
     zds = dh.RepeatDataset(np.load(config.dem_data_path), n)
     ds = dh.GridsStackDataset([zds, ptbss, tbdss])
     if config.use_prior_day:
