@@ -596,7 +596,7 @@ class FTTransform:
 
 class LazyLoadFastUnloadNpyDataset(Dataset):
     def __init__(self, path, n):
-        self.path = utils.validate_file_(path)
+        self.path = utils.validate_file_path(path)
         self.n = n
         self.data = None
 
