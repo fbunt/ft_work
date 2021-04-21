@@ -594,6 +594,26 @@ class FTTransform:
         return out
 
 
+class LazyLoadFastUnloadNpyDataset(Dataset):
+    def __init__(self, path, n):
+        self.path = utils.validate_file_(path)
+        self.n = n
+        self.data = None
+
+    def __getitem__(self, idx):
+        if self.data is None:
+            # Load
+            self.data = np.load(self.path)
+        v = self.data[idx]
+        if idx == self.n - 1:
+            # Unload
+            self.data = None
+        return v
+
+    def __len__(self):
+        return self.n
+
+
 def dataset_to_array(ds, dtype=float, progress=True):
     n = len(ds)
     shape = (n, *ds[0].shape)
