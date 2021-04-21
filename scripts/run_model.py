@@ -72,7 +72,9 @@ def get_predictions(input_dl, model, water_mask, water_label, device):
     j = 0
     with torch.no_grad():
         for v in tqdm.tqdm(input_dl, ncols=80, total=len(input_dl)):
+            assert not torch.isnan(v)
             output = model(v.to(device))
+            assert not torch.isnan(output)
             p = torch.sigmoid(output).cpu().numpy()
             # Transform the class channels into a Bernoulli distribution. This
             # is necessary because each channel is 0 <= chan <= 1 but their sum
