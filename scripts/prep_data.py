@@ -157,6 +157,7 @@ def fill_gaps(x, missing_func=np.isnan, periodic=True):
         sweight = 1 - (scount / total)
         gap_copy[remaining] = (pweight * pred) + (sweight * succ)
         gap_filled[i, gaps] = gap_copy
+    assert not np.isnan(gap_filled).any()
     return gap_filled
 
 
