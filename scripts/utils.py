@@ -99,3 +99,13 @@ def flatten(list_of_lists):
 
 def flatten_to_iterable(list_of_lists):
     return list(itertools.chain.from_iterable(list_of_lists))
+
+
+def date_range(start_date, end_date):
+    """Like range but for dates. end_date is exclusive."""
+    d = dt.timedelta(days=1)
+    end_date = end_date - d
+    dates = [start_date]
+    while dates[-1] < end_date:
+        dates.append(dates[-1] + d)
+    return dates
