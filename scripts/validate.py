@@ -281,6 +281,7 @@ def validate_bounded(
     return_raw_comp_results=False,
     show_progress=False,
     variable_mask=False,
+    into_grid=False,
 ):
     """
     Validate the given grids using AWS data points within the given
@@ -306,11 +307,17 @@ def validate_bounded(
         variable_mask: if True, `valid_mask` is treated as an iterable of
             2D masks. It is treated as a single mask otherwise.
             DEFAULT: False
+        into_grid : boolean
+            If True, then the validation results are summed into a grid that
+            matches the last two dimensions of `grid_stack`.
 
     Returns: If return_raw_comp_results is False, array of percent accuracy
         values with same length as `grid_stack`, else a list of confusion
-        matrices.
+        matrices. If into_grid is True, then 2 2D arrays are returned.
     """
+    if into_grid:
+        assert not return_raw_comp_results
+
     flat_valid_idxs_iter = None
     if not variable_mask:
         flat_valid_idxs_iter = itertools.repeat(
@@ -334,21 +341,37 @@ def validate_bounded(
         disable=not show_progress,
         desc="AWS Validation",
     )
-    if return_raw_comp_results:
-        results = []
-    else:
-        results = np.zeros(len(grid_stack))
-    for j, (d, g, flat_valid_idxs) in enumerate(it):
-        vpoints, vtemps = pf.fetch_bounded(d, geo_bounds)
-        vft = ft_model_zero_threshold(vtemps)
-        idxs, values = get_nearest_flat_idxs_and_values(
-            tree, vpoints, vft, flat_valid_idxs
-        )
+    if not into_grid:
         if return_raw_comp_results:
-            results.append(confusion(values, g.ravel()[idxs]))
+            results = []
         else:
-            results[j] = float((g.ravel()[idxs] == values).sum()) / len(values)
-    return results
+            results = np.zeros(len(grid_stack))
+        for j, (d, g, flat_valid_idxs) in enumerate(it):
+            vpoints, vtemps = pf.fetch_bounded(d, geo_bounds)
+            vft = ft_model_zero_threshold(vtemps)
+            idxs, values = get_nearest_flat_idxs_and_values(
+                tree, vpoints, vft, flat_valid_idxs
+            )
+            if return_raw_comp_results:
+                results.append(confusion(values, g.ravel()[idxs]))
+            else:
+                results[j] = float((g.ravel()[idxs] == values).sum()) / len(
+                    values
+                )
+        return results
+    else:
+        agree_grid = np.zeros(grid_stack[0].shape[-2:])
+        tot_grid = np.zeros_like(agree_grid)
+        for j, (d, g, flat_valid_idxs) in enumerate(it):
+            vpoints, vtemps = pf.fetch_bounded(d, geo_bounds)
+            vft = ft_model_zero_threshold(vtemps)
+            idxs, values = get_nearest_flat_idxs_and_values(
+                tree, vpoints, vft, flat_valid_idxs
+            )
+            values = np.asarray(values)
+            agree_grid.ravel()[idxs] += (g.ravel()[idxs] == values).astype(int)
+            tot_grid.ravel()[idxs] += len(values)
+        return agree_grid, tot_grid
 
 
 class WMOValidator:
@@ -372,6 +395,7 @@ class WMOValidator:
         return_raw_comp_results=False,
         show_progress=False,
         variable_mask=False,
+        into_grid=False,
     ):
         return validate_bounded(
             self.pf,
@@ -383,6 +407,7 @@ class WMOValidator:
             return_raw_comp_results,
             show_progress=show_progress,
             variable_mask=variable_mask,
+            into_grid=into_grid,
         )
 
 
@@ -391,6 +416,26 @@ def am_pm_to_retrieval(am_pm):
         return RETRIEVAL_MIN
     else:
         return RETRIEVAL_MAX
+
+
+def validate_against_aws_db_georef(
+    grid_stack, db, dates, lon_grid, lat_grid, valid_mask, am_pm
+):
+    retrieval = am_pm_to_retrieval(am_pm)
+    pf = WMOValidationPointFetcher(db, retrieval)
+    aws_val = WMOValidator(pf)
+    agree, tot = aws_val.validate_bounded(
+        grid_stack,
+        dates,
+        lon_grid,
+        lat_grid,
+        valid_mask,
+        return_raw_comp_results=False,
+        show_progress=True,
+        variable_mask=False,
+        into_grid=True
+    )
+    return agree, tot
 
 
 def validate_against_aws_db(
