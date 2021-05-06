@@ -43,7 +43,7 @@ class _MultiConv(nn.Module):
 
 
 class _MultiConvSkip(nn.Module):
-    """A block of multiple conv blocks with a skip connection around it."""
+    """A block of multiple convolutions with a skip connection around it."""
 
     def __init__(self, in_chan, out_chan, n=2):
         super().__init__()
@@ -81,6 +81,22 @@ class _MultiConvBlock(nn.Module):
         dropout=False,
         dropout_p=P_BOUNDARY_DROP,
     ):
+        """
+        Parameters
+        ----------
+        in_chan : int
+            number of input channels
+        out_chan : int
+            number of output channels
+        n : int
+            number of convolutions in convolution block. Default is 2.
+        skip : bool
+            Whether to add skip connection around conv block. Default is False.
+        dropout : bool
+            Whether to use 2D dropout at output. Default is False.
+        dropout_p : float
+            Dropout probability. Default is 0.2.
+        """
         super().__init__()
         if n < 1:
             raise ValueError(
@@ -97,6 +113,8 @@ class _MultiConvBlock(nn.Module):
 
 
 class _DownSample(nn.Module):
+    """Down sample operation using max pooling"""
+
     def __init__(self, size=2):
         super().__init__()
         self.model = nn.MaxPool2d(size)
@@ -106,6 +124,11 @@ class _DownSample(nn.Module):
 
 
 class _Down(nn.Module):
+    """
+    A downsample followed by a convolution block with optional skip connection
+    and 2D dropout
+    """
+
     def __init__(
         self,
         in_chan,
@@ -115,6 +138,22 @@ class _Down(nn.Module):
         dropout=False,
         dropout_p=P_BOUNDARY_DROP,
     ):
+        """
+        Parameters
+        ----------
+        in_chan : int
+            number of input channels
+        out_chan : int
+            number of output channels
+        n : int
+            number of convolutions in convolution block. Default is 2.
+        skip : bool
+            Whether to add skip connection around conv block. Default is False.
+        dropout : bool
+            Whether to use 2D dropout at output. Default is False.
+        dropout_p : float
+            Dropout probability. Default is 0.2.
+        """
         super().__init__()
         blocks = [
             _DownSample(),
@@ -129,6 +168,8 @@ class _Down(nn.Module):
 
 
 class _UpSample(nn.Module):
+    """Upsample using transposed convolution"""
+
     def __init__(self, in_chan):
         super().__init__()
         self.model = nn.ConvTranspose2d(
@@ -140,6 +181,11 @@ class _UpSample(nn.Module):
 
 
 class _Up(nn.Module):
+    """
+    Upscale followed by a convolution block with optional skip connection and
+    2D dropout.
+    """
+
     def __init__(
         self,
         in_chan,
@@ -149,6 +195,22 @@ class _Up(nn.Module):
         dropout=False,
         dropout_p=P_BOUNDARY_DROP,
     ):
+        """
+        Parameters
+        ----------
+        in_chan : int
+            number of input channels
+        out_chan : int
+            number of output channels
+        n : int
+            number of convolutions in convolution block. Default is 2.
+        skip : bool
+            Whether to add skip connection around conv block. Default is False.
+        dropout : bool
+            Whether to use 2D dropout at output. Default is False.
+        dropout_p : float
+            Dropout probability. Default is 0.2.
+        """
         super().__init__()
         self.upsample = _UpSample(in_chan)
         self.conv = _MultiConvBlock(in_chan, out_chan, n=n, skip=skip)
@@ -187,6 +249,25 @@ class UNet(nn.Module):
         bndry_dropout=False,
         bndry_dropout_p=P_BOUNDARY_DROP,
     ):
+        """
+        Parameters
+        ----------
+        in_chan : int
+            number of input channels
+        n_classes : int
+            number of output channels. One per class.
+        depth : int
+            Number of downscales and corresponding upscales. Default is 4.
+        base_filter_bank_size : int
+            Number of filters at input level. This is multiplied by a factor of
+            2 at every downscale. Default is 16
+        skip : bool
+            Whether to add skip connection around conv block. Default is False.
+        bndry_dropout : bool
+            Whether to use 2D dropout at every block output. Default is False.
+        bndry_dropout_p : float
+            Dropout probability. Default is 0.2.
+        """
         # Note: in the original paper, base_filter_bank_size is 64
         super().__init__()
 
