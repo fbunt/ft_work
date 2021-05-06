@@ -246,6 +246,31 @@ def get_nearest_flat_idxs_and_values(
         return idxs, final_values
 
 
+def confusion(flat_labels, flat_predictions):
+    """Compute the confusion matrix for the given data
+
+    The confusion matrix will be of the form:
+                       Actual
+                       N     P
+                     +----+----+
+        Predicted  N | TN | FN |
+                     +----+----+
+                   P | FP | TP |
+                     +----+----+
+    This is slightly different but equivalent to the format used in the
+    Wikipedia article. Note that a class size of 2 is assumed.
+
+    ref: https://en.wikipedia.org/wiki/Confusion_matrix
+    """
+    flat_labels = np.asarray(flat_labels)
+    flat_predictions = np.asarray(flat_predictions)
+    cm = np.zeros((2, 2), dtype=float)
+    for i in range(2):
+        for j in range(2):
+            cm[j, i] = np.sum(flat_predictions[flat_labels == i] == j)
+    return cm
+
+
 def validate_bounded(
     pf,
     grid_stack,
@@ -273,16 +298,18 @@ def validate_bounded(
             the valid regions of data that shoud be validated. Usage is
             controlled by `variable_mask`.
         return_raw_comp_results: If True, returns the raw results from
-            comparing the input against the AWS data as a DataFrame. If False,
-            the mean accuracy values are returned. Default is False.
+            comparing the input against the AWS data as a list of confusion
+            matrices. If False, the mean accuracy values are returned. Default
+            is False.
         show_progress: if True, a progress bar is displayed.
             DEFAULT: False
         variable_mask: if True, `valid_mask` is treated as an iterable of
             2D masks. It is treated as a single mask otherwise.
             DEFAULT: False
 
-    Returns: Array of percent accuracy values with same length as
-        `grid_stack`
+    Returns: If return_raw_comp_results is False, array of percent accuracy
+        values with same length as `grid_stack`, else a list of confusion
+        matrices.
     """
     flat_valid_idxs_iter = None
     if not variable_mask:
@@ -318,14 +345,19 @@ def validate_bounded(
             tree, vpoints, vft, flat_valid_idxs
         )
         if return_raw_comp_results:
-            results.append(g.ravel()[idxs] == values)
+            results.append(confusion(values, g.ravel()[idxs]))
         else:
             results[j] = float((g.ravel()[idxs] == values).sum()) / len(values)
     return results
 
 
 class WMOValidator:
-    """Wrapper around `validate_bounded` function"""
+    """Wrapper around `validate_bounded` function
+
+    The main 'validate_bounded()' implementation used to live in this class
+    but was moved to the function form. This class is kept around because a lot
+    of code still uses this interface.
+    """
 
     def __init__(self, point_fetcher):
         self.pf = point_fetcher
@@ -378,16 +410,18 @@ def validate_against_aws_db(
         variable_mask=False,
     )
     df = []
-    for r in res:
-        ag = r.sum()
-        dis = r.size - ag
-        tot = r.size
+    for cm in res:
+        tn, fn = cm[0]
+        fp, tp = cm[1]
+        ag = tn + tp
+        dis = fn + fp
+        tot = cm.sum()
         acc = ag / tot
-        df.append([acc, ag, dis, tot])
+        df.append([acc, ag, dis, tn, fn, fp, tp, tot])
     df = pd.DataFrame(
         df,
         index=pd.to_datetime(dates),
-        columns=["acc", "agree", "disagree", "total"],
+        columns=["acc", "agree", "disagree", "tn", "fn", "fp", "tp", "total"],
     )
     return df
 
@@ -395,16 +429,18 @@ def validate_against_aws_db(
 def validate_against_grid_stack(grids, val_grids, dates, valid_mask=np.s_[:]):
     df = []
     for p, v in zip(grids, val_grids):
-        r = p[valid_mask] == v[valid_mask]
-        tot = r.size
-        ag = r.sum()
-        dis = tot - ag
+        cm = confusion(v[valid_mask], p[valid_mask])
+        tn, fn = cm[0]
+        fp, tp = cm[1]
+        ag = tn + tp
+        dis = fn + fp
+        tot = cm.sum()
         acc = ag / tot
-        df.append([acc, ag, dis, tot])
+        df.append([acc, ag, dis, tn, fn, fp, tp, tot])
     df = pd.DataFrame(
         df,
         index=pd.to_datetime(dates),
-        columns=["acc", "agree", "disagree", "total"],
+        columns=["acc", "agree", "disagree", "tn", "fn", "fp", "tp", "total"],
     )
     return df
 
