@@ -370,7 +370,7 @@ def validate_bounded(
             )
             values = np.asarray(values)
             agree_grid.ravel()[idxs] += (g.ravel()[idxs] == values).astype(int)
-            tot_grid.ravel()[idxs] += len(values)
+            tot_grid.ravel()[idxs] += 1
         return agree_grid, tot_grid
 
 
