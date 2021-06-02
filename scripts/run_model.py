@@ -68,7 +68,9 @@ def get_parser():
 
 def get_predictions(input_dl, model, water_mask, water_label, device):
     pred = np.zeros((len(input_dl.dataset), *water_mask.shape), dtype=np.int8)
-    prob = np.zeros((len(input_dl.dataset), *water_mask.shape))
+    prob = np.zeros(
+        (len(input_dl.dataset), *water_mask.shape), dtype=np.float32
+    )
     j = 0
     with torch.no_grad():
         for v in tqdm.tqdm(input_dl, ncols=80, total=len(input_dl)):
