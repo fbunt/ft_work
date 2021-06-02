@@ -389,15 +389,14 @@ def prep_data(
     land_mask = ~water_mask
 
     data = {}
-    # Tb
+    # Gap filled Tb
     tbdir = f"../data/tb/gapfilled_{region}_{am_pm.lower()}"
     paths = [
         f"{tbdir}/tb_{y}_{am_pm}_{region}_filled.npy"
         for y in range(start_date.year, end_date.year + 1)
     ]
     print("Loading gap-filled tb")
-    dss = [dh.NpyDataset(p) for p in paths]
-    tb = torch.utils.data.ConcatDataset(dss)
+    tb = torch.utils.data.ConcatDataset([dh.NpyDataset(p) for p in paths])
     tb = dh.dataset_to_array(trim_datasets_to_dates(tb, start_date, end_date))
     data[TB_KEY] = tb
     # ERA5 FT
