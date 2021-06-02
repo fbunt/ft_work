@@ -178,16 +178,12 @@ def is_neg_one(x):
     return x == -1
 
 
-FMT_FILENAME_SNOW = "{out_dir}/snow_cover-{dates_str}-{region}.npy"
-FMT_FILENAME_SOLAR = "{out_dir}/solar_rad-{am_pm}-{dates_str}-{region}.npy"
 FMT_FILENAME_TB = "{out_dir}/tb-{pass_}-{dates_str}-{region}.npy"
 FMT_FILENAME_ERA_FT = "{out_dir}/era5-ft-{am_pm}-{dates_str}-{region}.npy"
 FMT_FILENAME_ERA_T2M = "{out_dir}/era5-t2m-{am_pm}-{dates_str}-{region}.npy"
 FMT_FILENAME_FT_LABEL = "{out_dir}/ft_label-{am_pm}-{dates_str}-{region}.npy"
 FMT_FILENAME_AWS_MASK = "{out_dir}/aws_mask-{am_pm}-{dates_str}-{region}.npy"
 
-SNOW_KEY = "snow"
-SOLAR_KEY = "solar"
 TB_KEY = "tb"
 ERA_FT_KEY = "era_ft"
 ERA_T2M_KEY = "era_t2m"
@@ -204,9 +200,6 @@ def prep(
     lat_grid,
     am_pm,
     db_path,
-    drop_bad_days,
-    prep_tb,
-    missing_cutoff=0.6,
     periodic=True,
 ):
     dates = np.array(get_dates(start_date, end_date))
@@ -216,33 +209,10 @@ def prep(
     retrievel = RETRIEVAL_MIN if am_pm == "AM" else RETRIEVAL_MAX
 
     tb = data[TB_KEY]
-    if drop_bad_days:
-        # Filter out indices where specified ratio of Tb data is missing
-        good_idxs = [
-            i for i in range(n) if get_missing_ratio(tb[i]) < missing_cutoff
-        ]
-        bad_idxs = [
-            i for i in range(n) if get_missing_ratio(tb[i]) >= missing_cutoff
-        ]
-    else:
-        good_idxs = list(range(n))
-        bad_idxs = []
-    n = len(good_idxs)
-    dropped_dates = dates[bad_idxs]
-    dates = dates[good_idxs]
-
     aws_data = dh.get_aws_data(
         dates, db_path, land_mask, lon_grid, lat_grid, retrievel
     )
-    if SNOW_KEY in data:
-        snow = data[SNOW_KEY][good_idxs]
-        snow = np.round(
-            fill_gaps(snow, missing_func=is_neg_one, periodic=periodic)
-        )
-    if SOLAR_KEY in data:
-        solar = data[SOLAR_KEY][good_idxs]
-    tb = tb[good_idxs]
-    era_ft = data[ERA_FT_KEY][good_idxs]
+    era_ft = data[ERA_FT_KEY]
     ft_label = era_ft.copy()
     aws_mask = np.zeros((n, *lat_grid.shape), dtype=bool)
     for i in tqdm.tqdm(range(n), ncols=80, desc="FT Label"):
@@ -252,9 +222,7 @@ def prep(
         ft_label[i, 0].ravel()[ifzn] = 1
         ft_label[i, 1].ravel()[ithw] = 1
     if ERA_T2M_KEY in data:
-        era_t2m = data[ERA_T2M_KEY][good_idxs]
-    if prep_tb:
-        tb = fill_gaps(tb, periodic=periodic)
+        era_t2m = data[ERA_T2M_KEY]
 
     ss = start_date.year if is_first_day_of_year(start_date) else start_date
     es = end_date.year if is_last_day_of_year(end_date) else end_date
@@ -264,12 +232,7 @@ def prep(
         FMT_FILENAME_FT_LABEL: ft_label,
         FMT_FILENAME_AWS_MASK: aws_mask,
     }
-    if prep_tb:
-        out_dict[FMT_FILENAME_TB] = tb
-    if SNOW_KEY in data:
-        out_dict[FMT_FILENAME_SNOW] = snow
-    if SOLAR_KEY in data:
-        out_dict[FMT_FILENAME_SOLAR] = solar
+    out_dict[FMT_FILENAME_TB] = tb
     if ERA_T2M_KEY in data:
         out_dict[FMT_FILENAME_ERA_T2M] = era_t2m
     save_data(out_dict, out_dir, dates_str, region, pass_, am_pm)
@@ -279,11 +242,8 @@ def prep(
         overwrite=True,
     )
     with open(f"{out_dir}/date_map-{dates_str}-{region}.csv", "w") as fd:
-        for i, d in zip(good_idxs, dates):
+        for i, d in zip(range(n), dates):
             fd.write(f"{i},{d}\n")
-    with open(f"{out_dir}/dropped_dates-{dates_str}-{region}.csv", "w") as fd:
-        for d in dropped_dates:
-            fd.write(f"{d}\n")
 
 
 def is_first_day_of_year(date):
@@ -356,33 +316,6 @@ def build_training_command_parser(p):
         help=f"Path to AWS database file. Default: '{DEFAULT_DB}'",
     )
     p.add_argument(
-        "-b",
-        "--drop_bad_days",
-        action="store_true",
-        help="Drop days with large amounts of missing data",
-    )
-    p.add_argument(
-        "-t",
-        "--prep_tb",
-        action="store_true",
-        help=(
-            "Prepare Tb data. This is handled differently. tb data is still"
-            " loaded but no gap filling is done and the result is not saved."
-        ),
-    )
-    p.add_argument(
-        "-s",
-        "--prep_solar",
-        action="store_true",
-        help="Prepare total daily solar data.",
-    )
-    p.add_argument(
-        "-n",
-        "--prep_snow",
-        action="store_true",
-        help="Prepare snow cover data.",
-    )
-    p.add_argument(
         "-e",
         "--prep_era_t2m",
         action="store_true",
@@ -439,11 +372,7 @@ def prep_data(
     am_pm,
     dest="../data/cleaned",
     db_path="../data/dbs/wmo_gsod.db",
-    prep_tb=True,
-    prep_solar=False,
-    prep_snow=False,
     prep_era_t2m=False,
-    drop_bad_days=False,
 ):
     if isinstance(start_date, int):
         start_date = _parse_date_arg(str(start_date))
@@ -461,42 +390,6 @@ def prep_data(
     land_mask = ~water_mask
 
     data = {}
-    # Snow
-    if prep_snow:
-        print("Loading snow cover")
-        snow = dh.dataset_to_array(
-            torch.utils.data.ConcatDataset(
-                trim_datasets_to_dates(
-                    [
-                        dh.NpyDataset(
-                            f"../data/snow/snow_cover_{y}.npy", transform
-                        )
-                        for y in range(start_date.year, end_date.year + 1)
-                    ],
-                    start_date,
-                    end_date,
-                )
-            )
-        )
-        data[SNOW_KEY] = snow
-    # Solar
-    if prep_solar:
-        print("Loading solar")
-        solar = dh.dataset_to_array(
-            torch.utils.data.ConcatDataset(
-                trim_datasets_to_dates(
-                    [
-                        dh.NpyDataset(
-                            f"../data/solar/solar_rad-daily-{y}.npy", transform
-                        )
-                        for y in range(start_date.year, end_date.year + 1)
-                    ],
-                    start_date,
-                    end_date,
-                )
-            )
-        )
-        data[SOLAR_KEY] = solar
     # Tb
     # TODO: caching
     path_groups = [
@@ -568,8 +461,6 @@ def prep_data(
         out_lat,
         am_pm,
         db_path,
-        drop_bad_days,
-        prep_tb,
     )
 
 
