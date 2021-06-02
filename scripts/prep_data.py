@@ -381,7 +381,6 @@ def prep_data(
     assert start_date < end_date, "Start date must come before end date"
 
     transform = REGION_TO_TRANS[region]
-    pass_ = "D" if am_pm == "AM" else "A"
     out_lon, out_lat = [
         transform(i) for i in eg.v1_get_full_grid_lonlat(eg.ML)
     ]
@@ -391,17 +390,15 @@ def prep_data(
 
     data = {}
     # Tb
-    # TODO: caching
-    path_groups = [
-        glob.glob(f"../data/tb/{y}/tb_{y}_F*_ML_{pass_}*.nc")
+    tbdir = f"../data/tb/gapfilled_{region}_{am_pm.lower()}"
+    paths = [
+        f"{tbdir}/tb_{y}_{am_pm}_{region}_filled.npy"
         for y in range(start_date.year, end_date.year + 1)
     ]
-    print("Loading tb")
-    tb = dh.dataset_to_array(
-        trim_datasets_to_dates(
-            build_tb_ds(path_groups, transform), start_date, end_date
-        )
-    )
+    print("Loading gap-filled tb")
+    dss = [dh.NpyDataset(p) for p in paths]
+    tb = torch.utils.data.ConcatDataset(dss)
+    tb = dh.dataset_to_array(trim_datasets_to_dates(tb, start_date, end_date))
     data[TB_KEY] = tb
     # ERA5 FT
     # TODO: caching
