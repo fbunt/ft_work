@@ -227,6 +227,8 @@ def prep(
     ss = start_date.year if is_first_day_of_year(start_date) else start_date
     es = end_date.year if is_last_day_of_year(end_date) else end_date
     dates_str = f"{ss}_{es}"
+    if ss == es:
+        dates_str = f"{ss}"
     out_dict = {
         FMT_FILENAME_ERA_FT: era_ft,
         FMT_FILENAME_FT_LABEL: ft_label,
