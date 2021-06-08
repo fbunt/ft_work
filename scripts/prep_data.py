@@ -226,7 +226,7 @@ def prep(
 
     ss = start_date.year if is_first_day_of_year(start_date) else start_date
     es = end_date.year if is_last_day_of_year(end_date) else end_date
-    dates_str = f"{ss}_{es}"
+    dates_str = f"{ss}-{es}"
     if ss == es:
         dates_str = f"{ss}"
     out_dict = {
