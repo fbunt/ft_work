@@ -78,11 +78,11 @@ def process_parallel():
         # AM NH FTESDR
         ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", AM, NH, CC_MASK, "../data/val_new/ftesdr_val_nh_am.csv"),
         # PM NH FTESDR
-        ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", PM, NH, CC_MASK, "../data/val_new/ftesdr_val_nh_pm.csv"),
+        ("../data/ft_esdr/ft_esdr_gl_pm_1988-2018.npy", PM, NH, CC_MASK, "../data/val_new/ftesdr_val_nh_pm.csv"),
         # AM SH FTESDR
         ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", AM, SH, CC_MASK, "../data/val_new/ftesdr_val_sh_am.csv"),
         # PM SH FTESDR
-        ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", PM, SH, CC_MASK, "../data/val_new/ftesdr_val_sh_pm.csv"),
+        ("../data/ft_esdr/ft_esdr_gl_pm_1988-2018.npy", PM, SH, CC_MASK, "../data/val_new/ftesdr_val_sh_pm.csv"),
     ]
 
     with mp.Pool(processes=len(arg_list)) as pool:
