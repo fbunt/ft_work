@@ -347,7 +347,13 @@ def validate_bounded(
         else:
             results = np.zeros(len(grid_stack))
         for j, (d, g, flat_valid_idxs) in enumerate(it):
-            vpoints, vtemps = pf.fetch_bounded(d, geo_bounds)
+            res = pf.fetch_bounded(d, geo_bounds)
+            if res is not None:
+                vpoints, vtemps = res
+            else:
+                if return_raw_comp_results:
+                    results.append(np.zeros((2, 2)))
+                continue
             vft = ft_model_zero_threshold(vtemps)
             idxs, values = get_nearest_flat_idxs_and_values(
                 tree, vpoints, vft, flat_valid_idxs
@@ -363,7 +369,11 @@ def validate_bounded(
         agree_grid = np.zeros(grid_stack[0].shape[-2:])
         tot_grid = np.zeros_like(agree_grid)
         for j, (d, g, flat_valid_idxs) in enumerate(it):
-            vpoints, vtemps = pf.fetch_bounded(d, geo_bounds)
+            res = pf.fetch_bounded(d, geo_bounds)
+            if res is not None:
+                vpoints, vtemps = res
+            else:
+                continue
             vft = ft_model_zero_threshold(vtemps)
             idxs, values = get_nearest_flat_idxs_and_values(
                 tree, vpoints, vft, flat_valid_idxs
