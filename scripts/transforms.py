@@ -23,6 +23,10 @@ GL_VIEW_TRANS = gl_view
 AK_VIEW_TRANS = ViewCopyTransform(15, 62, 12, 191)
 # Copies the northern hemisphere
 NH_VIEW_TRANS = get_transform_from_min_lat(0)
+# Copies the southern hemisphere
+SH_VIEW_TRANS = ViewCopyTransform(
+    _EASE_LAT.shape[0] // 2, _EASE_LAT.shape[0] - 1, 0, _EASE_LAT.shape[1] - 1
+)
 # Copies everything North of 20 N
 N20_VIEW_TRANS = get_transform_from_min_lat(20)
 # Copies everything at and above 45 N
@@ -38,6 +42,7 @@ N20 = "n20"
 N45 = "n45"
 N45W = "n45w"
 NH = "nh"
+SH = "sh"
 REGION_CODES = frozenset((AK, GL, N20, N45, N45W, NH))
 REGION_TO_TRANS = {
     AK: AK_VIEW_TRANS,
@@ -46,4 +51,5 @@ REGION_TO_TRANS = {
     N45: N45_VIEW_TRANS,
     N45W: N45W_VIEW_TRANS,
     NH: NH_VIEW_TRANS,
+    SH: SH_VIEW_TRANS,
 }
