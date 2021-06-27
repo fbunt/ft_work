@@ -66,19 +66,15 @@ def process_parallel():
         # AM NH
         ("../data/gl_am_pred.npy", AM, NH, CC_MASK, "../data/val_new/pred_val_nh_am_cc.csv"),
         ("../data/gl_am_pred.npy", AM, NH, LAND_MASK, "../data/val_new/pred_val_nh_am_full.csv"),
-        ("../data/gl_am_pred.npy", AM, NH, INV_CC_MASK, "../data/val_new/pred_val_nh_am_non_cc.csv"),
         # PM NH
         ("../data/gl_pm_pred.npy", PM, NH, CC_MASK, "../data/val_new/pred_val_nh_pm_cc.csv"),
         ("../data/gl_pm_pred.npy", PM, NH, LAND_MASK, "../data/val_new/pred_val_nh_pm_full.csv"),
-        ("../data/gl_pm_pred.npy", PM, NH, INV_CC_MASK, "../data/val_new/pred_val_nh_pm_non_cc.csv"),
         # AM SH
         ("../data/gl_am_pred.npy", AM, SH, CC_MASK, "../data/val_new/pred_val_sh_am_cc.csv"),
         ("../data/gl_am_pred.npy", AM, SH, LAND_MASK, "../data/val_new/pred_val_sh_am_full.csv"),
-        ("../data/gl_am_pred.npy", AM, SH, INV_CC_MASK, "../data/val_new/pred_val_sh_am_non_cc.csv"),
         # PM SH
         ("../data/gl_pm_pred.npy", PM, SH, CC_MASK, "../data/val_new/pred_val_sh_pm_cc.csv"),
         ("../data/gl_pm_pred.npy", PM, SH, LAND_MASK, "../data/val_new/pred_val_sh_pm_full.csv"),
-        ("../data/gl_pm_pred.npy", PM, SH, INV_CC_MASK, "../data/val_new/pred_val_sh_pm_non_cc.csv"),
         # AM NH FTESDR
         ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", AM, NH, CC_MASK, "../data/val_new/ftesdr_val_nh_am.csv"),
         # PM NH FTESDR
@@ -96,22 +92,16 @@ def process_parallel():
             pass
     am_nh_cc = pd.read_csv("../data/val_new/pred_val_nh_am_cc.csv", index_col=0, parse_dates=True)
     am_nh_fu = pd.read_csv("../data/val_new/pred_val_nh_am_full.csv", index_col=0, parse_dates=True)
-    am_nh_nc = pd.read_csv("../data/val_new/pred_val_nh_am_non_cc.csv", index_col=0, parse_dates=True)
     pm_nh_cc = pd.read_csv("../data/val_new/pred_val_nh_pm_cc.csv", index_col=0, parse_dates=True)
     pm_nh_fu = pd.read_csv("../data/val_new/pred_val_nh_pm_full.csv", index_col=0, parse_dates=True)
-    pm_nh_nc = pd.read_csv("../data/val_new/pred_val_nh_pm_non_cc.csv", index_col=0, parse_dates=True)
     am_sh_cc = pd.read_csv("../data/val_new/pred_val_sh_am_cc.csv", index_col=0, parse_dates=True)
     am_sh_fu = pd.read_csv("../data/val_new/pred_val_sh_am_full.csv", index_col=0, parse_dates=True)
-    am_sh_nc = pd.read_csv("../data/val_new/pred_val_sh_am_non_cc.csv", index_col=0, parse_dates=True)
     pm_sh_cc = pd.read_csv("../data/val_new/pred_val_sh_pm_cc.csv", index_col=0, parse_dates=True)
     pm_sh_fu = pd.read_csv("../data/val_new/pred_val_sh_pm_full.csv", index_col=0, parse_dates=True)
-    pm_sh_nc = pd.read_csv("../data/val_new/pred_val_sh_pm_non_cc.csv", index_col=0, parse_dates=True)
     am_gl_cc = am_nh_cc + am_sh_cc
     pm_gl_cc = pm_nh_cc + pm_sh_cc
     am_gl_fu = am_nh_fu + am_sh_fu
     pm_gl_fu = pm_nh_fu + pm_sh_fu
-    am_gl_nc = am_nh_nc + am_sh_nc
-    pm_gl_nc = pm_nh_nc + pm_sh_nc
     # ftesdr
     am_nh_ft = pd.read_csv("../data/val_new/ftesdr_val_nh_am.csv", index_col=0, parse_dates=True)
     pm_nh_ft = pd.read_csv("../data/val_new/ftesdr_val_nh_pm.csv", index_col=0, parse_dates=True)
@@ -126,39 +116,27 @@ def process_parallel():
         am_nh_cc = pd.concat({k: am_nh_cc}, names=[n], axis=1)
     for k, n in zip(["AM", "full", "nh", "pred"], names):
         am_nh_fu = pd.concat({k: am_nh_fu}, names=[n], axis=1)
-    for k, n in zip(["AM", "non_cc", "nh", "pred"], names):
-        am_nh_nc = pd.concat({k: am_nh_nc}, names=[n], axis=1)
     for k, n in zip(["PM", "cc", "nh", "pred"], names):
         pm_nh_cc = pd.concat({k: pm_nh_cc}, names=[n], axis=1)
     for k, n in zip(["PM", "full", "nh", "pred"], names):
         pm_nh_fu = pd.concat({k: pm_nh_fu}, names=[n], axis=1)
-    for k, n in zip(["PM", "non_cc", "nh", "pred"], names):
-        pm_nh_nc = pd.concat({k: pm_nh_nc}, names=[n], axis=1)
     for k, n in zip(["AM", "cc", "sh", "pred"], names):
         am_sh_cc = pd.concat({k: am_sh_cc}, names=[n], axis=1)
     for k, n in zip(["AM", "full", "sh", "pred"], names):
         am_sh_fu = pd.concat({k: am_sh_fu}, names=[n], axis=1)
-    for k, n in zip(["AM", "non_cc", "sh", "pred"], names):
-        am_sh_nc = pd.concat({k: am_sh_nc}, names=[n], axis=1)
     for k, n in zip(["PM", "cc", "sh", "pred"], names):
         pm_sh_cc = pd.concat({k: pm_sh_cc}, names=[n], axis=1)
     for k, n in zip(["PM", "full", "sh", "pred"], names):
         pm_sh_fu = pd.concat({k: pm_sh_fu}, names=[n], axis=1)
-    for k, n in zip(["PM", "non_cc", "sh", "pred"], names):
-        pm_sh_nc = pd.concat({k: pm_sh_nc}, names=[n], axis=1)
 
     for k, n in zip(["AM", "cc", "gl", "pred"], names):
         am_gl_cc = pd.concat({k: am_gl_cc}, names=[n], axis=1)
     for k, n in zip(["AM", "full", "gl", "pred"], names):
-        pm_gl_cc = pd.concat({k: pm_gl_cc}, names=[n], axis=1)
-    for k, n in zip(["AM", "non_cc", "gl", "pred"], names):
-        am_gl_fu = pd.concat({k: am_gl_fu}, names=[n], axis=1)
-    for k, n in zip(["PM", "cc", "gl", "pred"], names):
         pm_gl_fu = pd.concat({k: pm_gl_fu}, names=[n], axis=1)
+    for k, n in zip(["PM", "cc", "gl", "pred"], names):
+        pm_gl_cc = pd.concat({k: pm_gl_cc}, names=[n], axis=1)
     for k, n in zip(["PM", "full", "gl", "pred"], names):
-        am_gl_nc = pd.concat({k: am_gl_nc}, names=[n], axis=1)
-    for k, n in zip(["PM", "non_cc", "gl", "pred"], names):
-        pm_gl_nc = pd.concat({k: pm_gl_nc}, names=[n], axis=1)
+        am_gl_fu = pd.concat({k: am_gl_fu}, names=[n], axis=1)
 
     for k, n in zip(["AM", "cc", "nh", "esdr"], names):
         am_nh_ft = pd.concat({k: am_nh_ft}, names=[n], axis=1)
@@ -177,20 +155,14 @@ def process_parallel():
     df = df.merge(pm_gl_fu, left_index=True, right_index=True)
     df = df.merge(am_gl_cc, left_index=True, right_index=True)
     df = df.merge(pm_gl_cc, left_index=True, right_index=True)
-    df = df.merge(am_gl_nc, left_index=True, right_index=True)
-    df = df.merge(pm_gl_nc, left_index=True, right_index=True)
     df = df.merge(am_nh_fu, left_index=True, right_index=True)
     df = df.merge(pm_nh_fu, left_index=True, right_index=True)
     df = df.merge(am_nh_cc, left_index=True, right_index=True)
     df = df.merge(pm_nh_cc, left_index=True, right_index=True)
-    df = df.merge(am_nh_nc, left_index=True, right_index=True)
-    df = df.merge(pm_nh_nc, left_index=True, right_index=True)
     df = df.merge(am_sh_fu, left_index=True, right_index=True)
     df = df.merge(pm_sh_fu, left_index=True, right_index=True)
     df = df.merge(am_sh_cc, left_index=True, right_index=True)
     df = df.merge(pm_sh_cc, left_index=True, right_index=True)
-    df = df.merge(am_sh_nc, left_index=True, right_index=True)
-    df = df.merge(pm_sh_nc, left_index=True, right_index=True)
 
     df = df.merge(am_nh_ft, left_index=True, right_index=True)
     df = df.merge(pm_nh_ft, left_index=True, right_index=True)
