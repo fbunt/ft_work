@@ -83,15 +83,15 @@ def process_parallel():
         ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", AM, NH, CC_MASK, "../data/val_new/ftesdr_val_nh_am.csv"),
         # PM NH FTESDR
         ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", PM, NH, CC_MASK, "../data/val_new/ftesdr_val_nh_pm.csv"),
-        # AM NH FTESDR
+        # AM SH FTESDR
         ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", AM, SH, CC_MASK, "../data/val_new/ftesdr_val_sh_am.csv"),
-        # PM NH FTESDR
+        # PM SH FTESDR
         ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", PM, SH, CC_MASK, "../data/val_new/ftesdr_val_sh_pm.csv"),
     ]
 
     with mp.Pool(processes=len(arg_list)) as pool:
         for _ in tqdm.tqdm(
-            pool.imap_unordered(worker, arg_list), cols=80, total=len(arg_list)
+            pool.imap_unordered(worker, arg_list), ncols=80, total=len(arg_list)
         ):
             pass
     am_nh_cc = pd.read_csv("../data/val_new/pred_val_nh_am_cc.csv", index_col=0, parse_dates=True)
