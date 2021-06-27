@@ -471,7 +471,10 @@ def validate_against_aws_db(
         ag = tn + tp
         dis = fn + fp
         tot = cm.sum()
-        acc = ag / tot
+        if tot > 0:
+            acc = ag / tot
+        else:
+            acc = 0
         df.append([acc, ag, dis, tn, fn, fp, tp, tot])
     df = pd.DataFrame(
         df,
