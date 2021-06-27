@@ -433,13 +433,13 @@ def validate_against_aws_db_georef(
         return_raw_comp_results=False,
         show_progress=True,
         variable_mask=False,
-        into_grid=True
+        into_grid=True,
     )
     return agree, tot
 
 
 def validate_against_aws_db(
-    grid_stack, db, dates, lon_grid, lat_grid, valid_mask, am_pm
+    grid_stack, db, dates, lon_grid, lat_grid, valid_mask, am_pm, progress=True
 ):
     retrieval = am_pm_to_retrieval(am_pm)
     pf = WMOValidationPointFetcher(db, retrieval)
@@ -451,7 +451,7 @@ def validate_against_aws_db(
         lat_grid,
         valid_mask,
         return_raw_comp_results=True,
-        show_progress=True,
+        show_progress=progress,
         variable_mask=False,
     )
     df = []
