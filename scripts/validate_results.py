@@ -64,27 +64,27 @@ AM, PM = "AM", "PM"
 def process_parallel():
     arg_list = [
         # AM NH
-        ("../data/gl_pred.npy", AM, NH, CC_MASK, "../data/val_new/pred_val_nh_am_cc.csv"),
-        ("../data/gl_pred.npy", AM, NH, LAND_MASK, "../data/val_new/pred_val_nh_am_full.csv"),
-        ("../data/gl_pred.npy", AM, NH, INV_CC_MASK, "../data/val_new/pred_val_nh_am_non_cc.csv"),
+        ("../data/gl_am_pred.npy", AM, NH, CC_MASK, "../data/val_new/pred_val_nh_am_cc.csv"),
+        ("../data/gl_am_pred.npy", AM, NH, LAND_MASK, "../data/val_new/pred_val_nh_am_full.csv"),
+        ("../data/gl_am_pred.npy", AM, NH, INV_CC_MASK, "../data/val_new/pred_val_nh_am_non_cc.csv"),
         # PM NH
-        ("../data/gl_pred.npy", PM, NH, CC_MASK, "../data/val_new/pred_val_nh_pm_cc.csv"),
-        ("../data/gl_pred.npy", PM, NH, LAND_MASK, "../data/val_new/pred_val_nh_pm_full.csv"),
-        ("../data/gl_pred.npy", PM, NH, INV_CC_MASK, "../data/val_new/pred_val_nh_pm_non_cc.csv"),
+        ("../data/gl_pm_pred.npy", PM, NH, CC_MASK, "../data/val_new/pred_val_nh_pm_cc.csv"),
+        ("../data/gl_pm_pred.npy", PM, NH, LAND_MASK, "../data/val_new/pred_val_nh_pm_full.csv"),
+        ("../data/gl_pm_pred.npy", PM, NH, INV_CC_MASK, "../data/val_new/pred_val_nh_pm_non_cc.csv"),
         # AM SH
-        ("../data/gl_pred.npy", AM, SH, CC_MASK, "../data/val_new/pred_val_sh_am_cc.csv"),
-        ("../data/gl_pred.npy", AM, SH, LAND_MASK, "../data/val_new/pred_val_sh_am_full.csv"),
-        ("../data/gl_pred.npy", AM, SH, INV_CC_MASK, "../data/val_new/pred_val_sh_am_non_cc.csv"),
+        ("../data/gl_am_pred.npy", AM, SH, CC_MASK, "../data/val_new/pred_val_sh_am_cc.csv"),
+        ("../data/gl_am_pred.npy", AM, SH, LAND_MASK, "../data/val_new/pred_val_sh_am_full.csv"),
+        ("../data/gl_am_pred.npy", AM, SH, INV_CC_MASK, "../data/val_new/pred_val_sh_am_non_cc.csv"),
         # PM SH
-        ("../data/gl_pred.npy", PM, SH, CC_MASK, "../data/val_new/pred_val_sh_pm_cc.csv"),
-        ("../data/gl_pred.npy", PM, SH, LAND_MASK, "../data/val_new/pred_val_sh_pm_full.csv"),
-        ("../data/gl_pred.npy", PM, SH, INV_CC_MASK, "../data/val_new/pred_val_sh_pm_non_cc.csv"),
+        ("../data/gl_pm_pred.npy", PM, SH, CC_MASK, "../data/val_new/pred_val_sh_pm_cc.csv"),
+        ("../data/gl_pm_pred.npy", PM, SH, LAND_MASK, "../data/val_new/pred_val_sh_pm_full.csv"),
+        ("../data/gl_pm_pred.npy", PM, SH, INV_CC_MASK, "../data/val_new/pred_val_sh_pm_non_cc.csv"),
         # AM NH FTESDR
-        ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", PM, NH, CC_MASK, "../data/val_new/ftesdr_val_nh_am.csv"),
+        ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", AM, NH, CC_MASK, "../data/val_new/ftesdr_val_nh_am.csv"),
         # PM NH FTESDR
         ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", PM, NH, CC_MASK, "../data/val_new/ftesdr_val_nh_pm.csv"),
         # AM NH FTESDR
-        ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", PM, SH, CC_MASK, "../data/val_new/ftesdr_val_sh_am.csv"),
+        ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", AM, SH, CC_MASK, "../data/val_new/ftesdr_val_sh_am.csv"),
         # PM NH FTESDR
         ("../data/ft_esdr/ft_esdr_gl_am_1988-2018.npy", PM, SH, CC_MASK, "../data/val_new/ftesdr_val_sh_pm.csv"),
     ]
