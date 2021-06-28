@@ -58,6 +58,10 @@ def worker(args):
     df.to_csv(out_path)
 
 
+def set_acc_basic(df):
+    df.acc = df.agree / df.total
+
+
 AM, PM = "AM", "PM"
 
 
@@ -102,6 +106,10 @@ def process_parallel():
     pm_gl_cc = pm_nh_cc + pm_sh_cc
     am_gl_fu = am_nh_fu + am_sh_fu
     pm_gl_fu = pm_nh_fu + pm_sh_fu
+    set_acc_basic(am_gl_cc)
+    set_acc_basic(pm_gl_cc)
+    set_acc_basic(am_gl_fu)
+    set_acc_basic(pm_gl_fu)
     # ftesdr
     am_nh_ft = pd.read_csv("../data/val_new/ftesdr_val_nh_am.csv", index_col=0, parse_dates=True)
     pm_nh_ft = pd.read_csv("../data/val_new/ftesdr_val_nh_pm.csv", index_col=0, parse_dates=True)
@@ -109,7 +117,8 @@ def process_parallel():
     pm_sh_ft = pd.read_csv("../data/val_new/ftesdr_val_sh_pm.csv", index_col=0, parse_dates=True)
     am_gl_ft = am_nh_ft + am_sh_ft
     pm_gl_ft = pm_nh_ft + pm_sh_ft
-
+    set_acc_basic(am_gl_ft)
+    set_acc_basic(pm_gl_ft)
 
     names = ["time", "region", "subset", "dataset"]
     for k, n in zip(["AM", "cc", "nh", "pred"], names):
@@ -132,20 +141,20 @@ def process_parallel():
     for k, n in zip(["AM", "cc", "gl", "pred"], names):
         am_gl_cc = pd.concat({k: am_gl_cc}, names=[n], axis=1)
     for k, n in zip(["AM", "full", "gl", "pred"], names):
-        pm_gl_fu = pd.concat({k: pm_gl_fu}, names=[n], axis=1)
+        am_gl_fu = pd.concat({k: am_gl_fu}, names=[n], axis=1)
     for k, n in zip(["PM", "cc", "gl", "pred"], names):
         pm_gl_cc = pd.concat({k: pm_gl_cc}, names=[n], axis=1)
     for k, n in zip(["PM", "full", "gl", "pred"], names):
-        am_gl_fu = pd.concat({k: am_gl_fu}, names=[n], axis=1)
+        pm_gl_fu = pd.concat({k: pm_gl_fu}, names=[n], axis=1)
 
     for k, n in zip(["AM", "cc", "nh", "esdr"], names):
         am_nh_ft = pd.concat({k: am_nh_ft}, names=[n], axis=1)
     for k, n in zip(["PM", "cc", "nh", "esdr"], names):
-        pm_gl_ft = pd.concat({k: pm_nh_ft}, names=[n], axis=1)
+        pm_nh_ft = pd.concat({k: pm_nh_ft}, names=[n], axis=1)
     for k, n in zip(["AM", "cc", "sh", "esdr"], names):
         am_sh_ft = pd.concat({k: am_sh_ft}, names=[n], axis=1)
     for k, n in zip(["PM", "cc", "sh", "esdr"], names):
-        pm_gl_ft = pd.concat({k: pm_nh_ft}, names=[n], axis=1)
+        pm_sh_ft = pd.concat({k: pm_sh_ft}, names=[n], axis=1)
     for k, n in zip(["AM", "cc", "gl", "esdr"], names):
         am_gl_ft = pd.concat({k: am_gl_ft}, names=[n], axis=1)
     for k, n in zip(["PM", "cc", "gl", "esdr"], names):
